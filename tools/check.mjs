@@ -4,6 +4,7 @@
 // 2. Every file in an app's SHELL list exists.
 // 3. wrangler.jsonc keeps preview links and the workers.dev address off.
 // 4. The Worker's tests pass (node --test 'worker/test/*.test.mjs').
+// 5. evals/js/catalogue.js and forms.js match a fresh build from apmes/.
 // Exits 1 on any failure.
 
 import fs from 'node:fs';
@@ -33,7 +34,7 @@ for (const app of apps) {
 
   const shellSrc = sw.match(/const SHELL = \[([\s\S]*?)\];/)?.[1];
   if (!shellSrc) { fail(`${swPath}: no SHELL list`); continue; }
-  const shell = [...shellSrc.matchAll(/'([^']+)'/g)].map(m => m[1]).filter(f => f !== './')
+  const shell = [...shellSrc.matchAll(/'([^']+)'/g)].map(m => m[1]).filter(f => f !== './' && !/^https?:/.test(f))   // the kit's files are on design.anawj.com
     .map(f => path.posix.normalize(`${app}/${f}`));
   for (const f of shell) if (!fs.existsSync(path.join(ROOT, f))) fail(`${swPath}: SHELL lists ${f}, which doesn't exist`);
 }
@@ -50,8 +51,11 @@ if (fs.existsSync(path.join(ROOT, 'worker/test'))) {
   catch (e) { fail('worker tests failed:\n' + String(e.stdout || e.message).split('\n').filter(l => /not ok|Error|expected|actual/.test(l)).slice(0, 10).join('\n')); }
 }
 
+try { execFileSync(process.execPath, [path.join(ROOT, 'evals/tools/build-data.mjs'), '--check'], { stdio: ['ignore', 'ignore', 'pipe'] }); }
+catch (e) { fail(String(e.stderr || e.message).trim()); }
+
 if (errors.length) {
   console.error(`check: ${errors.length} problem(s)\n- ` + errors.join('\n- '));
   process.exit(1);
 }
-console.log(`check: ok (${apps.join(', ') || 'no apps'}; worker tests pass)`);
+console.log(`check: ok (${apps.join(', ') || 'no apps'}; worker tests pass; generated files up to date)`);
