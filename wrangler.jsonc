@@ -18,8 +18,8 @@
   "preview_urls": false,
   "workers_dev": false,
   "keep_vars": true,
-  // apmes.anawj.com moves here at the cut-over (repo split, step S9): until then the live address stays on the old
-  // Worker, so this one has no address and is not deployed. Then: "routes": [{ "pattern": "apmes.anawj.com", "custom_domain": true }]
+  // the live address (moved here from anawj-site's Worker in the repo split, 21 Oct 2026)
+  "routes": [{ "pattern": "apmes.anawj.com", "custom_domain": true }],
   // the guest passcode sign-in (worker/guest.js): at most 10 tries a minute per address
   // the passcodes changed on the applicants app's Set up page are read from Firestore (worker/guest.js); both values are public
   // (the web API key is restricted by address, access is by the rules)
