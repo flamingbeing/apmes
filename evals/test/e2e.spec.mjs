@@ -3,7 +3,7 @@
 // decline + reassign, validation blocking and no console errors.
 //
 // Needs Playwright (global install is fine) and a static server for the repo root:
-//   http-server /home/user/anawj-site -p 8110 -s &
+//   http-server /home/user/apmes -p 8110 -s &
 //   node evals/test/e2e.spec.mjs            (BASE=http://localhost:8110/evals/ by default)
 // Set PW_PATH to playwright's folder and CHROMIUM to a browser binary if they aren't found.
 

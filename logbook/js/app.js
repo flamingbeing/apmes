@@ -413,8 +413,8 @@ function versionLine() {
 
 // Connect an AI assistant (advanced): the MCP server residents run on their own computer (logbook/mcp/README.md), for
 // Claude Desktop, Claude Code or Codex
-const MCP_README = 'https://github.com/flamingbeing/anawj-site/tree/main/logbook/mcp#readme';
-const MCP_DOWNLOAD = 'https://github.com/flamingbeing/anawj-site/releases/download/logbook-mcp/apmes-logbook.mcpb';
+const MCP_README = 'https://github.com/flamingbeing/apmes/tree/main/logbook/mcp#readme';
+const MCP_DOWNLOAD = 'https://github.com/flamingbeing/apmes/releases/download/logbook-mcp/apmes-logbook.mcpb';
 function connectAiCard() {
   return h('section', { class: 'card' },
     h('h2', {}, 'Connect an AI assistant (advanced)'),
