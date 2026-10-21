@@ -6,5 +6,8 @@ tools
 worker
 node_modules
 *.md
+# ... except the guidebook text the evals app reads
+!apmes/guidebook/*.md
 wrangler.jsonc
 package.json
+.wrangler

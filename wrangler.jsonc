@@ -2,7 +2,7 @@
 // address may see (worker/routes.js). No data and no secrets in this file: settings the Worker needs are set in the
 // Cloudflare dashboard (keep_vars keeps them across deploys).
 {
-  "name": "<repo-name>",
+  "name": "apmes",
   "main": "worker/sites.js",
   "compatibility_date": "2026-10-01",
   "assets": {
@@ -17,7 +17,24 @@
   // no preview link per branch or build, and no *.workers.dev address: only the real addresses serve the apps
   "preview_urls": false,
   "workers_dev": false,
-  "keep_vars": true
-  // add the real addresses here, one per host in worker/routes.js SITES:
-  // "routes": [{ "pattern": "<app>.example.com", "custom_domain": true }]
+  "keep_vars": true,
+  // apmes.anawj.com moves here at the cut-over (repo split, step S9): until then the live address stays on the old
+  // Worker, so this one has no address and is not deployed. Then: "routes": [{ "pattern": "apmes.anawj.com", "custom_domain": true }]
+  // the guest passcode sign-in (worker/guest.js): at most 10 tries a minute per address
+  // the passcodes changed on the applicants app's Set up page are read from Firestore (worker/guest.js); both values are public
+  // (the web API key is restricted by address, access is by the rules)
+  "vars": { "FIREBASE_API_KEY": "AIzaSyDRC7COpi86H0K6oe98XZ8m1sQWJUkP63E", "FIREBASE_PROJECT": "apmes-logbook" },
+  "ratelimits": [{ "name": "GUEST_LIMIT", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }],
+  // Beta (NOTES.md, "Beta"): a second Worker, apmes-beta, deployed from the beta branch by its own Workers Builds
+  // (deploy command `npx wrangler deploy --env beta`). It serves beta-apmes.anawj.com only; the apps there use the
+  // test Firebase project. No vars: the guest sign-in answers on apmes.anawj.com only (vars and ratelimits are not
+  // inherited, so they are listed here).
+  "env": {
+    "beta": {
+      "name": "apmes-beta",
+      "routes": [{ "pattern": "beta-apmes.anawj.com", "custom_domain": true }],
+      "vars": {},
+      "ratelimits": [{ "name": "GUEST_LIMIT", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }]
+    }
+  }
 }

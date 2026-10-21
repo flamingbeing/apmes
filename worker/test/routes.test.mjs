@@ -1,27 +1,53 @@
 // worker/routes.js: which folder each address serves, and what it must never serve. Run: node --test 'worker/test/*.test.mjs'
-// Replace the example host's cases with your own when you edit SITES.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { resolve, SITES } from '../routes.js';
 
-test('a root host serves its folder', () => {
-  assert.deepEqual(resolve('example.example.com', '/'), { file: 'example/' });
-  assert.deepEqual(resolve('example.example.com', '/app.js'), { file: 'example/app.js' });
-  assert.deepEqual(resolve('EXAMPLE.example.com:443', '/'), { file: 'example/' });
-  assert.deepEqual(resolve('example.example.com', '/example'), { redirect: '/example/' });
-  assert.deepEqual(resolve('example.example.com', '/example/sw.js'), { file: 'example/sw.js' });
+const HOSTS = ['apmes.anawj.com', 'beta-apmes.anawj.com'];
+
+test('each app at its own path, on live and beta alike', () => {
+  for (const h of HOSTS) {
+    for (const app of ['logbook', 'evals', 'people', 'applicants', '360']) {
+      assert.deepEqual(resolve(h, `/${app}/`), { file: `${app}/` }, h);
+      assert.deepEqual(resolve(h, `/${app}`), { redirect: `/${app}/` }, h);
+    }
+    assert.deepEqual(resolve(h, '/logbook/js/app.js'), { file: 'logbook/js/app.js' });
+    assert.deepEqual(resolve(h.toUpperCase() + ':443', '/evals/'), { file: 'evals/' });
+    assert.deepEqual(resolve(h, '/apmes/guidebook/dops-expectations.md'), { file: 'apmes/guidebook/dops-expectations.md' });
+  }
+});
+
+test('only the guidebook of apmes/, and nothing at the root', () => {
+  for (const h of HOSTS) {
+    assert.deepEqual(resolve(h, '/apmes/originals/x.pdf'), { notFound: true }, h);
+    assert.deepEqual(resolve(h, '/'), { notFound: true }, h);
+    assert.deepEqual(resolve(h, '/worker/sites.js'), { notFound: true }, h);
+    assert.deepEqual(resolve(h, '/wrangler.jsonc'), { notFound: true }, h);
+  }
+});
+
+test('sign-in helper pages: shared scripts, each host its own init.json', () => {
+  for (const h of HOSTS) assert.deepEqual(resolve(h, '/__/auth/handler'), { file: '__/auth/handler' });
+  assert.deepEqual(resolve('apmes.anawj.com', '/__/firebase/init.json'), { file: 'apmes-auth/firebase/init.json' });
+  assert.deepEqual(resolve('beta-apmes.anawj.com', '/__/firebase/init.json'), { file: 'apmes-auth-beta/firebase/init.json' });
+  const live = JSON.parse(fs.readFileSync(new URL('../../apmes-auth/firebase/init.json', import.meta.url)));
+  const beta = JSON.parse(fs.readFileSync(new URL('../../apmes-auth-beta/firebase/init.json', import.meta.url)));
+  assert.equal(live.authDomain, 'apmes.anawj.com');
+  assert.equal(beta.authDomain, 'beta-apmes.anawj.com');
+  assert.notEqual(live.projectId, beta.projectId, 'beta signs in to the test project');
 });
 
 test('unknown hosts serve nothing; localhost serves the repo', () => {
-  assert.deepEqual(resolve('x.workers.dev', '/example/'), { notFound: true });
-  assert.deepEqual(resolve('other.example.com', '/'), { notFound: true });
-  assert.deepEqual(resolve('localhost:8787', '/example/'), { file: 'example/' });
+  assert.deepEqual(resolve('x.workers.dev', '/logbook/'), { notFound: true });
+  assert.deepEqual(resolve('anawj.com', '/logbook/'), { notFound: true });
+  assert.deepEqual(resolve('localhost:8787', '/logbook/'), { file: 'logbook/' });
 });
 
 test('nothing escapes its folder', () => {
-  for (const p of ['/../wrangler.jsonc', '/%2e%2e/x', '/a%2fb', '/a\\b', '/./x'])
-    assert.deepEqual(resolve('example.example.com', p), { notFound: true }, p);
+  for (const h of Object.keys(SITES))
+    for (const p of ['/logbook/../wrangler.jsonc', '/logbook/%2e%2e/x', '/logbook/a%2fb', '/logbook/a\\b', '/logbook/./x'])
+      assert.deepEqual(resolve(h, p), { notFound: true }, h + p);
 });
 
 test('every folder in SITES exists', () => {

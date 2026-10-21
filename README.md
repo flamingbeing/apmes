@@ -1,18 +1,12 @@
-# public-template
+# apmes
 
-Template for public repositories. Click "Use this template" to start a new repo with these already set up:
+The APMES web apps of the anaesthesia residency programme, all on [apmes.anawj.com](https://apmes.anawj.com/logbook/):
 
-- `.claude/settings.json`: allow rules (git, PR tools, tests) so cloud sessions rarely prompt, and deny-reads for
-  `__/` and `vendor/` to save tokens. It is only read when a session has exactly one repo attached.
-- `AGENTS.md` / `CLAUDE.md`: shared AI instructions skeleton (fill the placeholders).
-- `.claude/skills/quick-save`: cheap end-of-session save.
-- `STATUS.md`, `NOTES.md`: state files the skill updates.
-- `tools/`: `check.mjs` (repo checks + Worker tests; run before merging), `stamp-versions.mjs` (service-worker
-  VERSION per deploy), `proofread.mjs` (page and doc mistakes; `--live` checks the real addresses), `shots.mjs`
-  (phone screenshots by hand).
-- A Cloudflare Worker that serves the apps: `worker/sites.js`, `worker/routes.js` (which folder each address
-  serves), its tests in `worker/test/`, and `wrangler.jsonc` with preview links and workers.dev off.
-- `example/`: a tiny app with a service worker; replace it and update `SITES` in `worker/routes.js`.
+- Case logbook (`logbook/`), assessments (`evals/`), People (`people/`), applicants feedback (`applicants/`), CCC 360
+  (`360/`), and the programme documents they read (`apmes/`).
 
-After creating a repo, in Settings → General → Pull Requests tick "Automatically delete head branches" (settings are
-not copied by templates).
+Static pages served by a Cloudflare Worker (`worker/sites.js`; which folder each address serves is in
+`worker/routes.js`), plus the guest passcode sign-in (`worker/guest.js`). A second Worker serves the `beta` branch at
+beta-apmes.anawj.com against a test Firebase project. Data lives in Firebase; this repo holds only code and made-up
+samples. The NUHS design kit comes from design.anawj.com. Moved here from anawj-site on 21 Oct 2026 (files only, no
+history; the old history stays there). How to work here: [AGENTS.md](AGENTS.md).
