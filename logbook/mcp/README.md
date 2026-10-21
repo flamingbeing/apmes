@@ -38,12 +38,12 @@ Safeguards: nothing is ever deleted (there is no delete tool); complete reflecti
 
 ## Install
 
-**Claude Desktop (easiest):** download **[apmes-logbook.mcpb](https://github.com/flamingbeing/anawj-site/releases/download/logbook-mcp/apmes-logbook.mcpb)** and open it (or drag it onto Claude Desktop's Settings → Extensions), then Install. Nothing else to set up: Claude Desktop brings its own Node.js. The first time you ask about your logbook, a browser window opens to sign in with Google (the same account you use for the logbook); once the page says you are signed in, ask again. If no browser opens, Claude shows the address to open. To update, download and open the file again. The link always gives the latest version (the `logbook-mcp` release, rebuilt on every change by `.github/workflows/logbook-mcpb.yml`).
+**Claude Desktop (easiest):** download **[apmes-logbook.mcpb](https://github.com/flamingbeing/apmes/releases/download/logbook-mcp/apmes-logbook.mcpb)** and open it (or drag it onto Claude Desktop's Settings → Extensions), then Install. Nothing else to set up: Claude Desktop brings its own Node.js. The first time you ask about your logbook, a browser window opens to sign in with Google (the same account you use for the logbook); once the page says you are signed in, ask again. If no browser opens, Claude shows the address to open. To update, download and open the file again. The link always gives the latest version (the `logbook-mcp` release, rebuilt on every change by `.github/workflows/logbook-mcpb.yml`).
 
 **Claude Code or Codex CLI:** you need [Node.js](https://nodejs.org) 20.19 or later and git. Once:
 
 ```sh
-git clone https://github.com/flamingbeing/anawj-site.git && cd anawj-site/logbook/mcp && npm install
+git clone https://github.com/flamingbeing/apmes.git && cd apmes/logbook/mcp && npm install
 ```
 
 then, from that folder:

@@ -29,8 +29,12 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - **Beta** (NOTES.md, "Beta") is opt-in: only when the owner asks, or for sign-in or Firestore-rules changes, point
   `beta` at the branch, send him the beta link and merge on his "ship it". Otherwise PRs merge once Checks pass.
 - **Firestore rules:** `logbook/firestore.rules` covers all five apps. Test with `tools/test-rules.sh` (local emulator,
-  never the live projects). Never loosen rules on real-data collections to pass a test. Until this repo has its own
-  rules deployer, rules changes deploy from the old site repo or by hand (ask the owner).
+  never the live projects). Never loosen rules on real-data collections to pass a test. They **deploy live on merge**
+  (`deploy-firestore-rules.yml`, keyless sign-in to `apmes-logbook`): merge only when Checks are green, confirm the
+  "Deploy Firestore rules" run, and report what the rules now allow or deny. A manual run deploys over live rules: ask
+  the owner.
+- **Logbook MCP extension:** `logbook-mcpb.yml` tests and builds `logbook/mcp` on PRs and puts the `.mcpb` on this
+  repo's `logbook-mcp` release on merge (the app's download link points there).
 - **Generated files:** `evals/js/catalogue.js` and `forms.js`. Edit `apmes/` or `evals/tools/build-data.mjs`, then run
   `node evals/tools/build-data.mjs` (`tools/check.mjs` fails when they are stale).
 - The NUHS design kit (and the shared QR generator, `/v1/feedback/qr.js`) load from `https://design.anawj.com/v1/`

@@ -153,7 +153,7 @@ The rules are checked against the Firestore emulator (needs Java). From a scratc
 ```sh
 mkdir -p /tmp/lbrules && cd /tmp/lbrules
 npm init -y && npm i firebase-tools@13 @firebase/rules-unit-testing@3 firebase@10.12.2
-cp ~/anawj-site/logbook/firestore.rules ~/anawj-site/logbook/test/rules.emulator.mjs .
+cp ~/apmes/logbook/firestore.rules ~/apmes/logbook/test/rules.emulator.mjs .
 echo '{ "firestore": { "rules": "firestore.rules" }, "emulators": { "firestore": { "port": 8085, "host": "127.0.0.1" }, "ui": { "enabled": false } } }' > firebase.json
 npx firebase emulators:exec --only firestore --project demo-logbook "node rules.emulator.mjs"
 ```
