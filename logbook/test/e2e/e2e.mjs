@@ -416,8 +416,9 @@ async function run(label, ctxOpts) {
       assert(/2 selected/.test(await p.locator('.sel-bar').innerText()), 'the bar counts 2');
       await p.locator('.sel-bar').getByRole('button', { name: 'Bulk edit…' }).click();
       await p.locator('dialog[open]').getByRole('button', { name: 'Move to the bin' }).click();
-      await nap(800);
-      assert(/2 reflections moved to the recycle bin/.test(await toastText()), 'toast ' + await toastText());
+      // wait for the toast itself (a fixed pause raced the move under load)
+      await p.waitForFunction(() => /2 reflections moved to the recycle bin/.test(document.getElementById('toast')?.textContent || ''), null, { timeout: 15000 })
+        .catch(async () => assert(false, 'toast ' + await toastText()));
       // (selecting ends after the move; counted with every heading open, as before)
       if (await editBtn().innerText() === 'Select') { await editBtn().click(); await nap(300); }
       assert(await p.locator('li.refl-row').count() === n0 - 2, 'rows not removed');
