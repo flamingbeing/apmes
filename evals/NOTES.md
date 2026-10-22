@@ -94,7 +94,7 @@ Pickers are full-screen **Recent | All | Write-In** lists, with recents remember
 
 ## 4. How the app is built
 
-- **Stack:** vanilla ES modules, no build step, served at `apmes.anawj.com/evals/` by the `anawj-preview` Cloudflare Worker (`SUBDOMAINS.md`); `anawj.com/evals/` (GitHub Pages) forwards there from `index.html`, path, query and `#` kept. The PWA service worker is `evals/sw.js`; its `VERSION` is stamped at deploy (`tools/stamp-versions.mjs`), no hand bump. Each app deletes only its own cache prefix (`evals-*`, `logbook-*`), because the apps share one origin.
+- **Stack:** vanilla ES modules, no build step, served at `apmes.anawj.com/evals/` by the `apmes` Cloudflare Worker (`worker/routes.js`); `anawj.com/evals/` (GitHub Pages) forwards there from `index.html`, path, query and `#` kept. The PWA service worker is `evals/sw.js`; its `VERSION` is stamped at deploy (`tools/stamp-versions.mjs`), no hand bump. Each app deletes only its own cache prefix (`evals-*`, `logbook-*`), because the apps share one origin.
 - **Firebase:**
   - Project `apmes-logbook`, **Blaze** (pay-as-you-go) plan, asia-southeast1. Usage is within the free quotas at this scale.
   - **Shared with the logbook.** Evals reuses the logbook's `residents` collection.
