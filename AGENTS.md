@@ -1,7 +1,7 @@
 # apmes
 
 Instructions for every AI assistant working here (Claude Code reads this through `CLAUDE.md`).
-The APMES apps of the anaesthesia residency programme, one Firebase project and one address, `apmes.anawj.com`:
+The APMES apps of the anaesthesia residency programme, production at `apmes.anawj.com` (Firebase project `apmes-logbook`) and a beta at `beta-apmes.anawj.com` (own Worker `apmes-beta`, test Firebase project):
 
 | App | Folder | Address |
 | --- | --- | --- |

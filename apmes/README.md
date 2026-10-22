@@ -1,7 +1,7 @@
 # APMES documents
 
 The programme's documents for the APMES apps on this site (`/evals`, `/logbook`). They aren't secret, so they live here in
-the public repo (and are served at anawj.com/apmes/), but **no faculty or resident names and no real evaluation data**.
+the public repo (only `guidebook/` is served, at apmes.anawj.com/apmes/guidebook/), but **no faculty or resident names and no real evaluation data**.
 
 | Folder | What's in it |
 |---|---|
