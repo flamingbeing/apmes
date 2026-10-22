@@ -18,7 +18,7 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md).
 - **Google Form inbox (14 Oct 2026):** the old Google Form stays open as a simple way in (owner: no end date). Its
   Apps Script writes each response to `formInbox/{responseId}` as a bot account listed in `formBots/{uid}` (console
   only; unverified email, so nothing else opens to it); the app turns the signed-in resident's entries into cases
-  (`source: 'form'`) and deletes them (`form-inbox.js`, README "The Google Form, still open"). One way only: never
+  (`source: 'form'`) and deletes them (`form-inbox.js`, [setup-and-import.md](setup-and-import.md), "The Google Form, still open"). One way only: never
   write back to the Form or its sheet. Each open costs one extra read (the inbox query), even when empty. The script
   and its setup: `form-script/` (never turn off Firebase Auth "Enable create (sign-up)": it would block new Google sign-ins).
   Owner, 14 Oct 2026: no "Google sign-ins only" rule (`sign_in_provider`) for now: a small single-hospital Form with no

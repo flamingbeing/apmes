@@ -2,7 +2,7 @@
 
 The old APMES Google Form stays open as a simple way to log. This script, pasted into the Form's Apps Script editor,
 sends each new or edited response to the logbook's inbox. The resident's logbook turns it into a case the next time
-they open the app (`../js/form-inbox.js`; how it works: `../README.md`, "The Google Form, still open"). One way only:
+they open the app (`../js/form-inbox.js`; how it works: `../docs/setup-and-import.md`, "The Google Form, still open"). One way only:
 nothing comes back to the Form or its sheet. About 15 minutes on a computer, once.
 
 ## 1. Firebase console (project `apmes-logbook`)
