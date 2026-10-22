@@ -1,4 +1,5 @@
 {
+  "id": "/evals/",
   "name": "APMES Evals",
   "short_name": "Evals",
   "description": "Request and complete DOPS, Mini-CEX and EBD workplace-based assessments.",

@@ -15,7 +15,7 @@ const SHELL = [
   'js/ui-home.js', 'js/ui-request.js', 'js/ui-requests.js', 'js/ui-result.js', 'js/ui-progress.js',
   'js/ui-pending.js', 'js/ui-form.js', 'js/ui-admin.js', 'js/ui-more.js',
   'js/vendor/qrcode.js', '../apmes/guidebook/dops-expectations.md',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
+  'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
 ];
 
 self.addEventListener('install', e => {

@@ -45,7 +45,7 @@ jobs:
         run: bash tools/test-rules.sh
 
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.56.1 has no browser deps for ubuntu-latest (26.04)
     timeout-minutes: 20
     strategy:
       fail-fast: false

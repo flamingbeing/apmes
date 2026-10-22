@@ -45,6 +45,9 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
   and a `Not updating? Get the latest version` button that touches only its own worker and caches.
 - **Vital app:** the logbook holds residents' real records: full tests before merging.
 - NUH Junior Monthly (People's roster import) lives in the rosters repo at nuhjuniormonthly.anawj.com.
+- **App icons** come from anawj-site `tools/app-icons/` (one SVG per app, rendered there): copy its output into each
+  app's `icons/` (`icon-maskable-512.png` is saved as `maskable-512.png`), never redraw here. Each manifest's `id` is
+  fixed (`/logbook/, /evals/, /people/, /360/, /applicants/`): changing it makes installed copies a different app.
 
 ## Checks before merging
 

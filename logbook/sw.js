@@ -17,7 +17,7 @@ const SHELL = [
   'js/device-presets.js', 'js/bulk-change.js', 'js/ui-bulk.js', 'js/note-bulk.js', 'js/ui-bulk-notes.js', 'js/refl-bulk.js', 'js/ui-bulk-refl.js', 'js/global-search.js', 'js/ui-search.js', 'js/ui-bulk-mixed.js', 'js/paging.js', 'js/eval-link.js', 'js/feedback.js', 'js/ui-feedback.js', 'js/ui-formview.js', 'js/app-version.js',
   'js/drag-list.js', 'js/lb-group.js', 'js/list-format.js', 'js/my-themes.js', 'js/look-schema.js', 'js/colour-grid.js', 'js/ui-colour-sheet.js', 'js/sheet-outbox.js', 'js/themes.js', 'js/theme-engine.js', 'js/wallpaper.js', 'js/year-compare.js',
   'vendor/exceljs.min.js', 'vendor/jszip.min.js', 'https://design.anawj.com/v1/feedback/qr.js', 'https://design.anawj.com/v1/feedback/vendor/qrcode.js',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
+  'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
 ];
 
 self.addEventListener('install', e => {
