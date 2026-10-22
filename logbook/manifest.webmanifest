@@ -1,4 +1,5 @@
 {
+  "id": "/logbook/",
   "name": "APMES Logbook",
   "short_name": "Logbook",
   "description": "Log anaesthesia cases in seconds and track APMES case targets.",
