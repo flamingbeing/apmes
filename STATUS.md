@@ -2,12 +2,11 @@
 
 ## Now
 - apmes.anawj.com and beta-apmes.anawj.com are served by this repo's Workers (`apmes` from `main`, `apmes-beta` from
-  `beta`), with the guest passcode sign-in on `apmes`. Rules deploy from here on merge (keyless); the logbook MCP
+  `beta`, both deployed by the Deploy GitHub Actions workflow), with the guest passcode sign-in on `apmes`. Rules deploy from here on merge (keyless); the logbook MCP
   extension is published on this repo's `logbook-mcp` release.
 
 ## Waiting on the owner
-- Connect this repo in Workers Builds for Worker `apmes` (branch `main`, build `node tools/stamp-versions.mjs`, deploy
-  `npx wrangler deploy`); until then merges to main are deployed by hand.
+- Nothing: deploys run from GitHub Actions (Workers Builds is disconnected).
 
 ## Next (in order)
 1. Sign-in check on apmes.anawj.com (Google and guest passcode) after the move.
