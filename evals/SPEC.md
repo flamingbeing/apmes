@@ -1,6 +1,6 @@
 # /evals v1 build spec (contract between modules)
 
-Read with `evals/PLAN.md` (the why and the UX detail). This file fixes **names, files and interfaces** so modules built in parallel fit together. Where PLAN.md and this file differ, this file wins (it records the user's later decisions).
+Read with `evals/NOTES.md` (the original v1 UX plan, PLAN.md, was deleted 22 Oct 2026; a copy is in the owner's private notes). This file fixes **names, files and interfaces** so modules built in parallel fit together. Where PLAN.md and this file differ, this file wins (it records the user's later decisions).
 
 ## User decisions that override PLAN.md
 - **Google sign-in only** (free Spark plan). Keep the code path for email-link sign-in and linked emails out of v1 except a disabled stub (`cloud.EMAIL_LINK = false`). Assessor = the Google account whose email equals `assessorEmail`.

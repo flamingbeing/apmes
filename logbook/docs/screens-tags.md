@@ -9,7 +9,7 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md). Where th
 
 - **Labelled parts and case template** (Settings → Advanced logging → "Labelled parts and template"; account
   settings `labelParts`, `partLabels`, `caseTplOn`, `caseTpl`, all off by default; rules in `parts.js`, screens in
-  `ui-parts.js`, plan in `PLAN-labelled-parts.md`). A line starting with a label and a colon (`lp:`, `Plan:`,
+  `ui-parts.js`; the plan file was deleted 22 Oct 2026, its open items are the next bullet). A line starting with a label and a colon (`lp:`, `Plan:`,
   `ASA 2:`, also `**PE:**` and `- Plan:`; case doesn't matter, the colon is required so "LP" alone, lumbar puncture,
   never matches; `lp1:`/`lp 2:` numbered) starts a part, up to the next label; text before is the main part. The text
   is stored exactly as typed (no new case field, no rules change). Defaults `lp` (Learning point; also "learning",
@@ -27,6 +27,14 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md). Where th
   above) and Same as last (procedure on line 2, template lines kept). Same as last takes only the main text when
   labels are on. "Bold labels" writes the word as typed (`**Learning:**` stays `Learning`; a bare key like `lp` shows
   its name). A label's own word always beats another label's "also" word.
+- **Labelled parts: still to do and caveats** (from the plan, 13-14 Oct 2026). Not built yet: Reflect from a case
+  pre-filling from the parts (`dt:` → Case details, else the main line; `lp:` → free-text learning points; `lp1:`,
+  `lp2:` → numbered points; a copy at creation only, never overwriting an existing reflection) and the format tokens
+  `{{main}}`, `{{dt}}`, `{{lp}}` (`{{case}}` stays the full text). If `lp:` and `lp1:` both appear, `lp:` is the first
+  point. Caveats: "dt:" or "lp:" typed as ordinary text is read as a label while the switch is on, and older cases that
+  already hold a label light up when it is turned on. Raising the cap to about 4000 would be a live rules change (owner
+  approval); the plan kept 2000. Learning points stay in the case (private): only what is copied into a reflection can
+  reach a portfolio, and Admin summaries never carry case text.
 - **Pasted lists** (Case → List): with labelled parts off, exactly as before (blank lines split cases). With it on: a
   bold first line (`**AB 72M lap chole**`, also after a list mark) starts a case and loses its stars, but inside a case
   only a wholly bold line does (a bold word for emphasis stays); a bold label (`**Plan:**`) never does and is kept as
