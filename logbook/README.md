@@ -18,28 +18,6 @@ Try it without signing in: <https://apmes.anawj.com/logbook/?demo> (made-up data
 - Keep case details de-identified: initials and a short description, no names or NRIC numbers. The data is stored in Google Cloud (Firestore, asia-southeast1), outside NUH systems.
 - This repository is public. It contains no resident names, emails or case data. Admin emails live only in Firestore.
 
-## Firebase setup (once)
-
-The Firebase project `apmes-logbook` already exists and its web config is in `js/firebase-config.js`. Those values are public by design.
-
-1. **Authentication**: Firebase console → Authentication → Sign-in method → enable **Google**. Then Authentication → Settings → Authorised domains → add `apmes.anawj.com` (`localhost` is there already for testing; `anawj.com` can stay until the old address is retired).
-2. **Firestore**: Firestore Database → Create database → location **asia-southeast1 (Singapore)** → **production mode**.
-3. **Rules**: deployed automatically when a change to `firestore.rules` is merged to `main` (`.github/workflows/deploy-firestore-rules.yml`); don't paste them by hand. This one file holds the rules for the whole Firebase project, the logbook and evaluations (`/evals`) alike, so never publish another app's rules file over it.
-4. **Admins**: Firestore Database → Data → Start collection `admins`. Add one document per admin. The document ID is the admin's Google email in lower case (use the admins' emails), with a field `name` (string). Admin emails are never written in this repository. **Owner**: the same in a collection `owners`, with one document for the app owner (who is usually an admin too).
-5. **Optional, API key restriction**: Google Cloud console → APIs & Services → Credentials → the "Browser key" → Application restrictions → Websites → add `https://apmes.anawj.com/*`, `https://anawj.com/*`, `https://apmes-logbook.firebaseapp.com/*` and `http://localhost/*`. The key isn't a secret, but this stops other sites using it.
-6. **Optional, Save to Google Drive and Dropbox** (More → Export / Import → Backup; `js/cloud-save.js`). Until these are done the buttons say "isn't set up yet".
-   - **Google Drive**: Google Cloud console, project `apmes-logbook` → APIs & Services → Library → enable **Google Drive API**. OAuth consent screen → Data access → add the scope `.../auth/drive.file` (non-sensitive: the app sees only the files it creates, so no verification is needed). Credentials → the OAuth client of type *Web application* (the one Firebase made, "Web client (auto created by Google Service)", is fine) → Authorised JavaScript origins → add `https://apmes.anawj.com`; Authorised redirect URIs → add `https://apmes.anawj.com/logbook/` (and `http://localhost:8080/logbook/` for testing). Put its client ID in `GOOGLE_CLIENT_ID` in `js/backup-targets.js`. The client ID is public; there is no secret in the app.
-   - **Dropbox**: <https://www.dropbox.com/developers/apps> → Create app → Scoped access → **App folder** → name it "APMES Logbook". Permissions: tick `files.content.write`, `files.content.read` and `files.metadata.read` (the last lists the folder to remove old backups). Settings → OAuth 2 → Redirect URIs → add `https://apmes.anawj.com/logbook/` (and `http://localhost:8080/logbook/` for testing). Leave "Allow public clients (Implicit Grant & PKCE)" on. Put the **App key** (not the secret) in `DROPBOX_APP_KEY` in `js/backup-targets.js`. Until the app has 50+ users or is approved for production, Dropbox lets only people added in its settings use it: apply for production when ready.
-   - No background sync: unattended backups would need refresh tokens stored on a server. "Remind me…" offers a one-tap save when the app opens and the last backup is over 7 days old.
-7. **Optional, Connect an AI assistant**: see `mcp/README.md` (a *Desktop app* OAuth client for the MCP server).
-8. Sign in on the page as an admin, open **Settings → Admin**, paste the residents list, then run the import (below).
-
-The project is on Blaze (pay-as-you-go); its free daily quotas, which usage stays within, are: 20,000 writes and 50,000 reads a day. The first import is about 16,000 cases, so it fits in one day; re-imports write only new rows.
-
-Sign-in uses a Google popup, falling back to a redirect if popups are blocked (e.g. some home-screen apps). If redirect sign-in fails on iPhone home-screen installs, open the page in Safari once to sign in.
-
-The Firebase sign-in helper pages are self-hosted at `/__/auth/` (copied from `https://apmes-logbook.firebaseapp.com/__/auth/handler`, `handler.js`, `experiments.js`, `iframe`, `iframe.js`) with `/__/firebase/init.json`, and `authDomain` is `apmes.anawj.com` in both apps' `firebase-config.js` (the Worker serves them there: `SUBDOMAINS.md`; `apmes-auth/firebase/init.json` is that host's copy of `init.json`). This keeps sign-in on the same site, so Chrome's storage partitioning doesn't break the redirect ("Unable to process request due to missing initial state"). `.nojekyll` stops GitHub Pages dropping the `__` folder. Google Cloud console → APIs & Services → Credentials → the Web client (auto created by Google Service) → Authorised redirect URIs must include `https://apmes.anawj.com/__/auth/handler` (and, until the old address is retired, `https://anawj.com/__/auth/handler`). Refresh the copied files now and then (Firebase updates them rarely).
-
 ## Data model
 
 | Path | Contents | Who |
@@ -64,76 +42,10 @@ The Firebase sign-in helper pages are self-hosted at `/__/auth/` (copied from `h
 
 `{email}` is always the Google account email in lower case. Category codes and targets are in `js/categories.js`.
 
-## How the import works
+## Moved to docs/ (open when needed)
 
-The old data is the Google Form responses workbook (tabs **Case** and **AY20xx Totals**). The app owner only (admins see a note instead). In **Settings → Admin**:
-
-1. Paste the residents list (the `RESIDENTS` array from the old Apps Script). Check names, emails, status and residency year, then save. This creates `residents/{rid}`.
-2. Upload the workbook. It is read in the browser (nothing is uploaded except the resulting cases). `js/importer.js` reads the Case tab: resident, date, details and the category columns, merged into one list of codes. Rows marked "WRONG ENTRY" are skipped; dates that can't be read are kept as text and flagged "needs date".
-3. The page compares the counts per resident and category with the Totals tabs (`countCheck`) and shows any differences before you import.
-4. **Import** writes each resident's cases into `logbooks/{their email}/cases`, then their summary. Every row has an `importKey` (a hash of resident, form timestamp, date, details and categories, plus a counter for identical rows). `imports/{rid}` records which keys are in, so running the import again after more form responses writes only the new rows. The case document ID is derived from the key, so an interrupted import can be resumed without duplicates.
-
-## The Google Form, still open (Oct 2026)
-
-Residents who prefer the old APMES Google Form can keep using it, with no end date; the logbook stays the one record.
-One way only: Form → logbook, never back.
-
-1. A small Apps Script on the Form ([`form-script/`](form-script/README.md): the code and the setup steps) runs on every new or edited response
-   and writes just that response to `formInbox/{responseId}`: the respondent's Google sign-in email (the Form
-   requires sign-in), date, the initials and case details answer, and the category answers. It signs in as a bot
-   account (Firebase email and password) whose uid is listed by hand in `formBots/`. The bot's email is never
-   verified, so every other rule (`signedIn()`) stays closed to it; it can only add or replace inbox entries.
-2. When the resident next opens the logbook (after the first server copy of their cases), the app reads their
-   entries, turns each into a case (`source: 'form'`, id from the response id, initials split off, labels to codes,
-   NRIC/long numbers replaced by "[ID removed]", unrecognised tags noted in the details) and deletes the entries.
-3. Duplicates: a response already imported from the workbook (Admin portal) is skipped by the inbox, and a re-run
-   of the workbook import skips responses the inbox brought in (`sameResponse`: same day, same response second once
-   the sheet's time zone is taken off; for a Form case, its first submit or, once the app has picked up an edit, its
-   newest one). An old response edited in the Form arrives with its edit time: an imported case with the same day,
-   initials and categories counts as it (not added; the toast says so, as it may be another patient: log that one in
-   the app). An edit that changes the day, initials or categories still adds a second case. A Form case the resident
-   deleted doesn't come back: its id is kept in `formGone` (written when it goes to the bin and again before its bin
-   entry goes). An imported case the resident deleted stays gone only while it is in the bin, and only from its own
-   response (same time); a response that merely has its day, initials and categories is added (it may be a corrected
-   copy) and the toast points to the bin. The pick-up reads the bin and `formGone` from the server and stops if it
-   can't; the toast tells only what reached the server. Each entry's case and
-   its delete go in one batch (`cloud.commitFormPickup`); at most 50 per pick-up, which runs again when the app comes
-   back to the front (every 10 minutes at most).
-4. An edited response replaces the case it made, unless the resident has changed that case in the app since
-   (`importKey` `form:<responseId>~<newest submit>@<ms written>`, the `@` time being the `updatedAt` actually written;
-   a later `updatedAt` means theirs: then only the newest submit is noted in the key); what only the app adds (a
-   linked reflection, the star, personal tags) is kept.
-
-Tests: `test/form-inbox.test.mjs`, `test/form-pickup.test.mjs` (cloud.js's real Firestore code against a stand-in SDK,
-`test/fake-firebase.mjs`), `test/form-script.test.mjs`, the rules suite (`tools/test-rules.sh`) and the emulator browser
-test (`tools/test-reads.sh`). A change to `form-script/Code.gs` must be pasted into the Form by the owner: list it in
-`form-script/CHANGES-PENDING.md`.
-
-## Code
-
-- `js/reflections.js`: reflection shape and progress against the portfolio rules (96 total, JR, sub-types, unique patients); `js/ui-reflect.js`: the Reflections tab (`#reflect`): every reflection is linked to a logged case (`caseId`); "+ New reflection" opens a case picker and pre-fills from the chosen case, and a case's Reflect button does the same. Unlinked older reflections show "not linked" and can't be marked complete until linked.
-- Reflections tab extras: each heading has "+ Add" (and sub-type chips) that open the case picker with the heading preset; after the general "+ New reflection" the app suggests headings from the case (`suggestHeadings` in `js/reflections.js`). "Edit" unlocks dragging a reflection (⠿ handle, mouse or touch) onto another heading, with Undo, and checkboxes to move several to the recycle bin after a confirmation.
-- Choosing what's exported: only complete reflections under a heading and not left out (`inExport`) go into the Word export; each row has an export tick, Edit mode can include or leave out several, and each heading shows written / in export with warnings (`exportSummary`: fewer than the minimum, a sub-type or the JR reflections left out). "Tick just enough" (`pickJustEnough`) keeps, per heading, the longest reflections (word count) that cover the sub-types and JR ones, up to the minimum. Settings → Reflections: whether new reflections start ticked (`settings.reflExport`, default on). Headings already met start folded; the list has a search box and filters (drafts, in / not in export); tagged cases sit in one folded line under the header and at the top of the case picker.
-- `js/reflect-import.js`: parses a portfolio Word file (.docx) back into reflections (`parseDocx`). No DOM. `js/ui-reflect-import.js`: "Upload from Word" on the Reflections tab: a review page lists what was found with a checkbox per reflection; ticked ones are added as drafts. Rows listing multiple patients with corresponding readable dates require a "Case to keep" choice. The chosen patient fields are used, all reflection text is retained, and existing logbook cases are left intact. Ambiguous diagnosis text is retained for review rather than guessed.
-- `js/ui-account.js`: the Account tab (`#account`): the "You" card (name, programme status), then "Portfolio details (Section 1)" (personal details, then one collapsible card per Section 1 table from `SECTIONS` in `js/profile.js`; autosaves ~1 s after typing to `logbooks/{email}.profile` via `cleanProfile`, offline too), with "Fill from my Word portfolio" (reads Section 1 of a .docx with `parseSection1`, shows what was found, then fills only empty fields and adds rows not already there). Sign out is at the bottom. The Settings tab (`#settings`, `js/ui-settings.js`) holds display, logging, templates, the recycle bin and privacy; admins open Admin (`#admin`, `js/ui-admin.js`) from a card at the top of Settings. Its residents list is read-only until you tap Edit, in collapsible groups: R5 down to R1, then SMO (a resident status), year unknown, graduated and attrited (the last two start folded). Section 1 lists show one line per entry; tapping an entry or + Add opens a small form. The Reflections export passes the profile so Section 1 is filled in the Word file.
-- `js/bin.js`: the recycle bin (`moveToBin`, `restoreFromBin`, `deleteForever`, `purgeExpired`, `renderBin` / `openBin`). Reached from Settings → Recycle bin and from the Reflections tab.
-- `js/categories.js`: categories, targets, EPA tags, tips, reflection headings.
-- `js/suggest.js`, `js/keywords.js`: category suggestions from free text.
-- `js/engine.js`: dates, counts, progress, bulk paste, duplicates, spreadsheet diff. No DOM.
-- Patient initials (`splitInitials`, `caseParts`, `caseText` in `js/engine.js`): leading 2–4 letters, optionally followed by `/` or a space (or 5–8 letters when an age or `/` follows, for older cases with longer initials), are split off the details when a case is created (Log screen, paste list, Excel/grid rows without an Initials column, admin import), unless they are a known case word (anything in the keyword table, e.g. LSCS, TKR, VATS, IJ, plus GA, LA, MAC, …). Older cases without the field are split on the fly for display and in the edit dialog, and stored apart on their next save. The Excel export keeps one "Case details" column (initials + details), so old files still round-trip; an optional "Initials" column is used directly on upload. Search, duplicates and the spreadsheet diff compare initials + details as one text. The import's `importKey` is still hashed on the original details text.
-- Paste list (`parseBulk`): cases are separated by blank lines, so a case can span lines; an optional date at the start of a case's first line sets its date. In the review table each case offers "Same as above: <codes>" (the categories of the case above, when they are not all there already) next to its own suggestions.
-- Tags (`js/tags.js`, Settings → Tag editor): the Log page's list is the user's tag set (`settings.tagSet`, display order): the APMES categories are built-in tags (`c:<code>`; renamed, hidden, reordered or put under section headers `h:` per user, but always counting towards their category), plus the user's own tags (`u:`; older personal subcategories keep their `code:name` keys) that link to any APMES categories (choosing one ticks them) or to none. A tag under a category counts towards it. Cases keep APMES codes in `cats` (Totals, Progress, exports) and the user's tags by key in `tags`. "Share as CSV" / "Load a CSV" swap layouts as a readable CSV (Type, Tag, Long name, Under, APMES categories, Hidden, Key). A user's own names come before an admin's (Settings → Category names) and the programme defaults (`DEFAULT_NAMES`).
-- Log page: one-line date bar (Today, as many recent weekdays as fit, a calendar, Case | List); the category list shows as List or Pills (`settings.catView`).
-- `js/importer.js`: old Google Form workbook → cases. No DOM.
-- `js/xlsxio.js`: Excel export and upload (ExcelJS).
-- `mcp/`: an MCP server residents run on their own computer, so Claude Desktop or Claude Code can read their own logbook (cases, progress, reflections) and add or change cases and draft reflections (each write previewed first; no deletes). It signs in with Google (a "Desktop app" OAuth client the owner sets up once) and reads Firestore as the user, so the same rules apply. No server. See `mcp/README.md`; linked from Settings → Connect an AI assistant (advanced). Its tests: `for f in logbook/mcp/test/*.test.mjs; do node "$f"; done` (the tools test needs `npm install` in `logbook/mcp` first).
-- `js/markdown.js`: the Markdown format (Settings → Markdown, saved in `logbook.settings.markdown`, only what differs from the default, at most 8 KB) for Copy / Share on the Logbook tab and the notes export: day and case templates with `{{fill-ins}}`, date format, categories as names, codes or #tags, wiki or Markdown links, front matter, reflection note templates, file names and folders. No DOM. `js/ui-notes.js`: **Download for notes apps** (More → Export / Import): a zip of Markdown notes for Obsidian and the like, built on the phone: case notes by month or day, one note per reflection, `Progress.md` (counts against targets, reflections per heading against the minimum) and, if chosen, the figures in `images/`. The files hold case details: the app says so next to the button.
-- `js/cloud.js`: sign-in and Firestore (Firebase JS SDK 10.12.2 from gstatic, offline cache on). Writes return once queued locally, so saving works without signal; a write the server later rejects is reported through `onSyncError`. `?emulator` on localhost (tests only) uses the Firestore and Auth emulators.
-- `js/sync.js`, `js/store.js`: the sync engine. Cases, reflections and notes keep a copy on the device (IndexedDB, one store per account) and listen only for what changed since the last sync, so reopening costs about one read per collection; a full read on first use and weekly. Design and limits: `NOTES.md`, "Sync".
-- `js/demo-backend.js`: the `?demo` stand-in for `cloud.js` (localStorage, fake admin `demo@example.com`).
-- `js/app.js`: boot, sign-in, tabs, service worker. Each screen is in `js/ui-*.js` (`ui-core.js` holds shared state and helpers).
-- `sw.js`: offline app shell (cache-first). Its `VERSION` is stamped at deploy with a hash of the SHELL files (`tools/stamp-versions.mjs`), so installed phones get the new copy; with a new version the app shows "Update available — Reload".
-- `firestore.rules`: access rules for the whole project, logbook and evaluations (deployed automatically on merge to `main`).
+- Firebase setup (once), How the import works, The Google Form, still open (Oct 2026): [docs/setup-and-import.md](docs/setup-and-import.md)
+- Code (what each module does): [docs/code-map.md](docs/code-map.md)
 
 ## Tests
 

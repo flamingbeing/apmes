@@ -1,6 +1,6 @@
 // Firebase web app config: a copy of logbook/js/firebase-config.js (evals shares the apmes-logbook project). Keep the two in step.
 // These values are public by design: access is controlled by firestore.rules on Google's side.
-// Setup steps: see logbook/README.md.
+// Setup steps: see logbook/docs/setup-and-import.md.
 const LIVE = {
   apiKey: 'AIzaSyDRC7COpi86H0K6oe98XZ8m1sQWJUkP63E',
   // Sign-in helper pages are served from this site (/__/auth/), so redirect sign-in keeps working

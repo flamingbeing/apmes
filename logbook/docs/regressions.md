@@ -76,3 +76,28 @@ Run `logbook/test/e2e/usability.mjs` beside recovery and the full E2E suite. Bot
 ### Tag editor selection and insertion (Codex next batch)
 
 The first tap selects a tag in List or Pills and opens a small read-only details card. Edit is explicit; Add after uses the selection as an insertion anchor. Close / Escape / browser Back dismiss the card and retain selection. New tags and section headers offer separate Sits under and Place after controls, a searchable sibling list, Beginning / End and a placement preview. Insertion preserves child subtrees and existing APMES parent restrictions. Changing parent resets placement to its end. A changed layout or account refuses a stale dialog save. Selection clears with the account caches.
+
+### Where each finding is tested (22 Oct 2026)
+
+Unit tests run with `for f in logbook/test/*.test.mjs; do node "$f"; done`; e2e with `tools/test-logbook.sh`.
+
+| Finding | Test |
+|---|---|
+| Service worker keys navigations by `'./'` | `test/regressions.test.mjs` (logbook and evals `sw.js`) |
+| Removed personal tags show as "Removed tag" | `test/regressions.test.mjs`, `tags.test.mjs` |
+| Saved searches, settings file only known keys, rYear / rYearAY / importMap / sharedSeen never travel | `settings-file.test.mjs` |
+| Diff keys compare tags with parents; pasted export rows not read as initials | `engine.test.mjs` (`diffRows`, `splitInitials`) |
+| CSV Under uses IDs; roman sub-codes (26ii) | `tags.test.mjs`, `engine.test.mjs`, `importer.test.mjs` |
+| Upload reads back tag names; missing columns; "Export info" sheet | `export-opts.test.mjs`, `engine.test.mjs` |
+| Search date words ("last sat", bare SAT) | `engine.test.mjs` |
+| Totals counts (`towardsMinimum` / `tagTotal`) | `engine.test.mjs` |
+| App version and "Get the latest version" | `test/e2e/app-version.mjs` |
+| Device recovery | `test/e2e/recovery.mjs`, `writes.test.mjs` |
+| Back, search and everyday logging | `test/e2e/usability.mjs` |
+| Same as last keeps line 1 | `logging.test.mjs`, `test/e2e/logging-speed.mjs` |
+
+Not practical as unit tests (UI or timing; covered only by the full e2e run or by hand): case rows have no swipe
+actions; Copy not Share; per-user state resets on sign-out (`resetters`, `gen` counters); pill drag uses the pressed
+element; Shift+Enter never saves (Ctrl+Shift+Enter still does); Undo of a save restores ☆ Interesting; a picked day
+survives a reload; "+ Add" keeps a case being typed; programme tag groups adopted only from the server copy; Delete
+account re-authenticates first; Totals own column is live; tag editor selection and insertion.
