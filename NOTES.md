@@ -7,7 +7,7 @@ Lasting rules, owner preferences and lessons (never task chatter), and how to te
 Beta signs in for real against a separate **test** Firebase project (test data only), so a change to the logbook or
 evals can be tried before it reaches apmes.anawj.com (owner, 18 Oct 2026).
 
-- **Address:** `https://beta-apmes.anawj.com/logbook/` (and `/evals/`, `/people/`, `/applicants/`, `/360/`). Its browser
+- **Address:** `https://beta-apmes.anawj.com/logbook/` (and `/evals/`, `/people/`, `/360/`). Its browser
   storage is separate from the live site's.
 - **What it serves:** the `beta` branch, through the `apmes-beta` Worker (`wrangler.jsonc`, `env.beta`). Since 22 Oct 2026
   both sites deploy from GitHub Actions (`.github/workflows/deploy.yml`): a push to `main` deploys Worker `apmes`, a push

@@ -7,10 +7,13 @@
 // host -> { prefixes: { '/app/': 'app/' } }  (several apps share the host, one path each)
 //      or { root: 'app/' }                   (one app at the root; its own folder name works too; prefixes beside
 //                                             root add a few extra folders)
-//      or { moved: { '/old/': 'https://example.org/new/' } }  (apps now on another site: each path forwards there)
+//      or { moved: { '/old/': 'https://example.org/new/' } }  (apps now on another site: each path forwards there;
+//                                             beside prefixes, only those paths forward and the rest is served)
 // A host may also list pages: { '/exact/path': 'folder/file.html' } (exact addresses only, checked first; nothing
 // below them changes), e.g. the home page at "/".
 const HOME = { '/': 'home/index.html', '/index.html': 'home/index.html' };
+// the applicants feedback app moved to its own site (Oct 2026): old links, query and all, forward there
+const MOVED = { '/applicants/': 'https://residencyapps.anawj.com/' };
 
 export const SITES = {
   // /people/ is the shared people lists (residents, faculty, PDs) the logbook and evals both use.
@@ -18,11 +21,11 @@ export const SITES = {
   // / (and /index.html) is the home page (home/; its own scripts under /home/): the live apps, MedHub and the guidebook.
   // /__/auth/ and /__/firebase/ are Firebase's sign-in helper pages (the auth domain of logbook and evals): the helper
   // scripts are in __/; init.json is this host's own copy (authDomain apmes.anawj.com).
-  'apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth/firebase/' } },
+  'apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth/firebase/' }, moved: MOVED },
   // The beta copy (NOTES.md, "Beta"): the same folders from the beta branch, served by the apmes-beta Worker. The apps
   // pick the test Firebase project on beta- hosts (firebase-config.js), so nothing here touches live data. Its sign-in
   // helper pages use their own init.json (apmes-auth-beta/: the test project apmes-logbook-beta).
-  'beta-apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth-beta/firebase/' } },
+  'beta-apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth-beta/firebase/' }, moved: MOVED },
 };
 
 // Folders every host serves as they are (shared files, no data), e.g. ['/shared/']
@@ -51,7 +54,7 @@ function route(host, pathname) {
     for (const [prefix, to] of Object.entries(site.moved)) {
       if (p === prefix.slice(0, -1) || p.startsWith(prefix)) return { redirect: to + p.slice(prefix.length) };
     }
-    return { notFound: true };
+    if (!site.prefixes && !site.root) return { notFound: true };
   }
   for (const [prefix, folder] of Object.entries(site.root ? site.prefixes || {} : {})) {
     if (p.startsWith(prefix)) return { file: folder + p.slice(prefix.length) };   // a root host's extra folders

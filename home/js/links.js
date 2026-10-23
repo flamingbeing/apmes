@@ -13,7 +13,6 @@ export const LINKS = [
   { section: 'apps', label: 'Assessments', url: '/evals/', note: 'DOPS, Mini-CEX and EBD', live: false },
   { section: 'apps', label: 'People', url: '/people/', live: false },
   { section: 'apps', label: 'CCC 360', url: '/360/', live: false },
-  { section: 'apps', label: 'Applicants feedback', url: '/applicants/', live: false },
   // MedHub's own pages need its sign-in first (a deep link lands on its sign-in page), so both go to its home page
   { section: 'medhub', label: 'MedHub', url: 'https://nuhs.medhub.com/', note: 'EPA forms, MSF and evaluations', live: true, external: true },
   { section: 'medhub', label: 'Duty hours', url: 'https://nuhs.medhub.com/', note: 'MedHub, then Duty Hours', live: true, external: true },

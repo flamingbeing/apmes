@@ -2,7 +2,7 @@
 
 ## Now
 - apmes.anawj.com and beta-apmes.anawj.com are served by this repo's Workers (`apmes` from `main`, `apmes-beta` from
-  `beta`, both deployed by the Deploy GitHub Actions workflow), with the guest passcode sign-in on `apmes`. Rules deploy from here on merge (keyless); the logbook MCP
+  `beta`, both deployed by the Deploy GitHub Actions workflow). Rules deploy from here on merge (keyless); the logbook MCP
   extension is published on this repo's `logbook-mcp` release.
 
 ## Waiting on the owner
@@ -10,10 +10,13 @@
 
 ## Next (in order)
 1. Home page: readable guidebook pages at `/guide/` (built from `apmes/guidebook/`), then its section on the home page.
-2. Sign-in check on apmes.anawj.com (Google and guest passcode) after the move.
+2. Sign-in check on apmes.anawj.com (Google) after the move.
 3. anawj-site drops the apmes folders, hosts, guest sign-in code and its logbook rules and MCP workflows.
 
 ## Recently done
+- 23 Oct 2026: applicants feedback moved out to its own repo and site (`residencyapps`, residencyapps.anawj.com):
+  `/applicants/` forwards there; its folder, guest passcode sign-in, rules block and People › Access role removed.
+  Its old data stays in `apmes-logbook` for now (no rules: console only).
 - 23 Oct 2026: home page at apmes.anawj.com/ (`home/`): Open Logbook, MedHub links, an opt-in counts card (own
   summary, read only) and the Logbook's theme; beta apps stay off it until their `live` flag is set.
 - 23 Oct 2026: Logbook See it in action: the Display preview is one slim line whose button opens the real Logbook

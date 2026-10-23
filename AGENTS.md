@@ -9,7 +9,6 @@ The APMES apps of the anaesthesia residency programme, production at `apmes.anaw
 | APMES case logbook | `logbook/` | apmes.anawj.com/logbook/ |
 | APMES assessments (evals) | `evals/` | apmes.anawj.com/evals/ |
 | APMES People | `people/` | apmes.anawj.com/people/ |
-| Applicants feedback | `applicants/` | apmes.anawj.com/applicants/ |
 | CCC 360 | `360/` | apmes.anawj.com/360/ |
 | Programme documents | `apmes/` | not served (only `apmes/guidebook/`, which evals reads) |
 
@@ -24,12 +23,12 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 
 ## Rules that bite
 
-- **Two Workers, one repo** (`wrangler.jsonc`): `apmes` (main branch, apmes.anawj.com, with the guest passcode sign-in,
-  `worker/guest.js`) and `apmes-beta` (`env.beta`, the `beta` branch, beta-apmes.anawj.com, test Firebase project).
-  Each host serves only the folders listed in `worker/routes.js` `SITES`.
+- **Two Workers, one repo** (`wrangler.jsonc`): `apmes` (main branch, apmes.anawj.com) and `apmes-beta` (`env.beta`, the `beta` branch, beta-apmes.anawj.com, test Firebase project).
+  Each host serves only the folders listed in `worker/routes.js` `SITES`. The applicants feedback app moved
+  to its own repo and site in Oct 2026 (`residencyapps`, residencyapps.anawj.com): `/applicants/` forwards there.
 - **Beta** (NOTES.md, "Beta") is opt-in: only when the owner asks, or for sign-in or Firestore-rules changes, point
   `beta` at the branch, send him the beta link and merge on his "ship it". Otherwise PRs merge once Checks pass.
-- **Firestore rules:** `logbook/firestore.rules` covers all five apps. Test with `tools/test-rules.sh` (local emulator,
+- **Firestore rules:** `logbook/firestore.rules` covers all four apps. Test with `tools/test-rules.sh` (local emulator,
   never the live projects). Never loosen rules on real-data collections to pass a test. They **deploy live on merge**
   (`deploy-firestore-rules.yml`, keyless sign-in to `apmes-logbook`): merge only when Checks are green, confirm the
   "Deploy Firestore rules" run, and report what the rules now allow or deny. A manual run deploys over live rules: ask
@@ -51,7 +50,7 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - NUH Junior Monthly (People's roster import) lives in the rosters repo at nuhjuniormonthly.anawj.com.
 - **App icons** come from anawj-site `tools/app-icons/` (one SVG per app, rendered there): copy its output into each
   app's `icons/` (`icon-maskable-512.png` is saved as `maskable-512.png`), never redraw here. Each manifest's `id` is
-  fixed (`/logbook/, /evals/, /people/, /360/, /applicants/`): changing it makes installed copies a different app.
+  fixed (`/logbook/, /evals/, /people/, /360/`): changing it makes installed copies a different app.
 
 ## Checks before merging
 
@@ -61,7 +60,7 @@ for f in */test/*.test.mjs; do node "$f" || break; done   # unit tests
 node tools/proofread.mjs                      # page and doc mistakes
 bash tools/test-logbook.sh                    # logbook: full e2e (`quick` skips it); a11y: node logbook/test/e2e/a11y.mjs
 python3 -m http.server 8110 &                 # evals: node evals/test/e2e.spec.mjs, edge.e2e.mjs, a11y.mjs
-node people/test/e2e.mjs                      # people, applicants, 360, home: each test/e2e.mjs (no server needed)
+node people/test/e2e.mjs                      # people, 360, home: each test/e2e.mjs (no server needed)
 bash tools/test-rules.sh                      # when logbook/firestore.rules changes (needs Java)
 ```
 
