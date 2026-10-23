@@ -1,6 +1,6 @@
-// Firestore rules checks for the CCC 360 app (collection ccc/ (staff are PDs, Admin staff and PCs; PCs come from access/)) against the local emulator, fake accounts only.
+// Firestore rules checks for the CCC app (collection ccc/ (staff are PDs, Admin staff and PCs; PCs come from access/)) against the local emulator, fake accounts only.
 // Rules: logbook/firestore.rules. Run from the repo root:  tools/test-rules.sh   (or, with the emulator on port 8085,
-//   npx firebase emulators:exec --only firestore --project demo-logbook "node 360/test/rules.emulator.mjs")
+//   npx firebase emulators:exec --only firestore --project demo-logbook "node ccc/test/rules.emulator.mjs")
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, query, where, serverTimestamp, writeBatch } from 'firebase/firestore';
 import fs from 'node:fs';

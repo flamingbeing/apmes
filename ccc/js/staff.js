@@ -1,6 +1,6 @@
-// APMES CCC 360, the coordinators' view: PDs, Admin staff and programme coordinators (PCs) open and close rounds, see who has
+// APMES CCC, the coordinators' view: PDs, Admin staff and programme coordinators (PCs) open and close rounds, see who has
 // sent, read each resident's projects and nominees, mark the nominees, export the lists, and invite each Checked nominee to
-// answer through a one-time link (/360/rate/). The app does not send mail: "Invite" makes the link and opens the
+// answer through a one-time link (/ccc/rate/). The app does not send mail: "Invite" makes the link and opens the
 // coordinator's own mail app with the text and link filled in (edit it there); reminders work the same way. PDs and PCs
 // also see the CCC report (anonymised summary per resident, round overview, print to PDF) and each rater's raw answers.
 // Everything shown comes from residents' own typing, so it is only ever put on the page as text.
@@ -192,7 +192,7 @@ async function residentScreen(round, email, ctx) {
     try { await store.saveMarks(round.round, email, marks); rerender?.(); } catch (err) { toast('Couldn’t save the mark. ' + errText(err)); }
   };
   // links point at this host (beta's at beta); the demo's stay in the demo
-  const urlOf = inv => (cloud.demo ? `${location.origin}/360/rate/?demo#${round.round}/${inv.id}` : rateLink(round.round, inv.id, location.origin));
+  const urlOf = inv => (cloud.demo ? `${location.origin}/ccc/rate/?demo#${round.round}/${inv.id}` : rateLink(round.round, inv.id, location.origin));
   let busy = false;
   const invite = async n => {
     if (busy) return;
@@ -381,7 +381,7 @@ async function rawAnswers(round, email, ctx) {
     h('section', { class: 'e-card' },
       h('h2', { class: 'e-h2', style: 'margin:0' }, `Raters’ answers: ${s?.name || email}`),
       h('p', { class: 'e-small' }, `${round.title}. With the raters’ names, for PDs and PCs only: never share this page with the resident or print it for the CCC; use the CCC report.`),
-      s?.saved ? h('p', { class: 'e-hint' }, 'The answers were deleted with the clean-up a year after the round closed; only the summary is kept.') : null),
+      s?.saved ? h('p', { class: 'e-hint' }, `The answers were deleted with the clean-up ${PURGE_TEXT} after the round closed; only the summary is kept.`) : null),
     list.length ? list.map(({ inv, resp }) => {
       const st = raterStatus(inv, resp);
       return h('section', { class: 'e-card cc-card', 'aria-label': inv.raterName },

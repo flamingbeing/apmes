@@ -11,7 +11,7 @@ The APMES apps of the anaesthesia residency programme, production at `apmes.anaw
 | APMES assessments (evals) | `evals/` | apmes.anawj.com/evals/ |
 | APMES People | `people/` | apmes.anawj.com/people/ |
 | Applicants feedback | `applicants/` | apmes.anawj.com/applicants/ |
-| CCC 360 | `360/` | apmes.anawj.com/360/ |
+| CCC | `ccc/` | apmes.anawj.com/ccc/ (`/360/` forwards here) |
 | Programme documents | `apmes/` | not served (only `apmes/guidebook/`, which evals reads raw) |
 
 `__/` holds Firebase's sign-in helper pages; `apmes-auth/` and `apmes-auth-beta/` hold each host's `init.json`.
@@ -55,7 +55,7 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - NUH Junior Monthly (People's roster import) lives in the rosters repo at nuhjuniormonthly.anawj.com.
 - **App icons** come from anawj-site `tools/app-icons/` (one SVG per app, rendered there): copy its output into each
   app's `icons/` (`icon-maskable-512.png` is saved as `maskable-512.png`), never redraw here. Each manifest's `id` is
-  fixed (`/logbook/, /evals/, /people/, /360/, /applicants/`): changing it makes installed copies a different app.
+  fixed (`/logbook/, /evals/, /people/, /ccc/ (was /360/ until 23 Oct 2026), /applicants/`): changing it makes installed copies a different app.
 
 ## Checks before merging
 
@@ -65,7 +65,7 @@ for f in */test/*.test.mjs; do node "$f" || break; done   # unit tests
 node tools/proofread.mjs                      # page and doc mistakes
 bash tools/test-logbook.sh                    # logbook: full e2e (`quick` skips it); a11y: node logbook/test/e2e/a11y.mjs
 python3 -m http.server 8110 &                 # evals: node evals/test/e2e.spec.mjs, edge.e2e.mjs, a11y.mjs
-node people/test/e2e.mjs                      # people, applicants, 360, home: each test/e2e.mjs (no server needed)
+node people/test/e2e.mjs                      # people, applicants, ccc, home: each test/e2e.mjs (no server needed)
 bash tools/test-rules.sh                      # when logbook/firestore.rules changes (needs Java)
 ```
 
