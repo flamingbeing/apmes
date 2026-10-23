@@ -156,6 +156,12 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   await page.locator('input[type="search"]').fill('solo call as SR');
   const shown = await page.locator('#ebd .g-item:visible').count();
   assert.ok(shown >= 1 && shown < all, `the filter narrows the list (${shown} of ${all})`);
+  await page.locator('input[type="search"]').fill('airway');   // a filter shows every type's matches, each labelled
+  assert.ok(await page.locator('#dops .g-item:visible').count() && await page.locator('#cex .g-item:visible').count(), 'matches from all types at once');
+  assert.ok(await page.locator('#cex .g-panel-title').isVisible(), 'each type has its heading while filtering');
+  assert.equal(await page.locator('#cex .g-item:visible .g-tool').first().textContent(), 'Mini-CEX');
+  assert.ok(await page.locator('#cex .g-item:visible summary mark').count(), 'the words are marked');
+  await page.locator('input[type="search"]').fill('solo call as SR');
   const item = page.locator('#ebd .g-item:visible', { has: page.locator('summary', { hasText: 'as SR' }) });
   if (!(await item.evaluate(d => d.open))) await item.locator('summary').first().click();   // a short list opens itself
   await item.locator('.g-attach summary').click();

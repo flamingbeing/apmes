@@ -295,10 +295,10 @@ function entrustmentPage(pages, items) {
     for (const i of tab(t)) {
       if (i.epa !== epa) { html += `${epa ? '</div>' : ''}<h3 class="g-epa">${esc(i.epa)}</h3><div class="g-items">`; epa = i.epa; }
       const extra = i.attachments.map(part => `<details class="g-attach"><summary>Detailed guide: ${esc(part)}</summary><div class="g-doc">${render(attachmentPart(pages, part)).html}</div></details>`).join('');
-      html += `<details class="g-item" id="${t.key}-${i.page}-${i.id}"><summary><span class="g-item-epa">${esc(i.epa)}</span> ${inline(i.item)}</summary>
+      html += `<details class="g-item" id="${t.key}-${i.page}-${i.id}"><summary><span class="g-tool g-tool-${t.key}">${t.label}</span> <span class="g-item-epa">${esc(i.epa)}</span> ${inline(i.item)}</summary>
 <div class="g-doc">${render(i.md).html}${extra}<p class="g-from"><a href="${i.page}.html#${i.id}">Open in ${esc(i.epa)} ›</a></p></div></details>`;
     }
-    return `<section class="g-panel" id="${t.key}" role="tabpanel" aria-labelledby="tab-${t.key}"><h2 class="g-panel-title">${t.label}</h2>${html}${epa ? '</div>' : ''}</section>`;
+    return `<section class="g-panel" id="${t.key}" role="tabpanel" aria-labelledby="tab-${t.key}"><h2 class="g-panel-title">${t.label} <span class="g-panel-count"></span></h2>${html}${epa ? '</div>' : ''}</section>`;
   };
   return `<h1 class="g-h1">Entrustment questions</h1>
 <p class="a-footnote">The suggested entrustment questions and discussion points for every DOPS, Mini-CEX and EBD, grouped by EPA. Tap one to open it.</p>
