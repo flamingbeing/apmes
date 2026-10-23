@@ -271,6 +271,25 @@ await t('note index too many days', assertFails(setDoc(doc(a, 'logbooks', A, 'me
 await t('note index n not a number', assertFails(setDoc(doc(a, 'logbooks', A, 'meta', 'noteIndex'), idx({ n: '2' }))));
 await t('other meta doc', assertFails(setDoc(doc(a, 'logbooks', A, 'meta', 'other'), idx())));
 await t('owner deletes note index', assertSucceeds(deleteDoc(doc(a, 'logbooks', A, 'meta', 'noteIndex'))));
+// guidebook notes and ticks (logbooks/{email}/guide/entrustment): owner only, one doc, items map
+const gn = (o = {}) => ({ items: { 'dops-epa-01-x~0': { d: true, n: 'fake note', t: 1 } }, updatedAt: 1, ...o });
+await t('own guide notes', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'guide', 'entrustment'), gn())));
+await t('read own guide notes', assertSucceeds(getDoc(doc(a, 'logbooks', A, 'guide', 'entrustment'))));
+await t('mixed-case token reads own guide notes', assertSucceeds(getDoc(doc(AU, 'logbooks', A, 'guide', 'entrustment'))));
+await t('other reads guide notes', assertFails(getDoc(doc(b, 'logbooks', A, 'guide', 'entrustment'))));
+await t('admin reads guide notes', assertFails(getDoc(doc(adm, 'logbooks', A, 'guide', 'entrustment'))));
+await t('app owner reads guide notes', assertFails(getDoc(doc(own, 'logbooks', A, 'guide', 'entrustment'))));
+await t('anon reads guide notes', assertFails(getDoc(doc(anon, 'logbooks', A, 'guide', 'entrustment'))));
+await t('unverified writes guide notes', assertFails(setDoc(doc(unv, 'logbooks', A, 'guide', 'entrustment'), gn())));
+await t('other writes guide notes', assertFails(setDoc(doc(b, 'logbooks', A, 'guide', 'entrustment'), gn())));
+await t('app owner writes guide notes', assertFails(setDoc(doc(own, 'logbooks', A, 'guide', 'entrustment'), gn())));
+await t('guide notes other doc id', assertFails(setDoc(doc(a, 'logbooks', A, 'guide', 'other'), gn())));
+await t('guide notes extra field', assertFails(setDoc(doc(a, 'logbooks', A, 'guide', 'entrustment'), gn({ email: A }))));
+await t('guide notes items not a map', assertFails(setDoc(doc(a, 'logbooks', A, 'guide', 'entrustment'), gn({ items: ['x'] }))));
+await t('guide notes too many items', assertFails(setDoc(doc(a, 'logbooks', A, 'guide', 'entrustment'), gn({ items: Object.fromEntries(Array.from({ length: 2001 }, (_, i) => ['k' + i, { d: true, t: 1 }])) }))));
+await t('guide notes updatedAt not a number', assertFails(setDoc(doc(a, 'logbooks', A, 'guide', 'entrustment'), gn({ updatedAt: 'now' }))));
+await t('other deletes guide notes', assertFails(deleteDoc(doc(b, 'logbooks', A, 'guide', 'entrustment'))));
+await t('owner deletes guide notes', assertSucceeds(deleteDoc(doc(a, 'logbooks', A, 'guide', 'entrustment'))));
 // portfolio template: everyone signed in reads, admins write
 await t('template read', assertSucceeds(getDoc(doc(a, 'config', 'portfolioTemplate'))));
 await t('template user write', assertFails(setDoc(doc(a, 'config', 'portfolioTemplate'), { parts: 1, size: 3, uploadedAt: 1 })));

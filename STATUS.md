@@ -11,10 +11,8 @@
 ## Next (in order)
 1. Sign-in check on apmes.anawj.com (Google) after the move.
 2. anawj-site drops the apmes folders, hosts, guest sign-in code and its logbook rules and MCP workflows.
-3. Guidebook notes: on `entrustment.html`, a notes box and a "done" tick on each question, synced with the Logbook sign-in
-   (Firestore, the resident's own data only; rules change in `logbook/firestore.rules`, so beta first and merge on the
-   owner's "ship it"). Signed out, notes and ticks stay on the device and still export. Export as .md, .txt or
-   .docx, and Share / email them.
+3. Guidebook notes and ticks (branch `claude/guide-notes`): on beta for the owner to try; merge on his "ship it"
+   (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
 - 23 Oct 2026: guidebook as an installable app (manifest id `/guide/`, icon from anawj-site `tools/app-icons/`

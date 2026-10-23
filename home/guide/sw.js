@@ -7,8 +7,10 @@
 const VERSION = 'guide-v1';
 // the NUHS design kit lives on another host; SHELL caches it at install, and this answers it from that cache offline
 const KIT = 'https://design.anawj.com/v1/';
+// the Firebase SDK (notes synced with the Logbook sign-in): saved on first use, its URL carries the version
+const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const SHELL = [
-  './', 'entrustment.html', 'guide.css', 'guide.js', 'search.json', 'manifest.webmanifest',
+  './', 'entrustment.html', 'guide.css', 'guide.js', 'notes.js', 'notes-core.js', 'search.json', 'manifest.webmanifest',
   'https://design.anawj.com/v1/tokens.css', 'https://design.anawj.com/v1/app.css',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
 ];
@@ -40,8 +42,8 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (req.url.startsWith(KIT)) {
-    // cache first: the kit's /v1/ only changes compatibly
+  if (req.url.startsWith(KIT) || req.url.startsWith(SDK)) {
+    // cache first: the kit's /v1/ only changes compatibly; the SDK's URL carries its version
     e.respondWith(caches.open(VERSION).then(async c => (await c.match(req.url)) || fetch(req).then(res => {
       if (res.ok) c.put(req.url, res.clone());
       return res;
