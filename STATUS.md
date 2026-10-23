@@ -16,6 +16,8 @@
 - 23 Oct 2026: guidebook pages reorganised: one page per EPA (`epa-01.html` to `epa-12.html`, 7a/7b with 7) and the
   Appendix, a contents page with search over every section (`search.json`), and `entrustment.html`: every DOPS,
   Mini-CEX and EBD item in three tabs, grouped by EPA, with a filter and the EPA 7 attachments inside their items.
+  Later the same day: while filtering, all three types show at once under their own headings, each item carries a
+  coloured DOPS / Mini-CEX / EBD label and the matched words are marked.
 - 23 Oct 2026: guidebook as readable pages at `/guide/` (`home/guide/`, built by `tools/build-guide.mjs` from
   `apmes/guidebook/`; contents, anchors, tables that scroll sideways); its section is on the home page.
 - 23 Oct 2026: home page at apmes.anawj.com/ (`home/`): Open Logbook, MedHub links, an opt-in counts card (own

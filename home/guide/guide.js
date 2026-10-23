@@ -15,13 +15,34 @@
       html = html.replace(new RegExp(`(${w})(?![^<]*>)`, 'gi'), '<mark>$1</mark>');
     return html;
   };
+  const markIn = (root, ws) => {
+    // highlight query words inside an element's text nodes (keeps its markup)
+    const re = new RegExp(ws.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi');
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [], marks = [];
+    while (walk.nextNode()) nodes.push(walk.currentNode);
+    for (const node of nodes) {
+      const text = node.nodeValue, n = norm(text);
+      if (n.length !== text.length) continue;   // accents or ligatures: offsets would not line up
+      let last = 0, frag = null;
+      for (const m of n.matchAll(re)) {
+        frag ||= document.createDocumentFragment();
+        frag.append(text.slice(last, m.index));
+        const el = document.createElement('mark'); el.textContent = text.slice(m.index, m.index + m[0].length);
+        frag.append(el); marks.push(el); last = m.index + m[0].length;
+      }
+      if (frag) { frag.append(text.slice(last)); node.replaceWith(frag); }
+    }
+    return marks;
+  };
   const form = $('[data-search]'), input = form && $('input', form), out = form && $('.g-results', form);
   const tabs = $$('.g-tabs [role="tab"]');
 
   // ---- entrustment page ----
   if (tabs.length) {
     document.documentElement.classList.add('g-js');
+    let current = 'dops';
     const show = key => {
+      current = key;
       for (const t of tabs) t.setAttribute('aria-selected', String(t.getAttribute('aria-controls') === key));
       for (const p of $$('.g-panel')) p.hidden = p.id !== key;
     };
@@ -38,18 +59,29 @@
         if (d) { const next = tabs[(n + d + tabs.length) % tabs.length]; next.focus(); next.click(); }
       });
     });
-    const items = $$('.g-item').map(el => ({ el, text: norm(el.textContent) }));
+    const items = $$('.g-item').map(el => ({ el, sum: $('summary', el), plain: $('summary', el).innerHTML, text: norm(el.textContent) }));
+    // while filtering, every type's matches show at once under its own heading, so a match is never read as the wrong type
     const filter = () => {
-      const ws = words(input.value);
-      for (const i of items) i.el.hidden = !ws.every(w => i.text.includes(w));
+      const ws = words(input.value), on = ws.length > 0;
+      document.documentElement.classList.toggle('g-filtering', on);
+      for (const i of items) {
+        i.el.hidden = !ws.every(w => i.text.includes(w));
+        i.sum.innerHTML = i.plain;
+        if (on && !i.el.hidden) markIn(i.sum, ws);
+      }
       for (const g of $$('.g-items')) { const empty = !$$('.g-item', g).some(i => !i.hidden); g.hidden = empty; g.previousElementSibling.hidden = empty; }
+      const counts = [];
       for (const t of tabs) {
-        const n = $$('.g-item', document.getElementById(t.getAttribute('aria-controls'))).filter(i => !i.hidden).length;
+        const key = t.getAttribute('aria-controls'), panel = document.getElementById(key);
+        const n = $$('.g-item', panel).filter(i => !i.hidden).length;
         $('.g-count', t).textContent = n;
+        $('.g-panel-count', panel).textContent = on ? `· ${n} match${n === 1 ? '' : 'es'}` : '';
+        panel.hidden = on ? n === 0 : key !== current;
+        counts.push(`${t.textContent.replace(/\s*\d+$/, '')} ${n}`);
       }
       const shown = $$('.g-panel:not([hidden]) .g-item:not([hidden])').length;
-      out.textContent = ws.length ? (shown ? '' : 'Nothing on this tab matches; the numbers on the tabs show matches on the others.') : '';
-      for (const i of items) if (ws.length && !i.el.hidden && shown <= 3) i.el.open = true;
+      out.textContent = on ? (shown ? `Matches in all types: ${counts.join(' · ')}` : 'No matches.') : '';
+      for (const i of items) if (on && !i.el.hidden && shown <= 3) i.el.open = true;
     };
     input.addEventListener('input', filter);
     addEventListener('hashchange', fromHash);
@@ -60,22 +92,7 @@
   // ---- a page opened from a search result: mark the words, scroll to the first one at or after the part ----
   const q = new URLSearchParams(location.search).get('q'), doc = $('article.g-doc');
   if (q && doc) {
-    const ws = words(q).filter(w => w.length > 1), marks = [];
-    const re = ws.length && new RegExp(ws.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi');
-    const walk = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT), nodes = [];
-    while (re && walk.nextNode()) nodes.push(walk.currentNode);
-    for (const node of nodes) {
-      const text = node.nodeValue, n = norm(text);
-      if (n.length !== text.length) continue;   // accents or ligatures: offsets would not line up
-      let last = 0, frag = null;
-      for (const m of n.matchAll(re)) {
-        frag ||= document.createDocumentFragment();
-        frag.append(text.slice(last, m.index));
-        const el = document.createElement('mark'); el.textContent = text.slice(m.index, m.index + m[0].length);
-        frag.append(el); marks.push(el); last = m.index + m[0].length;
-      }
-      if (frag) { frag.append(text.slice(last)); node.replaceWith(frag); }
-    }
+    const ws = words(q).filter(w => w.length > 1), marks = ws.length ? markIn(doc, ws) : [];
     const from = location.hash && document.getElementById(location.hash.slice(1));
     const first = marks.find(m => !from || (from.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING)) || marks[0];
     if (first) { for (let el = first.parentElement; el; el = el.parentElement) if (el.tagName === 'DETAILS') el.open = true; requestAnimationFrame(() => first.scrollIntoView({ block: 'center' })); }
