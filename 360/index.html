@@ -50,6 +50,37 @@
   .cc-list a { text-decoration: underline; font-weight: 600; }
   .cc-count { font-variant-numeric: tabular-nums; color: var(--a-ink-2); font-size: var(--a-text-sm); }
   .cc-private { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--a-surface-2); font-size: var(--a-text-sm); color: var(--a-ink-2); }
+  /* the CCC report: a plain table that prints cleanly */
+  .cc-h3 { margin: 0 0 8px; font-size: var(--a-text-md, 1rem); }
+  .cc-h4 { margin: 12px 0 4px; font-size: var(--a-text-sm); color: var(--a-ink-2); }
+  .cc-scroll { overflow-x: auto; }
+  .cc-table { width: 100%; border-collapse: collapse; font-size: var(--a-text-sm); }
+  .cc-table caption { text-align: left; color: var(--a-ink-2); padding-bottom: 6px; }
+  .cc-table th, .cc-table td { padding: 8px 6px; border-bottom: .5px solid var(--a-sep); text-align: left; vertical-align: top; }
+  .cc-table thead th { color: var(--a-ink-2); font-weight: 600; }
+  .cc-table tbody th { font-weight: 600; }
+  .cc-table a { text-decoration: underline; }
+  .cc-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cc-n { color: var(--a-ink-2); font-weight: 400; }
+  .cc-total th, .cc-total td { border-bottom: 0; font-weight: 700; }
+  .cc-quote { white-space: pre-wrap; }
+  .cc-dl { display: grid; grid-template-columns: 1fr; gap: 2px 12px; margin: 0; font-size: var(--a-text-sm); }
+  .cc-dl dt { color: var(--a-ink-2); margin-top: 6px; }
+  .cc-dl dd { margin: 0; }
+  .cc-print-all { display: none; }
+  @media print {
+    .e-appbar, #toast, .cc-noprint { display: none !important; }
+    body, .a-main { background: #fff !important; color: #000 !important; }
+    .a-main { padding: 0 !important; }
+    .cc-col { max-width: none; }
+    .e-card { box-shadow: none !important; border: 0 !important; background: none !important; padding: 0 0 12px !important; break-inside: avoid; }
+    .cc-table th, .cc-table td { border-bottom: 1px solid #999; color: #000; }
+    .cc-concern { display: none !important; }
+    body.cc-print-concerns .cc-concern { display: revert !important; }
+    body:has(.cc-print-all) .cc-report > :not(.cc-print-all) { display: none !important; }
+    .cc-print-all { display: block; }
+    .cc-page + .cc-page { break-before: page; }
+  }
 </style>
 </head>
 <body class="a-app e-nonav">

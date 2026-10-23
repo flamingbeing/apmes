@@ -43,7 +43,9 @@
     ],
     "deny": [
       "Read(./__/**)",
-      "Read(**/vendor/**)"
+      "Read(**/vendor/**)",
+      "Read(./home/guide/*.html)",
+      "Read(./home/guide/search.json)"
     ]
   }
 }

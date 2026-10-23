@@ -6,11 +6,12 @@ The APMES apps of the anaesthesia residency programme, production at `apmes.anaw
 | App | Folder | Address |
 | --- | --- | --- |
 | Home page (live apps, MedHub, counts card) | `home/` | apmes.anawj.com/ |
+| Guidebook pages (built from `apmes/guidebook/`) | `home/guide/` | apmes.anawj.com/guide/ |
 | APMES case logbook | `logbook/` | apmes.anawj.com/logbook/ |
 | APMES assessments (evals) | `evals/` | apmes.anawj.com/evals/ |
 | APMES People | `people/` | apmes.anawj.com/people/ |
 | CCC 360 | `360/` | apmes.anawj.com/360/ |
-| Programme documents | `apmes/` | not served (only `apmes/guidebook/`, which evals reads) |
+| Programme documents | `apmes/` | not served (only `apmes/guidebook/`, which evals reads raw) |
 
 `__/` holds Firebase's sign-in helper pages; `apmes-auth/` and `apmes-auth-beta/` hold each host's `init.json`.
 Read the app's `NOTES.md` and `README.md` (and `STATUS.md` here) first.
@@ -37,6 +38,10 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
   repo's `logbook-mcp` release on merge (the app's download link points there).
 - **Generated files:** `evals/js/catalogue.js` and `forms.js`. Edit `apmes/` or `evals/tools/build-data.mjs`, then run
   `node evals/tools/build-data.mjs` (`tools/check.mjs` fails when they are stale).
+  `home/guide/*.html` (the readable guidebook at `/guide/`): edit `apmes/guidebook/*.md` or `tools/build-guide.mjs`,
+  then run `node tools/build-guide.mjs` (it also writes `entrustment.html` and `search.json`; `tools/check.mjs` fails
+  when they are stale; reading them is denied in `.claude/settings.json`). By hand: `home/guide/guide.css` and
+  `guide.js` (search and the entrustment tabs).
 - The NUHS design kit (and the shared QR generator, `/v1/feedback/qr.js`) load from `https://design.anawj.com/v1/`
   (another repo); never copy them in. The service workers cache the kit at install and answer it offline (`KIT`).
 - **Service workers:** each `sw.js` VERSION starts with its folder name and is stamped at deploy

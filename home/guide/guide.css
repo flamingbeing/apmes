@@ -1,0 +1,81 @@
+/* The guidebook pages (home/guide/*.html, built by tools/build-guide.mjs). The design kit gives the bar, lists and
+   colours; this adds readable text, contents and tables that scroll sideways on a phone. */
+
+/* the Logbook's palette drives the kit, as on the home page (index.html) */
+html.lb-colours.lb-colours {
+  --a-tint: var(--accent); --a-tint-ink: var(--accent-ink); --a-tint-soft: var(--accent-soft); --a-focus: var(--accent);
+  --a-bg: var(--bg); --a-surface: var(--panel); --a-ink: var(--ink); --a-ink-2: var(--muted); --a-sep: var(--line);
+}
+.g-col { max-width: 760px; margin: 0 auto; }
+.g-back { color: var(--a-tint); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }
+.g-h1 { font-size: 24px; margin: 8px 0; }
+
+.g-toc { margin: 0 0 16px; background: var(--a-surface); border-radius: 12px; padding: 0 14px; }
+.g-toc summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--a-tint); font-weight: 600; }
+.g-toc ul { margin: 0; padding: 0 0 10px 0; list-style: none; }
+.g-toc ul ul { padding: 0 0 0 16px; }
+.g-toc li a { display: block; padding: 8px 0; color: var(--a-ink); text-decoration: none; line-height: 1.35; }
+.g-toc li a:hover { color: var(--a-tint); }
+
+.g-doc { line-height: 1.55; overflow-wrap: break-word; }
+.g-doc h1 { font-size: 24px; line-height: 1.25; margin: 8px 0 12px; }
+.g-doc h2 { font-size: 21px; line-height: 1.3; margin: 32px 0 10px; padding-top: 12px; border-top: 1px solid var(--a-sep); }
+.g-doc h3 { font-size: 18px; line-height: 1.3; margin: 24px 0 8px; }
+.g-doc h4 { font-size: 16px; line-height: 1.35; margin: 20px 0 6px; }
+.g-doc h1, .g-doc h2, .g-doc h3, .g-doc h4 { scroll-margin-top: 64px; }
+.g-doc p, .g-doc ul, .g-doc ol { margin: 0 0 12px; }
+.g-doc ul, .g-doc ol { padding-left: 24px; }
+.g-doc li { margin: 4px 0; }
+.g-doc li > ul, .g-doc li > ol { margin: 4px 0 0; }
+.g-doc a { color: var(--a-tint); }
+.g-doc blockquote { margin: 0 0 12px; padding: 8px 14px; border-left: 3px solid var(--a-tint); background: var(--a-surface); border-radius: 0 8px 8px 0; }
+.g-doc blockquote p { margin: 0; }
+.g-doc hr { border: 0; border-top: 1px solid var(--a-sep); margin: 24px 0; }
+.g-doc code { font-size: 0.9em; }
+
+/* wide tables scroll sideways inside their box, never the page */
+.g-table { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 0 16px; border: 1px solid var(--a-sep); border-radius: 8px; }
+.g-table:focus-visible { outline: 2px solid var(--a-focus); outline-offset: 2px; }
+.g-table table { border-collapse: collapse; min-width: 100%; font-size: 14px; line-height: 1.45; }
+.g-table th, .g-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--a-sep); min-width: 9em; max-width: 28em; }
+.g-table th { background: var(--a-surface); font-weight: 600; }
+.g-table tr:last-child td { border-bottom: 0; }
+.g-table th + th, .g-table td + td { border-left: 1px solid var(--a-sep); }
+
+/* contents page: section heads, search and its results */
+.g-list-head { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--a-ink-2); margin: 20px 4px 6px; }
+.g-search { margin: 12px 0 16px; }
+.g-search .a-field { width: 100%; box-sizing: border-box; }
+.g-search-hint { margin: 6px 4px 0; }
+.g-results:empty { display: none; }
+.g-results { margin-top: 8px; }
+.g-results > p { margin: 4px 4px 8px; }
+.g-results .a-row--stack { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding-top: 10px; padding-bottom: 10px; text-decoration: none; color: var(--a-ink); }
+.g-hit-where { font-size: 12px; color: var(--a-tint); font-weight: 600; }
+.g-hit-title { font-weight: 600; line-height: 1.3; }
+.g-hit-text { font-size: 14px; color: var(--a-ink-2); line-height: 1.4; }
+.g-results mark, .g-doc mark { background: #ffe066; color: #1c1c1e; border-radius: 2px; padding: 0 1px; }
+
+/* entrustment questions: DOPS / Mini-CEX / EBD tabs, items grouped by EPA */
+.g-tabs { position: sticky; top: 52px; z-index: 2; margin: 0 0 8px; }
+.g-tabs:not(:has(:focus-visible)) { box-shadow: 0 0 0 4px var(--a-bg); }
+.g-count { font-weight: 400; color: var(--a-ink-2); font-size: 12px; margin-left: 2px; }
+html:not(.g-js) .g-tabs { display: none; }
+html.g-js .g-panel-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.g-panel-title { font-size: 21px; margin: 24px 0 4px; }
+.g-epa { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--a-ink-2); margin: 18px 4px 6px; }
+.g-items { background: var(--a-surface); border-radius: 12px; overflow: hidden; }
+.g-item + .g-item { border-top: 1px solid var(--a-sep); }
+.g-item > summary { list-style: none; cursor: pointer; padding: 12px 36px 12px 14px; min-height: 44px; box-sizing: border-box; line-height: 1.35; position: relative; scroll-margin-top: 110px; }
+.g-item > summary::-webkit-details-marker { display: none; }
+.g-item > summary::after { content: ""; position: absolute; right: 16px; top: 50%; width: 7px; height: 7px; margin-top: -5px; border: solid var(--a-ink-3, #c7c7cc); border-width: 0 2px 2px 0; transform: rotate(45deg); transition: transform .15s; }
+.g-item[open] > summary::after { transform: rotate(-135deg); margin-top: -1px; }
+.g-item[open] > summary { font-weight: 600; }
+.g-item { scroll-margin-top: 110px; }
+.g-item-epa { display: inline-block; font-size: 12px; font-weight: 600; color: var(--a-tint); margin-right: 4px; }
+.g-item > .g-doc { padding: 0 14px 12px; }
+.g-attach { margin: 8px 0 12px; border: 1px solid var(--a-sep); border-radius: 10px; padding: 0 12px; }
+.g-attach > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--a-tint); font-weight: 600; }
+.g-attach h3 { font-size: 16px; margin: 16px 0 6px; }
+.g-from { margin: 4px 0 0; font-size: 14px; }
+.g-sub { display: block; font-size: 14px; color: var(--a-ink-2); margin-top: 2px; }

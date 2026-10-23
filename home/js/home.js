@@ -1,4 +1,4 @@
-// The APMES home page (apmes.anawj.com/): the live apps, MedHub and, once it ships, the guidebook, from links.js;
+// The APMES home page (apmes.anawj.com/): the live apps, MedHub and the guidebook (/guide/), from links.js;
 // the counts card (counts.js, off unless turned on on this device) and a Light / Dark switch (theme.js).
 import { visibleSections } from './links.js';
 import * as theme from './theme.js';

@@ -330,4 +330,54 @@ console.log('ccc 360 model: all checks passed');
   assert.ok(decodeURIComponent(inviteMailto(nominees[3], 'Amy', {}, link)).startsWith('mailto:?subject='), 'no email: the coordinator fills in the address');
   assert.ok(!/[<>]/.test(m), 'plain text only');
 }
+
+// ---- the CCC report, the saved summary and the clean-up plan ----
+{
+  const { summarise, reportDoc, fromReport, purgePlan, invitesOf, invitedResidents, overviewRows, meanText, answerLines } = await import('../js/model.js');
+  const inv = (resident, group, name) => ({ resident, nomineeId: name, group, residentName: resident === 'amy@x.com' ? 'Amy First' : 'Ben Second', raterName: name, createdAt: 1, createdBy: 'pc@x.com' });
+  const ans = (q, c1, concern) => ({ answers: { q1: q, q2: q, q3: 'na', q4: q, q5: q, q6: concern ? 'yes' : 'no' }, comments: { c1, ...(concern ? { c3: concern } : {}) }, declined: false, submittedAt: 5 });
+  const invites = { a1: inv('amy@x.com', 'senior', 'Dr A'), a2: inv('amy@x.com', 'senior', 'Dr B'), a3: inv('amy@x.com', 'senior', 'Dr C'), a4: inv('amy@x.com', 'peer', 'Pat'), a5: inv('amy@x.com', 'allied', 'Nurse N'), b1: inv('ben@x.com', 'senior', 'Dr A') };
+  const responses = { a1: ans(4, 'Calm'), a2: ans(3, 'Kind'), a3: ans(3, '', 'Late twice'), a4: ans(2, 'Quiet'), a5: { answers: {}, comments: {}, declined: true, reason: 'Leave', submittedAt: 6 } };
+  assert.deepEqual(Object.keys(invitesOf(invites, 'AMY@x.com')), ['a1', 'a2', 'a3', 'a4', 'a5']);
+  assert.deepEqual(invitedResidents(invites), [{ email: 'amy@x.com', name: 'Amy First' }, { email: 'ben@x.com', name: 'Ben Second' }]);
+  const s = summarise(Object.fromEntries(['a1', 'a2', 'a3', 'a4', 'a5'].map(k => [k, responses[k]])), invitesOf(invites, 'amy@x.com'), { rand: () => 0 });
+  assert.equal(s.overall.n, 16, 'every rating on every item, "not observed" left out');
+  assert.equal(s.overall.mean, 3);
+  const doc = reportDoc('Amy@x.com', 'Amy First', s);
+  assert.deepEqual(Object.keys(doc).sort(), ['comments', 'concerns', 'counts', 'email', 'enough', 'formId', 'groups', 'items', 'minGroup', 'name', 'overall'], 'the rules\' keys (the store adds savedAt)');
+  assert.equal(doc.email, 'amy@x.com');
+  assert.deepEqual(doc.counts, { invited: 5, done: 4, declined: 1, waiting: 0 }, 'no counts per group');
+  assert.ok(!JSON.stringify(doc).match(/Dr A|Dr B|Dr C|Pat|Nurse N|Leave/), 'no rater names or decline reasons in the saved summary');
+  assert.deepEqual(doc.concerns, { yes: 1, texts: ['Late twice'] });
+  assert.equal(doc.groups.length, 1, 'seniors shown; the one peer folded in');
+  assert.equal(doc.groups[0].n, 4);
+  // back again: the screen draws the same thing
+  const back = fromReport({ ...doc, savedAt: 9 });
+  assert.deepEqual([back.counts, back.enough, back.overall, back.groups, back.concerns, back.savedAt], [doc.counts, true, doc.overall, doc.groups, doc.concerns, 9]);
+  assert.deepEqual(back.items.map(i => i.overall), s.items.map(i => i.overall));
+  assert.deepEqual(back.comments, s.comments);
+  const junk = fromReport({ counts: 'x', items: 'y', groups: null, comments: [{ slot: 'c1', title: 't', texts: 'nope' }] });
+  assert.deepEqual([junk.counts.done, junk.items, junk.groups, junk.comments[0].texts, junk.minGroup, junk.overall.mean], [0, [], [], [], 3, null], 'a broken document draws as empty');
+  // too few answers: only counts survive
+  const few = reportDoc('ben@x.com', 'Ben', summarise({ b1: ans(4, 'Fine') }, invitesOf(invites, 'ben@x.com')));
+  assert.deepEqual([few.enough, few.items, few.comments, few.groups, few.overall.mean, few.counts.done], [false, [], [], [], null, 1]);
+  // the clean-up plan: one step per resident, all links and answers in it, and a stray answer deleted too
+  const plan = purgePlan(invites, { ...responses, zz: ans(1, 'stray') }, { rand: () => 0 });
+  assert.deepEqual(plan.map(p => p.email), ['amy@x.com', 'ben@x.com', '']);
+  assert.deepEqual(plan[0].inviteIds, ['a1', 'a2', 'a3', 'a4', 'a5']);
+  assert.deepEqual(plan[0].responseIds, ['a1', 'a2', 'a3', 'a4', 'a5']);
+  assert.deepEqual(plan[0].report, doc);
+  assert.deepEqual([plan[1].inviteIds, plan[1].responseIds, plan[1].report.counts.waiting], [['b1'], [], 1], 'a rater who never answered: the summary keeps the count');
+  assert.deepEqual([plan[2].report, plan[2].responseIds], [null, ['zz']]);
+  assert.deepEqual(purgePlan({}, {}), []);
+  // the round overview
+  const rows = overviewRows({ 'ben@x.com': { name: 'Ben', saved: true, summary: back }, 'amy@x.com': { name: 'Amy', summary: s } });
+  assert.deepEqual(rows.map(r => [r.name, r.invited, r.done, r.mean, r.concerns, r.saved]), [['Amy', 5, 4, 3, 1, false], ['Ben', 5, 4, 3, 1, true]]);
+  assert.deepEqual([meanText(3), meanText(2.456), meanText(null)], ['3.00', '2.46', '–']);
+  // raw answers as lines
+  const lines = answerLines(responses.a3);
+  assert.equal(lines.find(l => l.title === 'Clinical care').value, '3 Meets expectations');
+  assert.equal(lines.find(l => l.title === 'Teamwork').value, 'Not observed');
+  assert.ok(lines.some(l => l.value === 'Yes') && lines.some(l => l.value === 'Late twice' && l.text));
+}
 console.log('360 rater model checks passed');

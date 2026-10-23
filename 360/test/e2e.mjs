@@ -366,6 +366,71 @@ await page.reload();
 await page.getByRole('heading', { name: 'Rounds' }).waitFor();
 assert.equal(Object.keys((await store()).msf).length, 2, 'a round closed 364 days ago keeps its nominees');
 
+// 15b. The CCC report: four raters for Aiden (three seniors, one peer folded in), one decline, one concern
+await page.evaluate(() => localStorage.removeItem('ccc-demo-store'));
+await page.goto(BASE + '360/?demo=admin');
+await page.getByRole('heading', { name: 'Rounds' }).waitFor();
+await setStore(() => {
+  const A = 'aiden.tan@example.com', raters = [['senior', 'Dr Rater One', 4, 'Steady under pressure.'], ['senior', 'Dr Rater Two', 3, 'Kind to patients.'], ['senior', 'Dr Rater Three', 3, ''], ['peer', 'Peer Rater', 2, 'Shares the load.'], ['allied', 'Allied Rater', 0, '']];
+  raters.forEach(([group, raterName, q, c1], i) => {
+    const id = String(i + 1).repeat(32);
+    d.invites['demo|' + id] = { resident: A, nomineeId: 'n' + i, group, residentName: 'Aiden Tan', raterName, createdAt: 1, createdBy: 'pc@example.com' };
+    d.responses['demo|' + id] = q ? { answers: { q1: q, q2: q, q3: 'na', q4: q, q5: q, q6: i === 2 ? 'yes' : 'no' }, comments: { ...(c1 ? { c1 } : {}), ...(i === 2 ? { c3: 'Left a handover unfinished.' } : {}) }, declined: false, submittedAt: 2 }
+      : { answers: {}, comments: {}, declined: true, reason: 'Did not work together', submittedAt: 2 };
+  });
+});
+await page.goto(BASE + '360/?demo=admin#staff/demo');
+await page.getByRole('link', { name: 'Open the CCC report' }).click();
+await page.getByRole('heading', { name: 'CCC report: CCC round (demo)' }).waitFor();
+const ovRow = page.locator('.cc-table tbody tr', { hasText: 'Aiden Tan' });
+assert.match(await ovRow.textContent(), /Aiden Tan5413\.001/, 'invited 5, answered 4, declined 1, mean 3.00, 1 concern');
+await axe('round report'); await shot('10-round-report');
+await page.getByRole('link', { name: 'Aiden Tan' }).click();
+await page.getByRole('heading', { name: 'Multisource feedback: Aiden Tan' }).waitFor();
+const rep = await page.textContent('main');
+assert.match(rep, /5 raters invited · 4 answered · 1 declined · 0 waiting/);
+assert.match(rep, /Senior doctors and others \(4\)/, 'the one peer folds into the seniors');
+assert.match(rep, /Steady under pressure\./);
+assert.match(rep, /Left a handover unfinished\./, 'concerns on screen for PDs and PCs');
+for (const name of ['Dr Rater One', 'Dr Rater Two', 'Dr Rater Three', 'Peer Rater', 'Allied Rater', 'Did not work together']) assert.ok(!rep.includes(name), `no rater names or reasons on the report (${name})`);
+assert.equal(await page.locator('.cc-table tbody tr').count(), 6, 'five items and the total');
+await axe('resident report'); await shot('11-resident-report');
+// print: no app bar or buttons; concerns only when ticked
+await page.emulateMedia({ media: 'print' });
+assert.equal(await page.locator('header.e-appbar').isVisible(), false);
+assert.equal(await page.getByRole('button', { name: 'Print or save as PDF' }).isVisible(), false);
+assert.equal(await page.locator('section.cc-concern').isVisible(), false, 'concerns are left off paper by default');
+await page.emulateMedia({ media: 'screen' });
+await page.getByLabel('Include concerns when printing').check();
+await page.emulateMedia({ media: 'print' });
+assert.equal(await page.locator('section.cc-concern').isVisible(), true);
+if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '12-print.png'), fullPage: true });
+await page.emulateMedia({ media: 'screen' });
+await page.getByLabel('Include concerns when printing').uncheck();
+// raw answers, with names, for PDs and PCs
+await page.goto(BASE + '360/?demo=admin#staff/demo/aiden.tan%40example.com/answers');
+await page.getByRole('heading', { name: 'Raters’ answers: Aiden Tan' }).waitFor();
+const raw = await page.textContent('main');
+assert.match(raw, /Dr Rater One/); assert.match(raw, /Reason: Did not work together/); assert.match(raw, /4 Above expectations/);
+assert.equal(await page.locator('main section.cc-card').count(), 5);
+await axe('raw answers');
+// the clean-up a year after closing: the summary is saved, then the answers and links go
+await setStore(() => { d.rounds.demo.status = 'closed'; d.rounds.demo.closedAt = Date.now() - 366 * 86400000; });
+await page.goto(BASE + '360/?demo=admin#staff');
+await page.reload();
+await page.getByText(/Deleted 2 nominee lists and saved 1 CCC summary and deleted the raters’ answers from rounds closed more than a year ago/).waitFor();
+st = await store();
+assert.deepEqual([Object.keys(st.invites).length, Object.keys(st.responses).length], [0, 0], 'answers and links deleted');
+const saved = st.reports['demo|aiden.tan@example.com'];
+assert.ok(saved && saved.savedAt > 0, 'summary saved');
+assert.ok(!JSON.stringify(saved).includes('Rater'), 'the saved summary has no rater names');
+await page.goto(BASE + '360/?demo=admin#staff/demo/aiden.tan%40example.com/report');
+await page.getByRole('heading', { name: 'Multisource feedback: Aiden Tan' }).waitFor();
+assert.match(await page.textContent('main'), /Summary saved .*when the raters’ answers were deleted/);
+assert.match(await page.textContent('main'), /Steady under pressure\./);
+await page.goto(BASE + '360/?demo=admin#staff/demo/report');
+await page.locator('.cc-table tbody tr', { hasText: 'Aiden Tan' }).waitFor();
+
 // 16. A resident does not see the coordinators' view, even by typing the address
 await page.evaluate(() => localStorage.removeItem('ccc-demo-store'));
 await page.goto(BASE + '360/?demo');

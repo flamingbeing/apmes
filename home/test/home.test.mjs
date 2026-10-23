@@ -11,15 +11,15 @@ function mem(init = {}) {
   return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
 }
 
-test('only live links show; Logbook first; beta apps and the guidebook hidden', () => {
+test('only live links show; Logbook first; beta apps hidden; the guidebook shown', () => {
   const v = visibleSections();
-  assert.deepEqual(v.map(s => s.id), ['apps', 'medhub']);
+  assert.deepEqual(v.map(s => s.id), ['apps', 'medhub', 'guide']);
   assert.equal(v[0].links[0].label, 'Open Logbook');
   assert.equal(v[0].links[0].primary, true);
   assert.deepEqual(v[0].links.map(l => l.url), ['/logbook/']);
   for (const l of LINKS) assert.ok(SECTIONS.some(s => s.id === l.section), l.label);
-  // flipping one flag puts a section on the page
-  assert.ok(visibleSections(LINKS.map(l => (l.section === 'guide' ? { ...l, live: true } : l))).some(s => s.id === 'guide'));
+  // flipping one flag takes a section off the page (or puts it back)
+  assert.ok(!visibleSections(LINKS.map(l => (l.section === 'guide' ? { ...l, live: false } : l))).some(s => s.id === 'guide'));
 });
 
 test('links: inside this site or https only', () => {
