@@ -48,6 +48,9 @@ export function sentAt(s) {
   return Date.UTC(y, mo - 1, d, h - 8, mi, se);
 }
 const HALF = { 'jan-jun': 'h1', 'jul-dec': 'h2' };
+// a name, never an identity-card number (NRIC/FIN) typed into the name box
+const NRIC = /\b[STFGM]\d{7}[A-Z]\b/i;
+const cleanName = v => { const s = val(v).replace(/\s+/g, ' '); return NRIC.test(s) ? '' : s; };
 // the round a row belongs to: { id: 'r2025-h2', title: 'CCC Jul–Dec 2025' }
 export function roundOf(label, at) {
   const m = /^(jan|jul)\s*[-–]\s*(jun|dec)\s+(\d{4})$/i.exec(String(label || '').trim());
@@ -128,6 +131,9 @@ export function plan(csvText, { skip = [] } = {}) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push({ r, at, email, round: rd.id });
   }
+  // a resident's name from any of their rows, for a send whose name box held something else (an NRIC, say)
+  const names = new Map();
+  for (const r of rows) { const e = val(r[c.email]).toLowerCase(), n = cleanName(r[c.name]); if (e && n) names.set(e, n); }
   const docs = [];
   for (const list of groups.values()) {
     list.sort((a, b) => a.at - b.at);
@@ -135,7 +141,7 @@ export function plan(csvText, { skip = [] } = {}) {
     // newest non-empty answer per field
     const pick = f => { for (let i = list.length - 1; i >= 0; i--) { const v = f(list[i].r); if (v && (!Array.isArray(v) || v.length)) return v; } return Array.isArray(f(list[0].r)) ? [] : ''; };
     const { email, round } = list[list.length - 1];
-    const name = pick(r => val(r[c.name]).replace(/\s+/g, ' '));
+    const name = pick(r => cleanName(r[c.name])) || names.get(email) || email;
     const projects = pick(r => projectsOf(r[c.projects]));
     const entry = { noProjects: !projects.length, projects, admin: pick(r => lines(r[c.admin])), teaching: pick(r => lines(r[c.teaching])), conferences: pick(r => lines(r[c.conferences])) };
     const nomineesOf = r => [

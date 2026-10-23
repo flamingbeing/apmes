@@ -33,12 +33,13 @@ const row = (at, name, email, proj, admin, seniors, allied) => [at, '', name, em
   ...seniors.concat(Array(6).fill('.')).slice(0, 6), '.', '.', ...allied.concat(Array(8).fill('.')).slice(0, 8)];
 const csv = [head, row('06/10/2025 10:00:00', 'Demo One', 'one@example.com', 'Audit A', 'Rota planner', ['Dr A', 'Dr B'], ['Nurse C', 'c@example.com', 'Nurse D', 'not an email']),
   row('08/10/2025 10:00:00', 'Demo One', 'One@Example.com', 'Audit A\nnow writing up', 'NA', ['.'], []),
-  row('20/04/2026 10:00:00', 'Demo Two', 'two@example.com', 'NA', '', [], []),
+  row('20/04/2026 10:00:00', 'S1234567D', 'two@example.com', 'NA', '', [], []),
+  row('21/04/2025 10:00:00', 'Demo Two', 'two@example.com', 'NA', '', [], []),
   row('21/04/2026 10:00:00', 'Tester', 'pc@example.com', 'x', 'x', ['x'], [])]
   .map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
 const p = plan(csv, { skip: ['pc@example.com'] });
 const doc = path => p.docs.find(d => d.path === path)?.data;
-assert.deepEqual(p.report.rounds.map(r => [r.id, r.status, r.residents]), [['r2025-h2', 'closed', 1], ['r2026-h1', 'open', 1]]);
+assert.deepEqual(p.report.rounds.map(r => [r.id, r.status, r.residents]), [['r2025-h1', 'closed', 1], ['r2025-h2', 'closed', 1], ['r2026-h1', 'open', 1]]);
 assert.equal(doc('ccc/r2025-h2').closedAt, sentAt('08/10/2025 10:00:00'));
 assert.equal(doc('ccc/r2026-h1').status, 'open');
 const e1 = doc('ccc/r2025-h2/entries/one@example.com');
@@ -48,6 +49,8 @@ assert.deepEqual(doc('ccc/r2025-h2/msf/one@example.com').nominees.map(n => [n.gr
   [['senior', 'Dr A', ''], ['senior', 'Dr B', ''], ['allied', 'Nurse C', 'c@example.com'], ['allied', 'Nurse D', '']], 'nominees from the send that had them');
 assert.equal(p.report.badEmails.length, 1);
 assert.equal(doc('ccc/r2026-h1/entries/two@example.com').noProjects, true);
+assert.equal(doc('ccc/r2026-h1/entries/two@example.com').name, 'Demo Two', 'an NRIC in the name box gives way to the name from another send');
+assert.ok(!JSON.stringify(p).includes('S1234567D'), 'the NRIC appears nowhere');
 assert.equal(doc('ccc/r2026-h1/msf/two@example.com'), undefined, 'no nominees, no list');
 assert.equal(p.docs.some(d => d.path.includes('pc@example.com')), false);
 assert.equal(p.report.merged, 1);
