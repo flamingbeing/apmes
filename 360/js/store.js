@@ -6,17 +6,18 @@
 //   ccc/{round}/review/{email}       { email, marks, updatedAt }                 (staff only)
 //   ccc/{round}/invites/{id}         { resident, nomineeId, group, residentName, raterName, createdAt, createdBy }
 //   ccc/{round}/responses/{id}       { answers, comments, declined, reason?, submittedAt }   (PDs and PCs read)
+//   ccc/{round}/report/{email}       the resident's CCC summary, kept when the answers are deleted (PDs and PCs)
 // With ?demo: the same calls against this browser's localStorage (made-up people), so the screens are the same.
 
 import { cloud } from '../../evals/js/ui-core.js';
-import { entryDoc, msfDoc, cleanEntry, cleanNominees, demoRound, purgeDue, inviteDoc, newInviteId } from './model.js';
+import { entryDoc, msfDoc, cleanEntry, cleanNominees, demoRound, purgeDue, inviteDoc, newInviteId, purgePlan } from './model.js';
 
 const lc = s => String(s || '').trim().toLowerCase();
 const KEY = 'ccc-demo-store';
 const demoRead = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
 const demoWrite = d => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch {} };
 const demoDb = () => {
-  const d = demoRead(); d.rounds ||= {}; d.entries ||= {}; d.msf ||= {}; d.review ||= {}; d.invites ||= {}; d.responses ||= {};
+  const d = demoRead(); d.rounds ||= {}; d.entries ||= {}; d.msf ||= {}; d.review ||= {}; d.invites ||= {}; d.responses ||= {}; d.reports ||= {};
   if (!Object.keys(d.rounds).length) {
     // a made-up round with two residents who have sent and one who has not, so the coordinators' view has something to show
     const r = demoRound(); d.rounds[r.round] = r; const t = Date.now() - 86400000;
@@ -121,16 +122,45 @@ export async function deleteNominees(round, email) {
   await b.commit();
 }
 
-// Delete the nominees of every round that closed more than a year ago. Runs when staff open the app. Returns how many
-// nominee lists were deleted (0 mostly). Projects are kept.
+// Every round that closed more than a year ago: delete the nominees, and the raters' links and answers after saving each
+// resident's CCC summary (report/). Runs when staff open the app. Only PDs and PCs read answers, so with Admin staff the
+// rater data waits for a PD or PC (the links stay too: without them the answers could not be summed up). Projects are
+// kept. Returns { lists, reports }: nominee lists deleted and summaries saved (0 mostly).
 export async function purgeExpired(rounds, now = Date.now()) {
-  let n = 0;
+  const done = { lists: 0, reports: 0 };
   for (const r of rounds) {
     if (!purgeDue(r, now)) continue;
     const left = Object.keys(await listNominees(r.round));
-    for (const email of left) { await deleteNominees(r.round, email); n++; }
+    for (const email of left) { await deleteNominees(r.round, email); done.lists++; }
+    const [invites, responses] = await Promise.all([listInvites(r.round), listResponses(r.round)]);
+    if (!responses || !Object.keys(invites).length && !Object.keys(responses).length) continue;
+    for (const step of purgePlan(invites, responses)) { await purgeRaters(r.round, step); if (step.report) done.reports++; }
   }
-  return n;
+  return done;
+}
+// one resident's step: the summary saved and the answers and links deleted together, so a failure leaves all or nothing
+async function purgeRaters(round, { email, report, inviteIds, responseIds }) {
+  if (cloud.demo) {
+    const d = demoDb();
+    if (report) d.reports[round + '|' + email] = { ...report, savedAt: Date.now() };
+    for (const id of responseIds) delete d.responses[round + '|' + id];
+    for (const id of inviteIds) delete d.invites[round + '|' + id];
+    demoWrite(d); return;
+  }
+  const { db, F } = await cloud.firestore();
+  const b = F.writeBatch(db);
+  if (report) b.set(F.doc(db, 'ccc', round, 'report', email), { ...report, savedAt: F.serverTimestamp() });
+  for (const id of responseIds) b.delete(F.doc(db, 'ccc', round, 'responses', id));
+  for (const id of inviteIds) b.delete(F.doc(db, 'ccc', round, 'invites', id));
+  await b.commit();
+}
+// the saved summaries of a round, by resident email; null when this reader may not see them (PDs and PCs only)
+export async function listReports(round) {
+  if (cloud.demo) return Object.fromEntries(Object.entries(demoDb().reports).filter(([k]) => k.startsWith(round + '|')).map(([k, v]) => [k.slice(round.length + 1), { ...v, savedAt: ms(v.savedAt) }]));
+  try {
+    const { db, F } = await cloud.firestore();
+    return Object.fromEntries((await F.getDocs(F.collection(db, 'ccc', round, 'report'))).docs.map(d => [d.id, { ...d.data(), savedAt: ms(d.data().savedAt) }]));
+  } catch (e) { if (e?.code === 'permission-denied') return null; throw e; }
 }
 
 // ---- raters' one-time links ----

@@ -864,18 +864,37 @@ service cloud.firestore {
       // Raters' one-time links (owner, 23 Oct 2026). invites/{id}: made by staff for a nominee they have Checked (or
       // Emailed) in review/; the id is 128 random bits, sent to the rater as /360/rate/#<id>. Anyone holding the link may
       // get that one invite (no sign-in) but nobody lists them except staff. responses/{id} (same id): the rater's answers,
-      // created once, while the round is open, only for an invite that exists; never changed. Read by PDs and PCs only:
-      // not Admin staff, residents or faculty.
+      // created once, while the round is open, only for an invite that exists; never changed. Read (and deleted, by the
+      // clean-up a year after the round closes) by PDs and PCs only: not Admin staff, residents or faculty.
       match /invites/{id} {
         allow get: if true;
         allow list, delete: if cccStaff();
         allow create: if cccStaff() && id.matches('^[0-9a-f]{32}$') && validCccInvite(round, request.resource.data);
       }
       match /responses/{id} {
-        allow read: if cccRawReader();
+        allow read, delete: if cccRawReader();
         allow create: if exists(/databases/$(database)/documents/ccc/$(round)/invites/$(id)) && cccOpen(round)
           && validCccResponse(request.resource.data);
       }
+      // report/{email}: a resident's anonymised CCC summary, saved when the answers are deleted a year after the round
+      // closes (360/js/model.js reportDoc). It carries the concerns, so PDs and PCs only, like the answers.
+      match /report/{email} {
+        allow read, delete: if cccRawReader();
+        allow create, update: if cccRawReader() && email == email.lower() && validCccReport(email, request.resource.data);
+      }
+    }
+    function validCccReport(email, d) {
+      return d.keys().hasOnly(['email', 'name', 'formId', 'counts', 'enough', 'minGroup', 'overall', 'groups', 'items', 'comments', 'concerns', 'savedAt'])
+        && d.email == email
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 120
+        && d.formId is string && d.formId.size() <= 40
+        && d.counts is map && d.counts.keys().hasOnly(['invited', 'done', 'declined', 'waiting'])
+        && d.enough is bool && d.minGroup is int && d.overall is map
+        && d.groups is list && d.groups.size() <= 5
+        && d.items is list && d.items.size() <= 30
+        && d.comments is list && d.comments.size() <= 5
+        && d.concerns is map && d.concerns.keys().hasOnly(['yes', 'texts'])
+        && d.savedAt == request.time;
     }
     function cccRawReader() {
       return isPD() || (signedIn() && hasAccess(['pc']));
