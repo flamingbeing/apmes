@@ -61,7 +61,8 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   assert.ok((await first.boundingBox()).height >= 48, 'big tap target');
   assert.equal(await page.getByRole('heading', { name: 'MedHub' }).count(), 1);
   assert.equal(await page.locator('a[href="https://nuhs.medhub.com/"]').count(), 3);
-  for (const hidden of ['/evals/', '/people/', '/360/', '/applicants/', '/guide/']) assert.equal(await page.locator(`a[href="${hidden}"]`).count(), 0, hidden);
+  for (const hidden of ['/evals/', '/people/', '/360/', '/applicants/']) assert.equal(await page.locator(`a[href="${hidden}"]`).count(), 0, hidden);
+  assert.equal(await page.locator('a[href="/guide/"]').count(), 1, 'the guidebook');
   assert.equal(await page.locator('.h-counts').isHidden(), true);
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');
   await axe(page, 'signed out');
@@ -115,6 +116,30 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   await page.close();
   page = await open({ 'apmes-logbook-who:res@example.org': '{}', 'apmes-home-counts': '1' }, `globalThis.__USER = { email: 'res@example.org' }; globalThis.__DOCS = {};`);
   await page.getByText('not linked to a programme entry').waitFor();
+  await page.close();
+}
+
+// 5. the guidebook pages: contents, one page with its tables scrolling inside their box (never the page), anchors,
+//    and the Logbook's dark theme carried over
+{
+  const page = await open({ 'apmes-logbook-theme': 'dark' });
+  await page.locator('a[href="/guide/"]').click();
+  await page.getByRole('heading', { name: 'Programme guidebook' }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  assert.ok(await page.locator('.a-list a.a-row').count() >= 6, 'one row per document');
+  await axe(page, 'guide contents');
+  await page.locator('a.a-row[href="epa-01-06.html"]').click();
+  await page.locator('.g-doc h2').first().waitFor();
+  const w = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, view: innerWidth, wide: [...document.querySelectorAll('.g-table')].some(t => t.scrollWidth > t.clientWidth) }));
+  assert.ok(w.page <= w.view, `no sideways page scroll (${w.page} > ${w.view})`);
+  assert.ok(w.wide, 'wide tables scroll inside their box');
+  await page.getByText('On this page').click();
+  const link = page.locator('.g-toc a').nth(1), id = (await link.getAttribute('href')).slice(1);
+  await link.click();
+  assert.equal(await page.evaluate(() => location.hash.slice(1)), id);
+  assert.ok(Math.abs(await page.locator(`[id="${id}"]`).evaluate(e => e.getBoundingClientRect().top)) < 120, 'jumps to the part');
+  await axe(page, 'guide page');
+  await shot(page, 'guide');
   await page.close();
 }
 

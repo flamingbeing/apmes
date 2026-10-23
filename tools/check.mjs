@@ -5,6 +5,7 @@
 // 3. wrangler.jsonc keeps preview links and the workers.dev address off.
 // 4. The Worker's tests pass (node --test 'worker/test/*.test.mjs').
 // 5. evals/js/catalogue.js and forms.js match a fresh build from apmes/.
+// 6. home/guide/*.html match a fresh build from apmes/guidebook/ (tools/build-guide.mjs).
 // Exits 1 on any failure.
 
 import fs from 'node:fs';
@@ -52,6 +53,9 @@ if (fs.existsSync(path.join(ROOT, 'worker/test'))) {
 }
 
 try { execFileSync(process.execPath, [path.join(ROOT, 'evals/tools/build-data.mjs'), '--check'], { stdio: ['ignore', 'ignore', 'pipe'] }); }
+catch (e) { fail(String(e.stderr || e.message).trim()); }
+
+try { execFileSync(process.execPath, [path.join(ROOT, 'tools/build-guide.mjs'), '--check'], { stdio: ['ignore', 'ignore', 'pipe'] }); }
 catch (e) { fail(String(e.stderr || e.message).trim()); }
 
 if (errors.length) {

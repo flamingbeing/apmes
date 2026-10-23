@@ -16,13 +16,14 @@ export const SITES = {
   // /people/ is the shared people lists (residents, faculty, PDs) the logbook and evals both use.
   // /apmes/guidebook/ is the programme guidebook text the evals app reads (just that folder of apmes/).
   // / (and /index.html) is the home page (home/; its own scripts under /home/): the live apps, MedHub and the guidebook.
+  // /guide/ is the guidebook as readable pages (home/guide/, built from apmes/guidebook/ by tools/build-guide.mjs).
   // /__/auth/ and /__/firebase/ are Firebase's sign-in helper pages (the auth domain of logbook and evals): the helper
   // scripts are in __/; init.json is this host's own copy (authDomain apmes.anawj.com).
-  'apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth/firebase/' } },
+  'apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/guide/': 'home/guide/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth/firebase/' } },
   // The beta copy (NOTES.md, "Beta"): the same folders from the beta branch, served by the apmes-beta Worker. The apps
   // pick the test Firebase project on beta- hosts (firebase-config.js), so nothing here touches live data. Its sign-in
   // helper pages use their own init.json (apmes-auth-beta/: the test project apmes-logbook-beta).
-  'beta-apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth-beta/firebase/' } },
+  'beta-apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/guide/': 'home/guide/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth-beta/firebase/' } },
 };
 
 // Folders every host serves as they are (shared files, no data), e.g. ['/shared/']
