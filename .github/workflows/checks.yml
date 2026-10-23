@@ -1,6 +1,6 @@
 # The merge checklist from AGENTS.md, on every PR and every push to main: the repo check (with the Worker tests and
 # the generated evals files), every unit test, the proof-read, the Firestore rules in the emulator, and the browser
-# suites of evals, People, applicants and CCC 360 (one job each, side by side). The long logbook suite
+# suites of evals, People, applicants, CCC 360 and the home page (one job each, side by side). The long logbook suite
 # (tools/test-logbook.sh) stays with the session that changes the logbook.
 name: Checks
 
@@ -29,7 +29,7 @@ jobs:
       - name: Repo check
         run: node tools/check.mjs
       - name: Unit tests
-        run: for f in evals/test/*.test.mjs logbook/test/*.test.mjs people/test/*.test.mjs applicants/test/*.test.mjs 360/test/*.test.mjs; do echo "== $f"; node "$f" || exit 1; done
+        run: for f in evals/test/*.test.mjs logbook/test/*.test.mjs people/test/*.test.mjs applicants/test/*.test.mjs 360/test/*.test.mjs home/test/*.test.mjs; do echo "== $f"; node "$f" || exit 1; done
       - name: Proof-read (pages and documents)
         run: node tools/proofread.mjs
 
@@ -55,6 +55,7 @@ jobs:
           - { name: People, cmd: "node people/test/e2e.mjs" }
           - { name: Applicants, cmd: "node applicants/test/e2e.mjs" }
           - { name: CCC 360, cmd: "node 360/test/e2e.mjs" }
+          - { name: Home, cmd: "node home/test/e2e.mjs" }
     name: browser (${{ matrix.name }})
     steps:
       - uses: actions/checkout@v4

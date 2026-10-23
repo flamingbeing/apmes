@@ -8,16 +8,21 @@
 //      or { root: 'app/' }                   (one app at the root; its own folder name works too; prefixes beside
 //                                             root add a few extra folders)
 //      or { moved: { '/old/': 'https://example.org/new/' } }  (apps now on another site: each path forwards there)
+// A host may also list pages: { '/exact/path': 'folder/file.html' } (exact addresses only, checked first; nothing
+// below them changes), e.g. the home page at "/".
+const HOME = { '/': 'home/index.html', '/index.html': 'home/index.html' };
+
 export const SITES = {
   // /people/ is the shared people lists (residents, faculty, PDs) the logbook and evals both use.
   // /apmes/guidebook/ is the programme guidebook text the evals app reads (just that folder of apmes/).
+  // / (and /index.html) is the home page (home/; its own scripts under /home/): the live apps, MedHub and the guidebook.
   // /__/auth/ and /__/firebase/ are Firebase's sign-in helper pages (the auth domain of logbook and evals): the helper
   // scripts are in __/; init.json is this host's own copy (authDomain apmes.anawj.com).
-  'apmes.anawj.com': { prefixes: { '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth/firebase/' } },
+  'apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth/firebase/' } },
   // The beta copy (NOTES.md, "Beta"): the same folders from the beta branch, served by the apmes-beta Worker. The apps
   // pick the test Firebase project on beta- hosts (firebase-config.js), so nothing here touches live data. Its sign-in
   // helper pages use their own init.json (apmes-auth-beta/: the test project apmes-logbook-beta).
-  'beta-apmes.anawj.com': { prefixes: { '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth-beta/firebase/' } },
+  'beta-apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/360/': '360/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth-beta/firebase/' } },
 };
 
 // Folders every host serves as they are (shared files, no data), e.g. ['/shared/']
@@ -41,6 +46,7 @@ function route(host, pathname) {
     if (p === dir.slice(0, -1)) return { redirect: dir };
     if (p.startsWith(dir)) return { file: p.slice(1) };
   }
+  if (site.pages && Object.hasOwn(site.pages, p)) return { file: site.pages[p] };
   if (site.moved) {
     for (const [prefix, to] of Object.entries(site.moved)) {
       if (p === prefix.slice(0, -1) || p.startsWith(prefix)) return { redirect: to + p.slice(prefix.length) };
