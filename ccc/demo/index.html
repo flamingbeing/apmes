@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Try APMES CCC</title>
+<meta name="description" content="A practice copy of APMES CCC with made-up people: what residents, coordinators, raters and the CCC each see.">
+<meta name="theme-color" content="#f9f9fb">
+<link rel="icon" type="image/svg+xml" href="../icons/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" media="print" onload="this.media='all'">
+<script>
+  // The demo's landing page: plain text and links into ../?demo. Light or dark as in the app.
+  try { var t = localStorage.getItem('evals-theme'); if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; document.documentElement.dataset.theme = t; if (t === 'dark') document.querySelector('meta[name="theme-color"]').content = '#161618'; } catch (e) {}
+</script>
+<link rel="stylesheet" href="https://design.anawj.com/v1/tokens.css">
+<link rel="stylesheet" href="https://design.anawj.com/v1/app.css">
+<link rel="stylesheet" href="../../evals/style.css">
+<style>
+  .dm-col { max-width: 760px; margin: 0 auto; }
+  .dm-col .a-btn { border-radius: 10px; max-width: 100%; white-space: normal; text-align: center; }
+  .dm-intro h2, .dm-card h2 { margin: 0 0 6px; }
+  .dm-intro p, .dm-card p { margin: 0 0 8px; }
+  .dm-card { display: grid; gap: 14px; grid-template-columns: 1fr; }
+  .dm-card ol, .dm-card ul { margin: 0 0 8px; padding-left: 20px; }
+  .dm-card li { margin: 0 0 4px; }
+  .dm-who { margin: 0 0 2px; font-size: var(--a-text-sm); color: var(--a-ink-2); font-weight: 600; }
+  .dm-shot { width: 100%; max-width: 260px; justify-self: center; border-radius: 14px; border: 1px solid var(--a-line, rgba(0,0,0,.12)); box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  .dm-was { margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--a-surface-2); font-size: var(--a-text-sm); color: var(--a-ink-2); }
+  .dm-was b { color: var(--a-ink); }
+  .dm-go { display: flex; flex-wrap: wrap; gap: 10px; }
+  .dm-go .a-btn { margin: 0; flex: 1 1 200px; }
+  .dm-table { width: 100%; border-collapse: collapse; font-size: var(--a-text-sm); }
+  .dm-table th, .dm-table td { text-align: left; vertical-align: top; padding: 8px 6px; border-top: 1px solid var(--a-line, rgba(0,0,0,.12)); }
+  .dm-table th { font-weight: 600; }
+  @media (min-width: 680px) { .dm-card { grid-template-columns: 1fr 240px; align-items: start; } .dm-shot { grid-column: 2; grid-row: 1; } }
+</style>
+</head>
+<body class="a-app e-nonav">
+<header class="a-bar e-appbar">
+  <div class="a-band"><i></i><i></i><i></i><i></i></div>
+  <div class="a-bar-row">
+    <div class="e-appbar__titles">
+      <h1 class="a-bar-title e-appbar__title">Try APMES CCC</h1>
+      <p class="e-appbar__sub">Demo</p>
+    </div>
+  </div>
+</header>
+<main class="a-main">
+<div class="e-stack dm-col">
+
+  <section class="e-card dm-intro">
+    <h2>APMES CCC replaces the Google Form</h2>
+    <p>Before each CCC meeting, residents used to fill in the Google Form “CCC Projects &amp; MSF”, and the coordinators
+      copied the answers out of the response sheet and emailed each nominee by hand. Now it all happens in one place.</p>
+    <p>This is a <b>practice copy</b>. Everyone in it is made up, and nothing you do here goes anywhere: it stays in
+      this browser. Tap around freely; you can’t break anything.</p>
+    <p>There are four sides to it. Try them in this order and you will see one resident’s feedback go all the way through.</p>
+  </section>
+
+  <section class="e-card dm-card" aria-labelledby="dm-res">
+    <div>
+      <p class="dm-who">Residents</p>
+      <h2 id="dm-res">What residents see</h2>
+      <p class="dm-was"><b>Before:</b> the Google Form, once per CCC, from scratch each time.</p>
+      <ol>
+        <li>Open the link and sign in with Google (the same sign-in as the logbook).</li>
+        <li>Fill in scholarly projects. Last round’s projects are already there, so they only update them.</li>
+        <li>Add committee work, teaching and conferences, one per line.</li>
+        <li>Nominate up to 6 senior doctors, 2 peers, 4 allied health and 2 others. Names come up as they type.</li>
+        <li>Tap <b>Send</b>. They can change it until the coordinators close the round.</li>
+      </ol>
+      <div class="dm-go"><a class="a-btn" href="../?demo">Try it as a resident</a></div>
+    </div>
+    <img class="dm-shot" src="shots/resident.jpg" alt="The resident's screen: projects and nominees, with a Send button" width="520" height="1126" loading="lazy">
+  </section>
+
+  <section class="e-card dm-card" aria-labelledby="dm-pc">
+    <div>
+      <p class="dm-who">Programme coordinators</p>
+      <h2 id="dm-pc">What PCs see</h2>
+      <p class="dm-was"><b>Before:</b> the response sheet, copying names into emails one by one, and a separate list of who has replied.</p>
+      <ol>
+        <li>Open a round (<b>Coordinators’ view › Open a new round</b>) and send residents the link.</li>
+        <li>See at a glance who has sent and who hasn’t. Copy the emails of those who haven’t, to remind them.</li>
+        <li>Open a resident and tick each nominee <b>Checked</b>, or <b>Ask for a different person</b>.</li>
+        <li>Tap <b>Invite</b> beside a checked nominee: your email app opens with the message and their own link filled in. Just press send.</li>
+        <li>Each nominee shows Not invited, Invited, Done or Declined. Tap <b>Reminder</b> for the ones not done.</li>
+        <li>When the meeting is near, close the round. Download the lists as a spreadsheet (CSV) if you still want one.</li>
+      </ol>
+      <div class="dm-go"><a class="a-btn" href="../?demo=admin#staff">Try it as a coordinator</a></div>
+    </div>
+    <img class="dm-shot" src="shots/coordinator.jpg" alt="The coordinators' view: each resident with what they sent and their nominees' status" width="520" height="1126" loading="lazy">
+  </section>
+
+  <section class="e-card dm-card" aria-labelledby="dm-rater">
+    <div>
+      <p class="dm-who">Nominees (raters)</p>
+      <h2 id="dm-rater">What a nominee sees</h2>
+      <p class="dm-was"><b>Before:</b> an email from a coordinator, then the paper or MedHub MSF form.</p>
+      <ol>
+        <li>They open the link in the coordinator’s email. No account, no password.</li>
+        <li>They see who they are giving feedback on, and in what role (for example, as a senior doctor).</li>
+        <li>About five minutes of questions: tap a rating, add a comment or two.</li>
+        <li>Tap <b>Submit</b>, or <b>Decline</b> if they didn’t work with the resident. The link then stops working.</li>
+      </ol>
+      <p>In the demo, this link is from Dr Ivan Chua, asked about Bea Lim.</p>
+      <div class="dm-go"><a class="a-btn" href="../rate/?demo#demo/dededededededededededededededede">Try it as a nominee</a></div>
+    </div>
+    <img class="dm-shot" src="shots/rater.jpg" alt="The nominee's form: the resident's name, rating questions and comment boxes" width="520" height="1126" loading="lazy">
+  </section>
+
+  <section class="e-card dm-card" aria-labelledby="dm-ccc">
+    <div>
+      <p class="dm-who">Programme directors and the CCC</p>
+      <h2 id="dm-ccc">What the CCC sees</h2>
+      <p class="dm-was"><b>Before:</b> someone collated the forms into a summary by hand.</p>
+      <ol>
+        <li>A <b>CCC report</b> per resident: their projects and lists, how many were asked and answered, and the average rating per question by group.</li>
+        <li>Raters stay anonymous: a group appears only with 3 or more answers, otherwise it is folded into “Others”. Comments show without names.</li>
+        <li>A round overview of all residents, and a print button for a clean PDF for the meeting.</li>
+        <li>Only PDs and PCs can open the raters’ actual answers. Residents never see them.</li>
+      </ol>
+      <p>In the demo, four made-up raters have already answered for Bea Lim. Answer as the nominee above and yours is counted too.</p>
+      <div class="dm-go"><a class="a-btn" href="../?demo=pd#staff/demo/bea.lim%40example.com/report">Open a CCC report</a></div>
+    </div>
+    <img class="dm-shot" src="shots/report.jpg" alt="A CCC report: counts, average ratings by group and comments without names" width="520" height="1126" loading="lazy">
+  </section>
+
+  <section class="e-card" aria-labelledby="dm-map">
+    <h2 id="dm-map">Where each part of the old form went</h2>
+    <table class="dm-table">
+      <thead><tr><th scope="col">Google Form</th><th scope="col">APMES CCC</th></tr></thead>
+      <tbody>
+        <tr><td>CCC Meeting</td><td>The round the coordinators open (for example “CCC Jul–Dec 2026”)</td></tr>
+        <tr><td>Full name, email</td><td>Taken from the Google sign-in</td></tr>
+        <tr><td>Scholarly Project / Supervisor / Progress</td><td>Projects, one card each, kept for next round</td></tr>
+        <tr><td>Committee / Admin Work, Teaching / Presentations, Conference presentations</td><td>The three lists, one item per line</td></tr>
+        <tr><td>Medical Staff (Senior) 1–6, (Peer) 1–2</td><td>Nominees: senior doctors and peers, picked from the staff lists</td></tr>
+        <tr><td>Allied Health 1–4: name and email</td><td>Nominees: allied health (email needed)</td></tr>
+        <tr><td>The response sheet</td><td>Coordinators’ view, with a spreadsheet download</td></tr>
+      </tbody>
+    </table>
+    <p class="e-small">Past responses from the Google Form are in the app as earlier rounds.</p>
+  </section>
+
+  <section class="e-card">
+    <p>Made a mess? Start the demo again with the made-up people as they were.</p>
+    <div class="dm-go"><button class="a-btn a-btn--tinted" type="button" id="dm-reset">Start the demo again</button>
+      <a class="a-btn a-btn--tinted" href="../">Open the real app</a></div>
+  </section>
+
+</div>
+</main>
+<script>
+  // Clears only the demo's own browser storage (the made-up round, drafts and the rater's page), then reloads.
+  document.getElementById('dm-reset').onclick = function () {
+    try { for (var i = localStorage.length - 1; i >= 0; i--) { var k = localStorage.key(i); if (/^ccc-demo/.test(k)) localStorage.removeItem(k); } } catch (e) {}
+    this.textContent = 'Done: the demo is fresh again';
+  };
+</script>
+</body>
+</html>

@@ -12,7 +12,7 @@ export const LINKS = [
   { section: 'apps', label: 'Open Logbook', url: '/logbook/', note: 'Log cases and track your targets', live: true, primary: true },
   { section: 'apps', label: 'Assessments', url: '/evals/', note: 'DOPS, Mini-CEX and EBD', live: false },
   { section: 'apps', label: 'People', url: '/people/', live: false },
-  { section: 'apps', label: 'CCC 360', url: '/360/', live: false },
+  { section: 'apps', label: 'CCC', url: '/ccc/', live: false },
   { section: 'apps', label: 'Applicants feedback', url: '/applicants/', live: false },
   // MedHub's mobile Duty Hours and Evaluations pages show their own sign-in, then open straight on that page
   { section: 'medhub', label: 'MedHub', url: 'https://nuhs.medhub.com/', note: 'EPA forms, MSF and evaluations', live: true, external: true },

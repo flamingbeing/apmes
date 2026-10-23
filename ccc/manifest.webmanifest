@@ -1,7 +1,7 @@
 {
-  "id": "/360/",
-  "name": "APMES CCC 360",
-  "short_name": "CCC 360",
+  "id": "/ccc/",
+  "name": "APMES CCC",
+  "short_name": "CCC",
   "description": "What the programme coordinators collect before a CCC: scholarly projects and multisource feedback nominees.",
   "start_url": "./",
   "scope": "./",

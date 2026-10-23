@@ -1,4 +1,4 @@
-// APMES CCC 360: what a resident gives the programme coordinators (PCs) before a CCC meeting, and the checks on it.
+// APMES CCC: what a resident gives the programme coordinators (PCs) before a CCC meeting, and the checks on it.
 // Pure logic, no page code (unit tests in test/model.test.mjs). Two halves: the scholar projects (and the other lists on
 // the department's form) and the people to ask for multisource feedback (MSF). Storage shapes match the rules in
 // logbook/firestore.rules ("CCC 360"): entries/{email} holds the projects, msf/{email} holds the nominees,
@@ -163,8 +163,8 @@ export function demoRound(today = new Date()) {
 
 // ---- the coordinators' side ----
 
-export const PURGE_DAYS = 365;   // nominees' contact details are deleted this long after a round closes (owner, 17 Oct 2026: a year, since CCC meetings may be delayed)
-export const PURGE_TEXT = 'a year';
+export const PURGE_DAYS = 3 * 365;   // nominees' contact details, raters' links and answers are deleted this long after a round closes (owner: a year on 17 Oct 2026, three years on 23 Oct 2026)
+export const PURGE_TEXT = 'three years';
 export const MARKS = [['ok', 'Checked'], ['swap', 'Ask for a different person'], ['sent', 'Emailed']];
 export const markLabel = m => (MARKS.find(([k]) => k === m) || [, 'To check'])[1];
 
@@ -247,16 +247,16 @@ export const emailList = list => [...new Set((list || []).map(x => lc(x)).filter
 
 // ---- raters: one-time links, answers and the CCC summary ----
 
-// A rater's link is /360/rate/#<id>: 128 random bits as 32 hex characters, in the hash so it never reaches server logs.
+// A rater's link is /ccc/rate/#<id>: 128 random bits as 32 hex characters, in the hash so it never reaches server logs.
 // Anyone holding it may read that one invite and answer once (the rules); nobody can list the invites but staff.
 export const INVITE_ID_RE = /^[0-9a-f]{32}$/;
 export function newInviteId(fill = a => globalThis.crypto.getRandomValues(a)) {
   return [...fill(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 export const isInviteId = id => INVITE_ID_RE.test(String(id ?? ''));
-// The rater cannot list invites, so the link carries the round as well: /360/rate/#<round>/<id> (round ids are not secret).
+// The rater cannot list invites, so the link carries the round as well: /ccc/rate/#<round>/<id> (round ids are not secret).
 export const ROUND_RE = /^[A-Za-z0-9_-]{1,20}$/;
-export const rateLink = (round, id, origin = 'https://apmes.anawj.com') => `${origin}/360/rate/#${round}/${id}`;
+export const rateLink = (round, id, origin = 'https://apmes.anawj.com') => `${origin}/ccc/rate/#${round}/${id}`;
 // the round and invite id from a rater page's hash, or null when it is not a link the app made
 export function parseRateHash(hash) {
   const m = /^#?\/?([^/]+)\/([^/?#]+)\/?$/.exec(String(hash ?? '').trim());

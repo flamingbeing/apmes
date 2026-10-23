@@ -1,6 +1,6 @@
-// Browser test of CCC 360 in demo mode at phone size, with an axe accessibility check on each screen.
+// Browser test of CCC in demo mode at phone size, with an axe accessibility check on each screen.
 // Run from the repo root (no server needed: files are served from this checkout by route):
-//   node 360/test/e2e.mjs            SHOTS=<dir> also saves phone screenshots
+//   node ccc/test/e2e.mjs            SHOTS=<dir> also saves phone screenshots
 const { chromium } = await import(process.env.PLAYWRIGHT_PATH || '/opt/node22/lib/node_modules/playwright/index.mjs');
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -10,7 +10,7 @@ const AXE = new URL('../../tools/vendor/axe.min.js', import.meta.url).pathname;
 const root = new URL('../../', import.meta.url).pathname;
 const BASE = 'https://apmes.anawj.com/';
 const SHOTS = process.env.SHOTS;
-const MIME = { html: 'text/html', js: 'text/javascript', css: 'text/css', svg: 'image/svg+xml', json: 'application/json', png: 'image/png', webmanifest: 'application/manifest+json', md: 'text/markdown' };
+const MIME = { html: 'text/html', js: 'text/javascript', css: 'text/css', svg: 'image/svg+xml', json: 'application/json', png: 'image/png', jpg: 'image/jpeg', webmanifest: 'application/manifest+json', md: 'text/markdown' };
 
 const exe = process.env.CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers/chromium') && !fs.statSync('/opt/pw-browsers/chromium').isDirectory() ? '/opt/pw-browsers/chromium' : null);
 const b = await chromium.launch(exe ? { executablePath: exe, args: ['--no-sandbox'] } : {});
@@ -19,7 +19,7 @@ const outside = [];
 await ctx.route(/^https:\/\/apmes\.anawj\.com\//, async route => {
   const u = new URL(route.request().url());
   let rel = decodeURIComponent(u.pathname).replace(/^\//, '');
-  if (!/^(360|evals|nuhsdesign)\//.test(rel)) return route.fulfill({ status: 404, body: 'not found' });
+  if (!/^(ccc|evals|nuhsdesign)\//.test(rel)) return route.fulfill({ status: 404, body: 'not found' });
   if (rel.endsWith('/')) rel += 'index.html';
   const f = path.join(root, rel);
   if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return route.fulfill({ status: 404, body: 'not found' });
@@ -48,7 +48,7 @@ const store = () => page.evaluate(() => JSON.parse(localStorage.getItem('ccc-dem
 const setStore = fn => page.evaluate(src => { const d = JSON.parse(localStorage.getItem('ccc-demo-store') || '{}'); new Function('d', src)(d); localStorage.setItem('ccc-demo-store', JSON.stringify(d)); }, fn.toString().replace(/^[^{]*\{|\}\s*$/g, ''));
 
 // 1. A resident opens the demo round
-await page.goto(BASE + '360/?demo=reset');
+await page.goto(BASE + 'ccc/?demo=reset');
 await page.locator('main h2', { hasText: 'CCC round (demo)' }).waitFor();
 assert.equal(await page.locator('.e-list .e-row').count(), 2);
 assert.match(await page.textContent('main'), /Only the programme coordinators and directors see this/);
@@ -154,7 +154,7 @@ await axe('closed');
 
 // 9. Coordinators: a fresh demo round with two residents who have sent and five who have not
 await page.evaluate(() => localStorage.removeItem('ccc-demo-store'));
-await page.goto(BASE + '360/?demo=admin');
+await page.goto(BASE + 'ccc/?demo=admin');
 await page.getByRole('heading', { name: 'Rounds' }).waitFor();
 assert.equal(await page.locator('.e-list .e-row').count(), 1);
 await axe('rounds'); await shot('7-staff-rounds');
@@ -188,7 +188,7 @@ let mails = await page.evaluate(() => window.__mail || []);
 assert.equal(mails.length, 1, 'Invite opens the mail app once');
 const invMail = decodeURIComponent(mails[0]);
 assert.match(invMail, /^mailto:bea\.lim@example\.com\?subject=Multisource feedback for Aiden Tan&body=Dear Bea Lim,/);
-const beaLink = invMail.match(/https:\/\/apmes\.anawj\.com\/360\/rate\/\?demo#demo\/[0-9a-f]{32}/)?.[0];
+const beaLink = invMail.match(/https:\/\/apmes\.anawj\.com\/ccc\/rate\/\?demo#demo\/[0-9a-f]{32}/)?.[0];
 assert.ok(beaLink, 'the email carries the one-time link');
 assert.match(await page.textContent('main'), /Raters: 1 invited · 0 done/);
 st = await store();
@@ -204,7 +204,7 @@ assert.match(decodeURIComponent(mails[1]), /subject=Reminder: Multisource feedba
 assert.ok(decodeURIComponent(mails[1]).includes(beaLink), 'the reminder carries the same link');
 await page.getByRole('button', { name: 'Invite Dr Hana Lee' }).click();
 await page.getByRole('link', { name: 'Email the link to Dr Hana Lee' }).waitFor();
-const hanaLink = decodeURIComponent((await page.evaluate(() => window.__mail))[2]).match(/https:\/\/apmes\.anawj\.com\/360\/rate\/\?demo#demo\/[0-9a-f]{32}/)[0];
+const hanaLink = decodeURIComponent((await page.evaluate(() => window.__mail))[2]).match(/https:\/\/apmes\.anawj\.com\/ccc\/rate\/\?demo#demo\/[0-9a-f]{32}/)[0];
 assert.equal(await page.getByText('Invited', { exact: true }).count(), 2);
 await axe('resident detail'); await shot('9-staff-resident');
 await page.reload();
@@ -273,10 +273,10 @@ await rater.getByRole('button', { name: 'Decline', exact: true }).click();
 await rater.getByRole('heading', { name: 'Thank you for letting us know' }).waitFor();
 const dec = (await store()).responses['demo|' + hanaLink.split('/').pop()];
 assert.deepEqual(dec, { answers: {}, comments: {}, declined: true, reason: 'Only worked together once', submittedAt: dec.submittedAt }, 'a decline sends no ratings');
-await rater.goto(BASE + '360/rate/?demo#demo/' + 'f'.repeat(32));
+await rater.goto(BASE + 'ccc/rate/?demo#demo/' + 'f'.repeat(32));
 await rater.getByRole('heading', { name: 'This link doesn’t work' }).waitFor();
 await axe('rater unknown', rater);
-await rater.goto(BASE + '360/rate/?demo#demo/abc');
+await rater.goto(BASE + 'ccc/rate/?demo#demo/abc');
 await rater.getByRole('heading', { name: 'This link doesn’t work' }).waitFor();
 await rater.close();
 
@@ -318,7 +318,7 @@ await page.getByText(/Nominees' contact details are deleted on /).waitFor();
 assert.equal((await store()).rounds.demo.status, 'closed');
 assert.ok((await store()).rounds.demo.closedAt > 0);
 await page.getByRole('button', { name: 'Reopen' }).click();
-await page.getByText(/deleted a year after you close the round/).waitFor();
+await page.getByText(/deleted three years after you close the round/).waitFor();
 assert.equal((await store()).rounds.demo.closedAt, undefined, 'reopening clears the close time');
 await page.getByRole('button', { name: 'Edit', exact: true }).click();
 await page.getByLabel('Name').fill('CCC round, renamed');
@@ -349,18 +349,18 @@ await page.getByRole('button', { name: 'Delete nominees now' }).click();
 await page.getByRole('button', { name: 'Delete', exact: true }).click();
 await page.waitForFunction(() => Object.keys(JSON.parse(localStorage.getItem('ccc-demo-store')).msf).length === 0);
 
-// 15. The one-year clean-up: a round closed 366 days ago loses its nominees when staff open the app; projects stay
+// 15. The three-year clean-up: a round closed 1096 days ago loses its nominees when staff open the app; projects stay
 await page.evaluate(() => localStorage.removeItem('ccc-demo-store'));
-await page.goto(BASE + '360/?demo=admin');
+await page.goto(BASE + 'ccc/?demo=admin');
 await page.getByRole('heading', { name: 'Rounds' }).waitFor();
-await setStore(() => { d.rounds.demo.status = 'closed'; d.rounds.demo.closedAt = Date.now() - 366 * 86400000; });
+await setStore(() => { d.rounds.demo.status = 'closed'; d.rounds.demo.closedAt = Date.now() - 1096 * 86400000; });
 await page.reload();
-await page.getByText(/Deleted 2 nominee lists from rounds closed more than a year ago/).waitFor();
+await page.getByText(/Deleted 2 nominee lists from rounds closed more than three years ago/).waitFor();
 st = await store();
 assert.deepEqual(Object.keys(st.msf), [], 'old nominees are gone');
 assert.equal(Object.keys(st.entries).length, 2, 'projects are kept');
 await page.evaluate(() => localStorage.removeItem('ccc-demo-store'));
-await page.goto(BASE + '360/?demo=admin');
+await page.goto(BASE + 'ccc/?demo=admin');
 await setStore(() => { d.rounds.demo.status = 'closed'; d.rounds.demo.closedAt = Date.now() - 364 * 86400000; });
 await page.reload();
 await page.getByRole('heading', { name: 'Rounds' }).waitFor();
@@ -368,7 +368,7 @@ assert.equal(Object.keys((await store()).msf).length, 2, 'a round closed 364 day
 
 // 15b. The CCC report: four raters for Aiden (three seniors, one peer folded in), one decline, one concern
 await page.evaluate(() => localStorage.removeItem('ccc-demo-store'));
-await page.goto(BASE + '360/?demo=admin');
+await page.goto(BASE + 'ccc/?demo=admin');
 await page.getByRole('heading', { name: 'Rounds' }).waitFor();
 await setStore(() => {
   const A = 'aiden.tan@example.com', raters = [['senior', 'Dr Rater One', 4, 'Steady under pressure.'], ['senior', 'Dr Rater Two', 3, 'Kind to patients.'], ['senior', 'Dr Rater Three', 3, ''], ['peer', 'Peer Rater', 2, 'Shares the load.'], ['allied', 'Allied Rater', 0, '']];
@@ -379,7 +379,7 @@ await setStore(() => {
       : { answers: {}, comments: {}, declined: true, reason: 'Did not work together', submittedAt: 2 };
   });
 });
-await page.goto(BASE + '360/?demo=admin#staff/demo');
+await page.goto(BASE + 'ccc/?demo=admin#staff/demo');
 await page.getByRole('link', { name: 'Open the CCC report' }).click();
 await page.getByRole('heading', { name: 'CCC report: CCC round (demo)' }).waitFor();
 const ovRow = page.locator('.cc-table tbody tr', { hasText: 'Aiden Tan' });
@@ -408,39 +408,56 @@ if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '12-print.png'), fullP
 await page.emulateMedia({ media: 'screen' });
 await page.getByLabel('Include concerns when printing').uncheck();
 // raw answers, with names, for PDs and PCs
-await page.goto(BASE + '360/?demo=admin#staff/demo/aiden.tan%40example.com/answers');
+await page.goto(BASE + 'ccc/?demo=admin#staff/demo/aiden.tan%40example.com/answers');
 await page.getByRole('heading', { name: 'Raters’ answers: Aiden Tan' }).waitFor();
 const raw = await page.textContent('main');
 assert.match(raw, /Dr Rater One/); assert.match(raw, /Reason: Did not work together/); assert.match(raw, /4 Above expectations/);
 assert.equal(await page.locator('main section.cc-card').count(), 5);
 await axe('raw answers');
-// the clean-up a year after closing: the summary is saved, then the answers and links go
-await setStore(() => { d.rounds.demo.status = 'closed'; d.rounds.demo.closedAt = Date.now() - 366 * 86400000; });
-await page.goto(BASE + '360/?demo=admin#staff');
+// the clean-up three years after closing: the summary is saved, then the answers and links go
+await setStore(() => { d.rounds.demo.status = 'closed'; d.rounds.demo.closedAt = Date.now() - 1096 * 86400000; });
+await page.goto(BASE + 'ccc/?demo=admin#staff');
 await page.reload();
-await page.getByText(/Deleted 2 nominee lists and saved 1 CCC summary and deleted the raters’ answers from rounds closed more than a year ago/).waitFor();
+await page.getByText(/Deleted 2 nominee lists and saved 1 CCC summary and deleted the raters’ answers from rounds closed more than three years ago/).waitFor();
 st = await store();
 assert.deepEqual([Object.keys(st.invites).length, Object.keys(st.responses).length], [0, 0], 'answers and links deleted');
 const saved = st.reports['demo|aiden.tan@example.com'];
 assert.ok(saved && saved.savedAt > 0, 'summary saved');
 assert.ok(!JSON.stringify(saved).includes('Rater'), 'the saved summary has no rater names');
-await page.goto(BASE + '360/?demo=admin#staff/demo/aiden.tan%40example.com/report');
+await page.goto(BASE + 'ccc/?demo=admin#staff/demo/aiden.tan%40example.com/report');
 await page.getByRole('heading', { name: 'Multisource feedback: Aiden Tan' }).waitFor();
 assert.match(await page.textContent('main'), /Summary saved .*when the raters’ answers were deleted/);
 assert.match(await page.textContent('main'), /Steady under pressure\./);
-await page.goto(BASE + '360/?demo=admin#staff/demo/report');
+await page.goto(BASE + 'ccc/?demo=admin#staff/demo/report');
 await page.locator('.cc-table tbody tr', { hasText: 'Aiden Tan' }).waitFor();
 
 // 16. A resident does not see the coordinators' view, even by typing the address
 await page.evaluate(() => localStorage.removeItem('ccc-demo-store'));
-await page.goto(BASE + '360/?demo');
+await page.goto(BASE + 'ccc/?demo');
 await page.locator('main h2', { hasText: 'CCC round (demo)' }).waitFor();
 assert.equal(await page.getByRole('link', { name: /Coordinators/ }).count(), 0);
-await page.goto(BASE + '360/?demo#staff');
+await page.goto(BASE + 'ccc/?demo#staff');
 await page.locator('main h2', { hasText: 'CCC round (demo)' }).waitFor();
 assert.equal(await page.getByRole('heading', { name: 'Rounds' }).count(), 0);
+
+// 17. The demo's landing page (/ccc/demo/): four ways in, each opening the demo as that person; the ready-made rater
+// link brings four made-up answers, so Bea Lim's CCC report has figures
+await page.evaluate(() => localStorage.removeItem('ccc-demo-store'));
+await page.goto(BASE + 'ccc/demo/');
+await page.getByRole('heading', { name: 'APMES CCC replaces the Google Form' }).waitFor();
+await axe('demo landing');
+for (const name of ['Try it as a resident', 'Try it as a coordinator', 'Try it as a nominee', 'Open a CCC report']) await page.getByRole('link', { name }).waitFor();
+await page.getByRole('link', { name: 'Try it as a nominee' }).click();
+await page.getByRole('heading', { name: 'Feedback for Bea Lim' }).waitFor();
+await page.goto(BASE + 'ccc/demo/');
+await page.getByRole('link', { name: 'Open a CCC report' }).click();
+await page.getByRole('heading', { name: 'Multisource feedback: Bea Lim' }).waitFor();
+assert.match(await page.textContent('main'), /5 raters invited · 4 answered · 0 declined · 1 waiting/);
+await page.goto(BASE + 'ccc/demo/');
+await page.getByRole('button', { name: 'Start the demo again' }).click();
+assert.equal(await page.evaluate(() => localStorage.getItem('ccc-demo-store')), null, 'the reset clears the demo store');
 
 assert.deepEqual(outside, [], 'the demo reaches nothing outside the site');
 assert.deepEqual(errors, [], 'no console errors');
 await b.close();
-console.log('ccc 360 e2e: all checks passed');
+console.log('ccc e2e: all checks passed');

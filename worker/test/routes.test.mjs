@@ -8,13 +8,22 @@ const HOSTS = ['apmes.anawj.com', 'beta-apmes.anawj.com'];
 
 test('each app at its own path, on live and beta alike', () => {
   for (const h of HOSTS) {
-    for (const app of ['logbook', 'evals', 'people', 'applicants', '360']) {
+    for (const app of ['logbook', 'evals', 'people', 'applicants', 'ccc']) {
       assert.deepEqual(resolve(h, `/${app}/`), { file: `${app}/` }, h);
       assert.deepEqual(resolve(h, `/${app}`), { redirect: `/${app}/` }, h);
     }
     assert.deepEqual(resolve(h, '/logbook/js/app.js'), { file: 'logbook/js/app.js' });
     assert.deepEqual(resolve(h.toUpperCase() + ':443', '/evals/'), { file: 'evals/' });
     assert.deepEqual(resolve(h, '/apmes/guidebook/dops-expectations.md'), { file: 'apmes/guidebook/dops-expectations.md' });
+  }
+});
+
+test('the old CCC address /360/ forwards to /ccc/ (raters\' links already sent)', () => {
+  for (const h of HOSTS) {
+    assert.deepEqual(resolve(h, '/360/'), { redirect: '/ccc/' }, h);
+    assert.deepEqual(resolve(h, '/360'), { redirect: '/ccc/' }, h);
+    assert.deepEqual(resolve(h, '/360/rate/'), { redirect: '/ccc/rate/' }, h);
+    assert.deepEqual(resolve(h, '/360/js/app.js'), { redirect: '/ccc/js/app.js' }, h);
   }
 });
 

@@ -1,4 +1,4 @@
-// APMES CCC 360: before a CCC meeting the programme coordinators (PCs) need each resident's scholarly projects and the
+// APMES CCC: before a CCC meeting the programme coordinators (PCs) need each resident's scholarly projects and the
 // people who should give them multisource feedback (MSF). This is the resident's half: fill both in, send, and change
 // them until the PCs close the round. It reuses evals' sign-in and people lists (../../evals/js/), so the residents are
 // the ones already in People; what is new is here, in model.js and in store.js. The coordinators' half is staff.js.
@@ -79,7 +79,7 @@ const go = hash => { location.hash = hash; };
 
 function header(title, { back = false, to = '#' } = {}) {
   titleEl.textContent = title;
-  document.title = title === 'APMES CCC 360' ? title : `${title} · APMES CCC 360`;
+  document.title = title === 'APMES CCC' ? title : `${title} · APMES CCC`;
   subEl.textContent = 'Demo'; subEl.hidden = !cloud.demo;
   backEl.hidden = !back;
   backEl.onclick = () => go(to);
@@ -116,7 +116,7 @@ const note = () => { savedEl = h('p', { class: 'cc-sent', 'aria-live': 'polite' 
 // ---------- home ----------
 
 function homeScreen() {
-  header('APMES CCC 360');
+  header('APMES CCC');
   if (!S.user) return;
   if (!isResident()) {
     if (isStaff()) return go('#staff');   // coordinators and directors who are not residents go straight to their view
@@ -302,12 +302,13 @@ async function render() {
 window.addEventListener('hashchange', () => render());
 
 function signInScreen() {
-  header('APMES CCC 360');
+  header('APMES CCC');
   fill(app, h('section', { class: 'e-card', style: 'max-width:520px;margin:0 auto' },
-    h('h2', { class: 'e-h2', style: 'margin-top:0' }, 'APMES CCC 360'),
+    h('h2', { class: 'e-h2', style: 'margin-top:0' }, 'APMES CCC'),
     h('p', {}, 'Before each CCC meeting, send the programme coordinators your scholarly projects and the people who should give you feedback.'),
     h('button', { class: 'a-btn', type: 'button', onclick: async () => { try { await cloud.signIn(); } catch (e) { toast('Sign-in failed. ' + errText(e)); } } }, 'Sign in with Google'),
-    cloud.demo ? h('p', { class: 'e-small' }, 'Demo: a made-up round, kept only in this browser.') : null));
+    cloud.demo ? h('p', { class: 'e-small' }, 'Demo: a made-up round, kept only in this browser.')
+      : h('p', { class: 'e-small' }, 'New to it? ', h('a', { href: 'demo/' }, 'Try the demo first'), ': made-up people, nothing is sent.')));
 }
 
 cloud.watchUser(async u => {
