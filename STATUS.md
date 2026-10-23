@@ -11,7 +11,7 @@
 ## Next (in order)
 1. Sign-in check on apmes.anawj.com (Google) after the move.
 2. anawj-site drops the apmes folders, hosts, guest sign-in code and its logbook rules and MCP workflows.
-3. Guidebook notes and ticks (branch `claude/guide-notes`): on beta for the owner to try; merge on his "ship it"
+3. Guidebook notes and ticks (branch `claude/guide-entrustment-notes`): on beta for the owner to try; merge on his "ship it"
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
