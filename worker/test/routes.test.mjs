@@ -8,13 +8,22 @@ const HOSTS = ['apmes.anawj.com', 'beta-apmes.anawj.com'];
 
 test('each app at its own path, on live and beta alike', () => {
   for (const h of HOSTS) {
-    for (const app of ['logbook', 'evals', 'people', 'applicants', '360']) {
+    for (const app of ['logbook', 'evals', 'people', '360']) {
       assert.deepEqual(resolve(h, `/${app}/`), { file: `${app}/` }, h);
       assert.deepEqual(resolve(h, `/${app}`), { redirect: `/${app}/` }, h);
     }
     assert.deepEqual(resolve(h, '/logbook/js/app.js'), { file: 'logbook/js/app.js' });
     assert.deepEqual(resolve(h.toUpperCase() + ':443', '/evals/'), { file: 'evals/' });
     assert.deepEqual(resolve(h, '/apmes/guidebook/dops-expectations.md'), { file: 'apmes/guidebook/dops-expectations.md' });
+  }
+});
+
+test('the applicants app forwards to its own site, on live and beta alike', () => {
+  for (const h of HOSTS) {
+    assert.deepEqual(resolve(h, '/applicants/'), { redirect: 'https://residencyapps.anawj.com/' }, h);
+    assert.deepEqual(resolve(h, '/applicants'), { redirect: 'https://residencyapps.anawj.com/' }, h);
+    assert.deepEqual(resolve(h, '/applicants/index.html'), { redirect: 'https://residencyapps.anawj.com/index.html' }, h);
+    assert.deepEqual(resolve(h, '/logbook/'), { file: 'logbook/' }, h);
   }
 });
 
