@@ -17,7 +17,8 @@
    section (`home/js/links.js`). Check it fits the home page rule (no service worker at `/`).
 4. Same session: on `entrustment.html`, a notes box and a "done" tick on each question, synced with the Logbook sign-in
    (Firestore, the resident's own data only; rules change in `logbook/firestore.rules`, so beta first and merge on the
-   owner's "ship it"). Export the notes as .md, .txt or .docx, and Share / email them.
+   owner's "ship it"). Signed out, notes and ticks stay on the device and still export. Export as .md, .txt or
+   .docx, and Share / email them.
 
 ## Recently done
 - 23 Oct 2026: applicants feedback moved out to its own repo and site (`residencyapps`, residencyapps.anawj.com):
