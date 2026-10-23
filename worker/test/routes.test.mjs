@@ -18,10 +18,24 @@ test('each app at its own path, on live and beta alike', () => {
   }
 });
 
-test('only the guidebook of apmes/, and nothing at the root', () => {
+test('the home page at the root, on live and beta alike; nothing else there', () => {
+  for (const h of HOSTS) {
+    assert.deepEqual(resolve(h, '/'), { file: 'home/index.html' }, h);
+    assert.deepEqual(resolve(h, '/index.html'), { file: 'home/index.html' }, h);
+    assert.deepEqual(resolve(h, '/home/js/home.js'), { file: 'home/js/home.js' }, h);
+    for (const p of ['/x', '/index.htm', '/favicon.ico', '/sw.js', '/js/home.js', '/home.html', '//', '/?x'])
+      assert.deepEqual(resolve(h, p), { notFound: true }, h + p);
+    // the prefixes below it are unchanged, the sign-in helper pages above all
+    assert.deepEqual(resolve(h, '/__/auth/handler'), { file: '__/auth/handler' }, h);
+    assert.deepEqual(resolve(h, '/__/auth/iframe.js'), { file: '__/auth/iframe.js' }, h);
+    assert.deepEqual(resolve(h, '/logbook/index.html'), { file: 'logbook/index.html' }, h);
+    assert.deepEqual(resolve(h, '/logbook/sw.js'), { file: 'logbook/sw.js' }, h);
+  }
+});
+
+test('only the guidebook of apmes/', () => {
   for (const h of HOSTS) {
     assert.deepEqual(resolve(h, '/apmes/originals/x.pdf'), { notFound: true }, h);
-    assert.deepEqual(resolve(h, '/'), { notFound: true }, h);
     assert.deepEqual(resolve(h, '/worker/sites.js'), { notFound: true }, h);
     assert.deepEqual(resolve(h, '/wrangler.jsonc'), { notFound: true }, h);
   }
@@ -52,6 +66,6 @@ test('nothing escapes its folder', () => {
 
 test('every folder in SITES exists', () => {
   for (const [host, s] of Object.entries(SITES))
-    for (const f of [s.root, ...Object.values(s.prefixes || {})].filter(Boolean))
+    for (const f of [s.root, ...Object.values(s.prefixes || {}), ...Object.values(s.pages || {})].filter(Boolean))
       assert.ok(fs.existsSync(new URL(`../../${f}`, import.meta.url)), `${host}: ${f}`);
 });

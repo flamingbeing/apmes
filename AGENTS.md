@@ -5,6 +5,7 @@ The APMES apps of the anaesthesia residency programme, production at `apmes.anaw
 
 | App | Folder | Address |
 | --- | --- | --- |
+| Home page (live apps, MedHub, counts card) | `home/` | apmes.anawj.com/ |
 | APMES case logbook | `logbook/` | apmes.anawj.com/logbook/ |
 | APMES assessments (evals) | `evals/` | apmes.anawj.com/evals/ |
 | APMES People | `people/` | apmes.anawj.com/people/ |
@@ -44,6 +45,9 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - **App version lines:** every app with a service worker ends its settings screen with `App version <date> (<hash>)`
   and a `Not updating? Get the latest version` button that touches only its own worker and caches.
 - **Vital app:** the logbook holds residents' real records: full tests before merging.
+- **Home page** (`home/`, served at `/`): lists only links with `live: true` in `home/js/links.js` (an app goes on it by
+  flipping its flag). It reads the Logbook's theme and sign-in, never writes them, never writes Firestore, and has no
+  service worker (one at `/` would cover the apps below it).
 - NUH Junior Monthly (People's roster import) lives in the rosters repo at nuhjuniormonthly.anawj.com.
 - **App icons** come from anawj-site `tools/app-icons/` (one SVG per app, rendered there): copy its output into each
   app's `icons/` (`icon-maskable-512.png` is saved as `maskable-512.png`), never redraw here. Each manifest's `id` is
@@ -57,7 +61,7 @@ for f in */test/*.test.mjs; do node "$f" || break; done   # unit tests
 node tools/proofread.mjs                      # page and doc mistakes
 bash tools/test-logbook.sh                    # logbook: full e2e (`quick` skips it); a11y: node logbook/test/e2e/a11y.mjs
 python3 -m http.server 8110 &                 # evals: node evals/test/e2e.spec.mjs, edge.e2e.mjs, a11y.mjs
-node people/test/e2e.mjs                      # people, applicants, 360: each test/e2e.mjs (no server needed)
+node people/test/e2e.mjs                      # people, applicants, 360, home: each test/e2e.mjs (no server needed)
 bash tools/test-rules.sh                      # when logbook/firestore.rules changes (needs Java)
 ```
 

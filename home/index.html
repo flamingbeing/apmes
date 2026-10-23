@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>APMES</title>
+<meta name="description" content="The APMES apps and links for anaesthesia residents: Logbook, MedHub and the programme guidebook.">
+<meta name="theme-color" content="#f9f9fb">
+<script>
+  // the Logbook's look on this device before the first paint (js/theme.js: the same rules, read only): light or dark
+  // (this page's own switch wins), and its colours, which the kit's colours below then follow
+  try {
+    var own = localStorage.getItem('apmes-home-theme'), t = localStorage.getItem('apmes-logbook-theme'), de = document.documentElement;
+    de.dataset.theme = own === 'light' || own === 'dark' ? own : t === 'dark' || t === 'oled' ? 'dark' : t === 'auto' ? 'auto' : 'light';
+    if (own !== 'light' && own !== 'dark' && t === 'oled') de.dataset.oled = '';
+    var css = localStorage.getItem('apmes-logbook-accent-css-v2');
+    if (css && css.length < 8000) { var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); de.classList.add('lb-colours'); }
+  } catch (e) {}
+</script>
+<link rel="stylesheet" href="https://design.anawj.com/v1/tokens.css">
+<link rel="stylesheet" href="https://design.anawj.com/v1/app.css">
+<style>
+  /* the Logbook's palette (its --accent, --bg, --panel, --ink, --muted, --line for light, dark and OLED) drives the kit */
+  html.lb-colours.lb-colours {
+    --a-tint: var(--accent); --a-tint-ink: var(--accent-ink); --a-tint-soft: var(--accent-soft); --a-focus: var(--accent);
+    --a-bg: var(--bg); --a-surface: var(--panel); --a-ink: var(--ink); --a-ink-2: var(--muted); --a-sep: var(--line);
+  }
+  .h-col { max-width: 640px; margin: 0 auto; }
+  .h-primary { min-height: 56px; font-size: var(--a-text); margin: 0 0 12px; }
+  .h-ext { color: var(--a-ink-3); font-size: var(--a-text-sm); }
+  .h-counts { margin-top: 12px; }
+  .h-msg { margin: 0 0 10px; }
+  .h-msg:last-child { margin: 0; }
+  .h-total { margin: 0; font-size: var(--a-text); }
+  .h-total strong { font-size: 28px; margin-right: 2px; }
+  .h-cats { margin-top: 10px; }
+  .h-cats summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--a-tint); }
+  .h-cats table { width: 100%; border-collapse: collapse; font-size: var(--a-text-sm); }
+  .h-cats th { text-align: left; font-weight: 400; padding: 6px 8px 6px 0; }
+  .h-cats td { text-align: right; padding: 6px 0; font-variant-numeric: tabular-nums; }
+  .h-cats tr + tr > * { border-top: 1px solid var(--a-sep); }
+  .h-foot { margin-top: 28px; }
+</style>
+</head>
+<body class="a-app">
+<header class="a-bar a-bar--solid"><div class="a-band"><span></span><span></span><span></span><span></span></div>
+  <div class="a-bar-row"><span></span><span class="a-bar-title" style="opacity:1">APMES</span><span></span></div></header>
+<main class="a-main"><div class="h-col" id="main"></div></main>
+<noscript><p style="padding:16px"><a href="/logbook/">Open Logbook</a> · <a href="https://nuhs.medhub.com/">MedHub</a></p></noscript>
+<script type="module" src="/home/js/home.js"></script>
+</body>
+</html>
