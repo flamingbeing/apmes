@@ -18,7 +18,10 @@ const u = globalThis.__USER ?? null, docs = globalThis.__DOCS || {};
 export const getApps = () => []; export const getApp = () => ({}); export const initializeApp = c => ({ c });
 export const getAuth = () => ({}); export const onAuthStateChanged = (a, cb) => { setTimeout(() => cb(u)); return () => {}; };
 export const getFirestore = () => ({}); export const doc = (db, ...p) => p.join('/');
-export const getDoc = async p => { globalThis.__READS = [...(globalThis.__READS || []), p]; return { exists: () => p in docs, data: () => docs[p] }; };`;
+export const getDoc = async p => { globalThis.__READS = [...(globalThis.__READS || []), p]; return { exists: () => p in docs, data: () => docs[p] }; };
+const snap = p => ({ exists: () => p in docs, data: () => JSON.parse(JSON.stringify(docs[p])) });
+export const runTransaction = async (db, fn) => fn({ get: async p => snap(p), set: (p, v) => { docs[p] = JSON.parse(JSON.stringify(v)); } });
+export const onSnapshot = (p, cb) => { setTimeout(() => cb(snap(p))); return () => {}; };`;
 
 const exe = process.env.CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers/chromium') && !fs.statSync('/opt/pw-browsers/chromium').isDirectory() ? '/opt/pw-browsers/chromium' : null);
 const b = await chromium.launch(exe ? { executablePath: exe, args: ['--no-sandbox'] } : {});
@@ -170,6 +173,57 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   await item.locator('.g-from a').click();
   await page.locator('.g-doc h4:target').waitFor();
   await page.close();
+}
+
+// 5b. notes and Done ticks on the entrustment questions: signed out they stay on this device and export; signed in
+//     they merge with the resident's own doc (logbooks/{email}/guide/entrustment) and notes kept signed out move in
+{
+  const page = await open();
+  await page.goto('https://apmes.anawj.com/guide/entrustment.html');
+  await page.getByText('Saved on this device only.').waitFor();
+  const item = page.locator('#dops .g-item').first(), id = await item.getAttribute('id');
+  await item.locator('summary').click();
+  assert.ok(await item.locator('.g-q').count() >= 5, 'a tick and a note on each question');
+  await item.getByLabel('Done: question 1', { exact: true }).check();
+  await item.getByRole('button', { name: 'Add note' }).first().click();
+  await item.getByLabel('Notes: question 1', { exact: true }).fill('Fake note about sizing');
+  assert.match(await item.locator('summary').getAttribute('data-prog'), /^1\/\d+$/);
+  await page.getByText('1 done · 1 note.').waitFor();
+  await axe(page, 'guide notes');
+  await page.reload();
+  await page.locator(`[id="${id}"] summary`).click();
+  assert.ok(await page.getByLabel('Done: question 1', { exact: true }).first().isChecked(), 'the tick stays after a reload');
+  assert.equal(await page.getByLabel('Notes: question 1', { exact: true }).first().inputValue(), 'Fake note about sizing');
+  await page.getByText('Export or share my notes').click();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Markdown (.md)' }).click()]);
+  assert.equal(dl.suggestedFilename(), 'entrustment-notes.md');
+  const md = fs.readFileSync(await dl.path(), 'utf8');
+  assert.match(md, /^# Entrustment questions: my notes\n/);
+  assert.match(md, /- \[x\] .+\n  > Fake note about sizing\n/);
+  const [dx] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Word (.docx)' }).click()]);
+  assert.equal(fs.readFileSync(await dx.path()).subarray(0, 2).toString(), 'PK', 'a zip (Word) file');
+  const device = await page.evaluate(() => localStorage.getItem('apmes-guide-notes'));
+  await page.close();
+
+  // signed in, with that device's notes and another phone's tick already in the account
+  const EMAIL = 'fake.resident@example.com', path2 = `logbooks/${EMAIL}/guide/entrustment`;
+  const other = { [`${id}~1`]: { d: true, n: 'from the other phone', t: 5 } };
+  const p2 = await open({ 'apmes-guide-notes': device, [`apmes-logbook-who:${EMAIL}`]: '{}' },
+    `globalThis.__USER = { email: '${EMAIL}', emailVerified: true }; globalThis.__DOCS = { '${path2}': { items: ${JSON.stringify(other)}, updatedAt: 5 } };`);
+  await p2.goto('https://apmes.anawj.com/guide/entrustment.html');
+  await p2.getByText(`were added to your Logbook account (${EMAIL})`).waitFor();
+  await p2.locator(`[id="${id}"] summary`).click();
+  assert.ok(await p2.getByLabel('Done: question 2', { exact: true }).first().isChecked(), "the other phone's tick shows");
+  assert.equal(await p2.getByLabel('Notes: question 2', { exact: true }).first().inputValue(), 'from the other phone');
+  assert.ok(await p2.getByLabel('Done: question 1', { exact: true }).first().isChecked(), "this device's tick moved in");
+  await p2.waitForFunction(p => Object.keys(globalThis.__DOCS[p]?.items || {}).length >= 2, path2);
+  const saved = await p2.evaluate(p => globalThis.__DOCS[p], path2);
+  assert.equal(saved.items[`${id}~0`].n, 'Fake note about sizing', 'saved to the account');
+  assert.equal(await p2.evaluate(() => localStorage.getItem('apmes-guide-notes')), null, 'no longer kept as device-only notes');
+  await p2.getByText(`Synced with your Logbook (${EMAIL})`).waitFor({ timeout: 2000 }).catch(() => {});
+  await p2.getByLabel('Done: question 2', { exact: true }).first().uncheck();
+  await p2.waitForFunction(([p, k]) => globalThis.__DOCS[p].items[k].d === false, [path2, `${id}~1`]);
+  await p2.close();
 }
 
 // 6. the guidebook as an installable app: a manifest, and its service worker saves every page, so the guidebook

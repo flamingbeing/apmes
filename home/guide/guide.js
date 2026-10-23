@@ -1,6 +1,7 @@
 // The guidebook pages' search and the entrustment page's tabs (by hand; the pages are built by tools/build-guide.mjs).
 // Contents page: searches search.json (every section of every page) and lists matches that link to the section.
-// Entrustment page: DOPS / Mini-CEX / EBD tabs (remembered in the address, #dops #cex #ebd) and a filter over the items.
+// Entrustment page: DOPS / Mini-CEX / EBD tabs (remembered in the address, #dops #cex #ebd) and a filter over the items;
+// notes.js adds a note and a Done tick to each question, and export.
 // Other pages: a search result's link (page.html?q=words#part) marks the words and scrolls to the first one in that part.
 // Every page: registers sw.js (the guidebook as an installable app, readable offline); the contents page shows the
 // app version and a "Get the latest version" button.
@@ -109,6 +110,8 @@
     input.addEventListener('input', filter);
     addEventListener('hashchange', fromHash);
     fromHash();
+    // notes and "Done" ticks on each question (after the filter has read the items' text)
+    import('./notes.js').then(m => m.start()).catch(() => {});
     return;
   }
 
