@@ -1,4 +1,4 @@
-// APMES CCC 360, the rater's page (/360/rate/#<round>/<id>): someone a resident nominated gives multisource feedback
+// APMES CCC, the rater's page (/ccc/rate/#<round>/<id>): someone a resident nominated gives multisource feedback
 // through the one-time link a coordinator emailed them. No sign-in: the rules let anyone holding the link read that one
 // invite and answer once while the round is open (logbook/firestore.rules, "CCC 360"). The questions are data
 // (msf-form.js). Typing is kept on this device until Submit; everything shown is put on the page as text only.

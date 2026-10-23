@@ -17,7 +17,7 @@ fi
 
 step 'repo check'; node tools/check.mjs || fail=1
 step 'unit tests'
-for f in evals/test/*.test.mjs logbook/test/*.test.mjs people/test/*.test.mjs 360/test/*.test.mjs worker/test/*.test.mjs; do
+for f in evals/test/*.test.mjs logbook/test/*.test.mjs people/test/*.test.mjs ccc/test/*.test.mjs worker/test/*.test.mjs; do
   node "$f" >"$OUT/unit.txt" 2>&1 || { echo "FAIL $f"; tail -5 "$OUT/unit.txt"; fail=1; }
 done
 echo 'done'

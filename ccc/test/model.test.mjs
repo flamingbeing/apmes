@@ -1,4 +1,4 @@
-// Unit tests for the CCC 360 logic. Run: node 360/test/model.test.mjs
+// Unit tests for the CCC logic. Run: node ccc/test/model.test.mjs
 import assert from 'node:assert/strict';
 import {
   GROUPS, TOTAL_MAX, cleanProject, cleanLines, cleanEntry, blankEntry, carryOver, cleanNominee, cleanNominees, nomineeCounts, canAdd,
@@ -115,7 +115,7 @@ const dr = demoRound(new Date('2026-10-17T00:00:00Z'));
 assert.deepEqual([dr.round, dr.status, dr.deadline], ['demo', 'open', '2026-11-07']);
 
 // ---- the coordinators' side ----
-assert.equal(PURGE_DAYS, 365);
+assert.equal(PURGE_DAYS, 1095);
 assert.equal(markLabel('ok'), 'Checked'); assert.equal(markLabel(undefined), 'To check'); assert.equal(markLabel('x'), 'To check');
 assert.equal(roundId([], new Date('2026-10-17T00:00:00Z')), 'r2026-10');
 assert.equal(roundId(['r2026-10'], new Date('2026-10-17T00:00:00Z')), 'r2026-10-2');
@@ -124,14 +124,14 @@ assert.ok(roundId([], new Date()).length <= 20);
 assert.equal(cleanRoundInput({ title: '  ' }), null);
 assert.deepEqual(cleanRoundInput({ title: ' CCC  Dec ', deadline: '2026-12-01' }), { title: 'CCC Dec', deadline: '2026-12-01' });
 assert.equal(cleanRoundInput({ title: 'x', deadline: 'soon' }).deadline, '');
-// retention: nominees go a year after a round closes
+// retention: nominees go three years after a round closes
 const day = 86400000, t0 = Date.UTC(2026, 0, 1);
 assert.equal(purgeAt({ status: 'open', closedAt: t0 }), 0);
 assert.equal(purgeAt({ status: 'closed' }), 0, 'no close time: never purged by guesswork');
-assert.equal(purgeAt({ status: 'closed', closedAt: t0 }), t0 + 365 * day);
-assert.equal(purgeAt({ status: 'closed', closedAt: 0, updatedAt: t0 }), t0 + 365 * day, 'falls back to the last update');
+assert.equal(purgeAt({ status: 'closed', closedAt: t0 }), t0 + 1095 * day);
+assert.equal(purgeAt({ status: 'closed', closedAt: 0, updatedAt: t0 }), t0 + 1095 * day, 'falls back to the last update');
 assert.ok(!purgeDue({ status: 'closed', closedAt: t0 }, t0 + 364 * day));
-assert.ok(purgeDue({ status: 'closed', closedAt: t0 }, t0 + 365 * day));
+assert.ok(purgeDue({ status: 'closed', closedAt: t0 }, t0 + 1095 * day));
 assert.ok(!purgeDue({ status: 'open', closedAt: t0 }, t0 + 999 * day));
 
 // the roster: active residents, who has sent, nominee marks
@@ -180,7 +180,7 @@ const m = mailto({ name: 'Dr S', email: 'dr.s+x@y.com' }, 'Amy First', { title: 
 assert.ok(m.startsWith('mailto:dr.s%2Bx%40y.com?subject='));
 assert.ok(decodeURIComponent(m).includes('Amy First has nominated you') && decodeURIComponent(m).includes('(CCC Dec)'));
 assert.equal(emailList(['A@x.com', 'a@x.com', 'bad', ' b@y.co ']), 'a@x.com, b@y.co');
-console.log('ccc 360 model: all checks passed');
+console.log('ccc model: all checks passed');
 
 // ---- raters (one-time links, answers, the CCC summary) ----
 {
@@ -196,7 +196,7 @@ console.log('ccc 360 model: all checks passed');
   assert.notEqual(newInviteId(), id);
   assert.equal(newInviteId(a => a.fill(255)), 'f'.repeat(32));
   assert.ok(!isInviteId('abc') && !isInviteId('A'.repeat(32)) && !isInviteId(null));
-  assert.equal(rateLink("r2026-10", id), `https://apmes.anawj.com/360/rate/#r2026-10/${id}`);
+  assert.equal(rateLink("r2026-10", id), `https://apmes.anawj.com/ccc/rate/#r2026-10/${id}`);
   assert.deepEqual(inviteDoc({ email: ' Bob@Example.com ', name: ' Bob  Tan ' }, { id: 'n1', group: 'allied', name: 'Nurse Lee', email: 'lee@example.com' }),
     { resident: 'bob@example.com', nomineeId: 'n1', group: 'allied', residentName: 'Bob Tan', raterName: 'Nurse Lee' });
   assert.equal(inviteDoc({ email: 'b@example.com' }, { id: 'n2', group: 'x', email: 'only@example.com' }).raterName, 'only@example.com');
@@ -380,4 +380,4 @@ console.log('ccc 360 model: all checks passed');
   assert.equal(lines.find(l => l.title === 'Teamwork').value, 'Not observed');
   assert.ok(lines.some(l => l.value === 'Yes') && lines.some(l => l.value === 'Late twice' && l.text));
 }
-console.log('360 rater model checks passed');
+console.log('ccc rater model checks passed');

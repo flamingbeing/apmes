@@ -1,6 +1,6 @@
-// APMES CCC 360: the multisource feedback (MSF) questionnaire a rater answers, kept as data so it can change without
+// APMES CCC: the multisource feedback (MSF) questionnaire a rater answers, kept as data so it can change without
 // touching the page or the rules. DRAFT: these questions are made up for building and testing the app; the programme's
-// own MSF form replaces them before a real round (360/NOTES.md, "Rater feedback").
+// own MSF form replaces them before a real round (ccc/NOTES.md, "Rater feedback").
 //
 // Item kinds: 'scale' (the SCALE below; `notObserved` adds "Not observed"), 'yesno' (with an optional comment slot) and
 // 'comment'. Answers are stored by item id; comments by slot id. The rules allow comment slots c1 to c5 only (up to 2000

@@ -63,7 +63,7 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   assert.equal(await page.locator('a[href^="https://nuhs.medhub.com/"]').count(), 3);
   assert.equal(await page.locator('a[href="https://nuhs.medhub.com/functions/apps/mobile/dutyhours.mh"]').count(), 1);
   assert.equal(await page.locator('a[href="https://nuhs.medhub.com/functions/apps/mobile/evaluations.mh"]').count(), 1);
-  for (const hidden of ['/evals/', '/people/', '/360/', '/applicants/']) assert.equal(await page.locator(`a[href="${hidden}"]`).count(), 0, hidden);
+  for (const hidden of ['/evals/', '/people/', '/ccc/', '/applicants/']) assert.equal(await page.locator(`a[href="${hidden}"]`).count(), 0, hidden);
   assert.equal(await page.locator('a[href="/guide/"]').count(), 1, 'the guidebook');
   assert.equal(await page.locator('.h-counts').isHidden(), true);
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');

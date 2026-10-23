@@ -1,9 +1,18 @@
-# APMES CCC 360
+# APMES CCC
 
 What the programme coordinators (PCs) collect from residents before a CCC (a residency meeting): the **scholar projects**
 each resident is doing, and the people who should give each resident **multisource feedback (MSF)**. It replaces the
-department's Google Form "CCC Projects & MSF" (owner, 17 Oct 2026). At `apmes.anawj.com/360/` (folder `360/`; `?demo` for
+department's Google Form "CCC Projects & MSF" (owner, 17 Oct 2026). At `apmes.anawj.com/ccc/` (folder `ccc/`, at `/360/` until 23 Oct 2026; `?demo` for
 made-up residents). Same people and sign-in as logbook, evals and People. Not the same as the applicants feedback app (now in the `residencyapps` repo).
+
+- **Demo landing page** `ccc/demo/` (`/ccc/demo/`, linked from the sign-in screen): what residents, coordinators, nominees
+  and the CCC each see, a screenshot each (`ccc/demo/shots/`, phone size, from the demo) and a button into `?demo` as that
+  person; plus where each question of the old Google Form went. The nominee button opens a ready-made link
+  (`DEMO_INVITE` in `store.js`) that also adds four made-up answers for Bea Lim, so her CCC report has figures. Retake the
+  shots when the screens change.
+- **Old form's answers** come in with `tools/ccc-import-form.mjs` (plan from the response sheet's CSV, then write with the
+  owner's gcloud sign-in; the CSV and plan stay in the private notes). Rounds `r<year>-h1|h2` ("CCC Jan–Jun 2026"); the
+  newest stays open, older ones are closed at their last answer. Tests: `ccc/test/import.test.mjs`.
 
 ## Rules the app follows (decisions in the owner's private notes)
 
@@ -17,10 +26,10 @@ made-up residents). Same people and sign-in as logbook, evals and People. Not th
 - **Roles live in the app**: `access/{google-email}` holds `{ roles }` (owner, admin, pc, pd). A PC has Admin staff's powers, so
   PDs, Admin staff and PCs read every entry and nominee list; residents see only their own; faculty none. Residents' private
   logbooks, reflections and assessment comments stay out of reach of admin staff and PCs.
-- Nominees' contact details are third-party personal data: deleted automatically a year after a round closes (a PC or PD can
+- Nominees' contact details are third-party personal data: deleted automatically three years after a round closes (a year until 23 Oct 2026) (a PC or PD can
   delete earlier); projects stay. Real data never goes in this repo; the demo is made up.
 
-## Data (rules in `logbook/firestore.rules`, "CCC 360"; tests `360/test/rules.emulator.mjs`, run by `tools/test-rules.sh`)
+## Data (rules in `logbook/firestore.rules`, "CCC 360"; tests `ccc/test/rules.emulator.mjs`, run by `tools/test-rules.sh`)
 
 - `access/{email}` `{ name, roles, updatedAt, updatedBy }` and `accessLog/{id}`: see "Roles" in `people/NOTES.md`. Replaces the
   short-lived `cccPCs` (removed 17 Oct 2026, never used).
@@ -40,7 +49,7 @@ from their own mail (`mailto:`); the app never sends mail.
 
 - `ccc/{round}/invites/{id}` `{ resident, nomineeId, group, residentName, raterName, createdAt, createdBy }`: made by staff
   only for a nominee marked Checked (or Emailed) in `review/`; `createdAt` is the server time, `createdBy` the writer. The id
-  is 128 random bits as 32 hex characters (`newInviteId`), sent as `/360/rate/#<round>/<id>` (`rateLink`; the hash never
+  is 128 random bits as 32 hex characters (`newInviteId`), sent as `/ccc/rate/#<round>/<id>` (`rateLink`; the hash never
   reaches server logs; the round is in it because a rater cannot list invites to find theirs, and round ids are not secret).
   Anyone may `get` one invite by its id; only staff `list` or delete them; no update.
 - `ccc/{round}/responses/{id}` (same id) `{ answers, comments, declined?, reason?, submittedAt }`: created once, with no
@@ -57,13 +66,13 @@ from their own mail (`mailto:`); the app never sends mail.
   the concerns apart. A group is shown alone only with 3 or more answers; smaller groups fold into Others; if Others is
   still under 3 it joins the smallest shown group (so no group's mean can be found by subtraction); under 3 answers in
   all, only counts.
-- Tests: `360/test/model.test.mjs` (edge cases: none, all declined, small groups) and `360/test/rules.emulator.mjs`
+- Tests: `ccc/test/model.test.mjs` (edge cases: none, all declined, small groups) and `ccc/test/rules.emulator.mjs`
   (list denied to the public, second submit and closed round denied, residents, faculty and Admin staff cannot read
   responses).
 
 ### The rater page and the invite flow (23 Oct 2026)
 
-- **Rater page** `360/rate/` (`js/rate.js`), no sign-in: reads the one invite from the link, shows whom they rate and as
+- **Rater page** `ccc/rate/` (`js/rate.js`), no sign-in: reads the one invite from the link, shows whom they rate and as
   which group (about 5 minutes), the questions from `msf-form.js` as labelled radio lists (no sliders, no stars, all on
   one page), comment boxes, the privacy line. Typing is kept on the device (`ccc-rate-draft-<round>-<id>`) until Submit;
   Submit is a plain await and checks every rating first ("Not observed" counts). "I can't give feedback" opens Decline
@@ -93,7 +102,7 @@ from their own mail (`mailto:`); the app never sends mail.
   answers** (`…/answers`): each rater's name, group and answers, for PDs and PCs only, never printed for the CCC.
 - **Print:** the app bar and buttons drop away. Concerns show on screen but are left off paper unless "Include concerns
   when printing" is ticked (off by default, kept on this device: `ccc-print-concerns`). Rater names are never on the report.
-- **Clean-up** (`purgeExpired`, when staff open the app, a year after a round closes): nominees as before; then, for a PD or
+- **Clean-up** (`purgeExpired`, when staff open the app, three years after a round closes): nominees as before; then, for a PD or
   PC only, per resident one batch saves `ccc/{round}/report/{email}` (`reportDoc`: counts without per-group splits, the
   shown groups, item means, comments, concerns, `formId`, `savedAt` = server time) and deletes that resident's responses
   and invites, so a failure leaves all or nothing. Admin staff cannot read answers, so with them the rater data waits.
@@ -134,7 +143,7 @@ after any change to them: a first version broke the evals decline and reassign c
   on leave, graduated or attrited stay hidden; writes stay with admins and PDs). Senior doctors are suggested from faculty, peers from
   residents, others from both; anyone can still be typed in. `cloud.listActiveResidents` in evals' `cloud.js` is the call.
 - Staff (PD, Admin staff, PC; `S.roles.admin/pd/owner` from `getRoles`, which reads `access/`) who are not residents go straight to the coordinators' view; residents who are also staff get a "Coordinators' view" button.
-- Tests: `node 360/test/model.test.mjs`, `node 360/test/e2e.mjs` (demo at 390 px, axe on each screen, a send and a change, carry-over,
+- Tests: `node ccc/test/model.test.mjs`, `node ccc/test/e2e.mjs` (demo at 390 px, axe on each screen, a send and a change, carry-over,
   a closed round, nothing outside the site reached).
 
 ## The coordinators' view (`js/staff.js`, 17 Oct 2026)

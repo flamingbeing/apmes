@@ -1,4 +1,4 @@
-// The CCC 360 store: rounds, a resident's own entry and nominees, and (for staff) everyone's.
+// The CCC store: rounds, a resident's own entry and nominees, and (for staff) everyone's.
 // Live: Firestore in the logbook project (rules: logbook/firestore.rules, "CCC 360"):
 //   ccc/{round}                      { round, title, status: 'open'|'closed', deadline?, closedAt?, updatedAt }
 //   ccc/{round}/entries/{email}      { email, name, noProjects, projects, admin, teaching, conferences, updatedAt }
@@ -122,7 +122,7 @@ export async function deleteNominees(round, email) {
   await b.commit();
 }
 
-// Every round that closed more than a year ago: delete the nominees, and the raters' links and answers after saving each
+// Every round that closed more than three years ago (PURGE_DAYS): delete the nominees, and the raters' links and answers after saving each
 // resident's CCC summary (report/). Runs when staff open the app. Only PDs and PCs read answers, so with Admin staff the
 // rater data waits for a PD or PC (the links stay too: without them the answers could not be summed up). Projects are
 // kept. Returns { lists, reports }: nominee lists deleted and summaries saved (0 mostly).
@@ -188,9 +188,30 @@ export async function createInvite(round, resident, nominee, by) {
 
 // ---- the rater's page (no sign-in) ----
 
+// The demo's ready-made rater link (/ccc/rate/?demo#demo/<DEMO_INVITE>, from the demo's landing page): the first visit
+// makes it, for Bea Lim's senior doctor, marked Emailed, so it shows in the coordinators' demo too; with it come four
+// made-up raters who have already answered for Bea, so her CCC report has figures to show.
+export const DEMO_INVITE = 'de'.repeat(16);
+const DEMO_RATERS = [['senior', 'Dr Rater One', 4, 'Calm and organised on a busy list.'], ['senior', 'Dr Rater Two', 3, 'Explains the plan clearly to patients.'],
+  ['senior', 'Dr Rater Three', 3, ''], ['allied', 'Nurse Rater', 4, 'Always thanks the team.']];
+function demoRaterInvite(d, round) {
+  const key = round + '|' + DEMO_INVITE, m = d.msf[round + '|bea.lim@example.com'];
+  const n = m?.nominees?.find(x => x.group === 'senior');
+  if (d.invites[key] || d.responses[key] || !n) return;
+  d.invites[key] = { ...inviteDoc(m, n), createdAt: Date.now(), createdBy: 'admin@example.com' };
+  DEMO_RATERS.forEach(([group, raterName, q, c1], i) => {
+    const k = round + '|' + 'd' + String(i + 1).repeat(31);
+    d.invites[k] = { resident: m.email, nomineeId: 'demo' + i, group, residentName: m.name, raterName, createdAt: Date.now(), createdBy: 'admin@example.com' };
+    d.responses[k] = { answers: { q1: q, q2: q, q3: q, q4: q, q5: 'na', q6: 'no' }, comments: c1 ? { c1, c2: 'Speak up earlier when a list is running late.' } : {}, declined: false, submittedAt: Date.now() };
+  });
+  const rk = round + '|' + m.email, rv = d.review[rk] || { email: m.email, marks: {} };
+  d.review[rk] = { ...rv, marks: { ...rv.marks, [n.id]: 'sent' }, updatedAt: Date.now() };
+  demoWrite(d);
+}
+
 // one invite by its link, or null if there is none (an unknown or deleted link)
 export async function getInvite(round, id) {
-  if (cloud.demo) return demoDb().invites[round + '|' + id] || null;
+  if (cloud.demo) { const d = demoDb(); if (id === DEMO_INVITE) demoRaterInvite(d, round); return d.invites[round + '|' + id] || null; }
   const { db, F } = await cloud.firestore();
   const s = await F.getDoc(F.doc(db, 'ccc', round, 'invites', id));
   return s.exists() ? s.data() : null;
