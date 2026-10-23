@@ -11,6 +11,14 @@
 ## Next (in order)
 1. Sign-in check on apmes.anawj.com (Google) after the move.
 2. anawj-site drops the apmes folders, hosts, guest sign-in code and its logbook rules and MCP workflows.
+3. Guidebook as an installable app (owner asked 23 Oct 2026), the same way as the other apps: manifest (id `/guide/`),
+   icon from anawj-site `tools/app-icons/`, `sw.js` that keeps every `/guide/` page, `search.json` and the kit offline,
+   app version line and "Get the latest version" button on the contents page; on the home page it moves to the Apps
+   section (`home/js/links.js`). Check it fits the home page rule (no service worker at `/`).
+4. Same session: on `entrustment.html`, a notes box and a "done" tick on each question, synced with the Logbook sign-in
+   (Firestore, the resident's own data only; rules change in `logbook/firestore.rules`, so beta first and merge on the
+   owner's "ship it"). Signed out, notes and ticks stay on the device and still export. Export as .md, .txt or
+   .docx, and Share / email them.
 
 ## Recently done
 - 23 Oct 2026: applicants feedback moved out to its own repo and site (`residencyapps`, residencyapps.anawj.com):
