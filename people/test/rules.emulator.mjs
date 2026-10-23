@@ -57,6 +57,12 @@ for (const [who, db, me] of [['admin staff', adm, ADM], ['pc', pc, PC], ['old-li
   await t(`${who} cannot edit their own record`, assertFails(setDoc(at(db, me), rec(me, ['admin', 'pd'], { updatedBy: me }))));
   await t(`${who} removes a pc`, assertSucceeds(deleteDoc(at(db, 'g1@example.com'))));
   await t(`${who} cannot remove an owner`, assertFails(deleteDoc(at(db, OWNER2))));
+  // a copy saved by hand with capitals (People › Access merges it and deletes it on Save)
+  const stray = `Stray-${me}`;
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'access', stray), { email: stray, name: 'Stray', roles: ['admin'], updatedAt: 1, updatedBy: 'seed' }));
+  await t(`${who} cannot save a record with capitals`, assertFails(setDoc(at(db, stray), rec(stray, ['admin'], { updatedBy: me }))));
+  { const b = writeBatch(db); b.set(at(db, stray.toLowerCase()), rec(stray.toLowerCase(), ['admin', 'pc'], { updatedBy: me })); b.delete(at(db, stray));
+    await t(`${who} saves the lowercase record and deletes the capitalised copy in one batch`, assertSucceeds(b.commit())); }
   await t(`${who} cannot edit an owner's record`, assertFails(setDoc(at(db, OWNER2), rec(OWNER2, ['admin'], { updatedBy: me }))));
   await t(`${who} cannot add an owner role to an existing record`, assertFails(setDoc(at(db, 'g2@example.com'), rec('g2@example.com', ['admin', 'owner'], { updatedBy: me }))));
 }

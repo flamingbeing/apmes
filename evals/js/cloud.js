@@ -244,27 +244,30 @@ export async function saveResident(r) {
 export async function listAccess() {
   if (demo) return D.listAccess();
   const { db, F } = await sdk();
-  return (await F.getDocs(F.collection(db, 'access'))).docs.map(d => ({ ...d.data(), email: d.id }))
+  return (await F.getDocs(F.collection(db, 'access'))).docs.map(d => ({ ...d.data(), id: d.id, email: d.id }))
     .sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email)));
 }
 
-export async function saveAccess({ email, name, roles, change } = {}) {
+// `strays`: capitalised copies of the same email (see mergeAccess in people/js/access.js), deleted in the same batch
+export async function saveAccess({ email, name, roles, change, strays = [] } = {}) {
   if (demo) return D.saveAccess({ email, name, roles, change });
   const { db, F, auth } = await sdk();
   const e = lc(email), by = lc(auth.currentUser?.email);
   const doc = { email: e, name: String(name ?? '').slice(0, 200), roles: [...new Set(roles || [])], updatedAt: F.serverTimestamp(), updatedBy: by };
   const b = F.writeBatch(db);
   b.set(F.doc(db, 'access', e), doc);
+  for (const id of strays) if (id !== e) b.delete(F.doc(db, 'access', id));
   b.set(F.doc(F.collection(db, 'accessLog')), { by, to: e, change: String(change || 'changed').slice(0, 300), at: F.serverTimestamp() });
   await queued(b.commit());
 }
 
-export async function removeAccess(email, change) {
+export async function removeAccess(email, change, strays = []) {
   if (demo) return D.removeAccess(email, change);
   const { db, F, auth } = await sdk();
   const e = lc(email), by = lc(auth.currentUser?.email);
   const b = F.writeBatch(db);
   b.delete(F.doc(db, 'access', e));
+  for (const id of strays) if (id !== e) b.delete(F.doc(db, 'access', id));
   b.set(F.doc(F.collection(db, 'accessLog')), { by, to: e, change: String(change || 'removed').slice(0, 300), at: F.serverTimestamp() });
   await queued(b.commit());
 }

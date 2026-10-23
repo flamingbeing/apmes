@@ -26,6 +26,22 @@ export function mayChange({ actor, actorEmail, targetEmail, oldRoles = [], newRo
   return { ok: false, why: 'Only owners, Admin staff and programme coordinators change roles.' };
 }
 
+// Records keyed by email (Firestore doc id). The rules only read the lowercase id, so a copy saved by hand with capitals
+// (e.g. in the console) does nothing yet shows up as a second person. Merge them into one row: roles and name from the
+// lowercase record when there is one, `strays` = the capitalised ids, which saving or removing deletes.
+export function mergeAccess(records = []) {
+  const by = new Map();
+  for (const r of records) {
+    const id = String(r.id ?? r.email ?? ''), e = id.toLowerCase();
+    if (!e) continue;
+    const row = by.get(e) || { email: e, strays: [], active: false };
+    if (id === e) Object.assign(row, { name: r.name, roles: r.roles, active: true });
+    else { row.strays.push(id); if (!row.active) { row.name ||= r.name; row.roles ||= r.roles; } }
+    by.set(e, row);
+  }
+  return [...by.values()];
+}
+
 // One line for the access log
 export function changeText(oldRoles, newRoles, removing = false) {
   if (removing) return `removed (was ${rolesText(oldRoles)})`.slice(0, 300);

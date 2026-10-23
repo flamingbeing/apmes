@@ -1,6 +1,6 @@
 // Unit tests for People › Access (roles). Run: node people/test/access.test.mjs
 import assert from 'node:assert/strict';
-import { cleanRoles, rolesText, mayChange, changeText, parseAccessPaste, normName } from '../js/access.js';
+import { cleanRoles, rolesText, mayChange, changeText, parseAccessPaste, normName, mergeAccess } from '../js/access.js';
 
 assert.deepEqual(cleanRoles(['pd', 'x', 'owner', 'pd']), ['owner', 'pd']);
 assert.deepEqual(cleanRoles(null), []);
@@ -56,3 +56,16 @@ r = p('Lee Wong\nsam.g@gmail.example\n\n');
 assert.equal(r.length, 2);
 assert.deepEqual(r.map(x => x.email), ['lee@example.com', 'sam.g@gmail.example']);
 console.log('access: all checks passed');
+
+// a copy saved with capitals merges into the lowercase record, which wins; on its own it shows as not working yet
+{
+  const m = mergeAccess([
+    { id: 'Dian@example.com', email: 'Dian@example.com', name: 'Dian', roles: ['admin'] },
+    { id: 'dian@example.com', email: 'dian@example.com', name: 'Dian', roles: ['admin', 'pc'] },
+    { id: 'Lee@Example.com', name: 'Lee', roles: ['pd'] },
+    { id: 'ok@example.com', name: 'Ok', roles: ['pd'] }]);
+  assert.equal(m.length, 3);
+  assert.deepEqual(m[0], { email: 'dian@example.com', strays: ['Dian@example.com'], active: true, name: 'Dian', roles: ['admin', 'pc'] });
+  assert.deepEqual(m[1], { email: 'lee@example.com', strays: ['Lee@Example.com'], active: false, name: 'Lee', roles: ['pd'] });
+  assert.deepEqual(m[2], { email: 'ok@example.com', strays: [], active: true, name: 'Ok', roles: ['pd'] });
+}
