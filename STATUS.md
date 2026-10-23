@@ -13,6 +13,9 @@
 2. anawj-site drops the apmes folders, hosts, guest sign-in code and its logbook rules and MCP workflows.
 
 ## Recently done
+- 23 Oct 2026: guidebook pages reorganised: one page per EPA (`epa-01.html` to `epa-12.html`, 7a/7b with 7) and the
+  Appendix, a contents page with search over every section (`search.json`), and `entrustment.html`: every DOPS,
+  Mini-CEX and EBD item in three tabs, grouped by EPA, with a filter and the EPA 7 attachments inside their items.
 - 23 Oct 2026: guidebook as readable pages at `/guide/` (`home/guide/`, built by `tools/build-guide.mjs` from
   `apmes/guidebook/`; contents, anchors, tables that scroll sideways); its section is on the home page.
 - 23 Oct 2026: home page at apmes.anawj.com/ (`home/`): Open Logbook, MedHub links, an opt-in counts card (own
@@ -24,6 +27,8 @@
   own exceljs and jszip (`logbook/vendor/`); kit from design.anawj.com (cached offline); guest sign-in code; checks.
 
 ## Decisions (dated, one line each)
+- 23 Oct 2026: the guidebook `.md` files keep their names (evals reads `epa-01-06.md` and `epa-07-12.md`); the page
+  builder splits them per EPA. Search runs in the browser over a built `search.json`, no server.
 - 23 Oct 2026: guidebook pages are built HTML committed with the repo (no Markdown library on the phone); the raw
   `.md` at `/apmes/guidebook/` stays for evals.
 - 23 Oct 2026: home page at `/` lists live apps only (Logbook for now); MedHub links go to MedHub's home and its mobile

@@ -40,8 +40,9 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - **Generated files:** `evals/js/catalogue.js` and `forms.js`. Edit `apmes/` or `evals/tools/build-data.mjs`, then run
   `node evals/tools/build-data.mjs` (`tools/check.mjs` fails when they are stale).
   `home/guide/*.html` (the readable guidebook at `/guide/`): edit `apmes/guidebook/*.md` or `tools/build-guide.mjs`,
-  then run `node tools/build-guide.mjs` (`tools/check.mjs` fails when they are stale; reading them is denied in
-  `.claude/settings.json`). Styles: `home/guide/guide.css` (by hand).
+  then run `node tools/build-guide.mjs` (it also writes `entrustment.html` and `search.json`; `tools/check.mjs` fails
+  when they are stale; reading them is denied in `.claude/settings.json`). By hand: `home/guide/guide.css` and
+  `guide.js` (search and the entrustment tabs).
 - The NUHS design kit (and the shared QR generator, `/v1/feedback/qr.js`) load from `https://design.anawj.com/v1/`
   (another repo); never copy them in. The service workers cache the kit at install and answer it offline (`KIT`).
 - **Service workers:** each `sw.js` VERSION starts with its folder name and is stamped at deploy

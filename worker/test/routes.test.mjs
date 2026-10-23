@@ -37,7 +37,7 @@ test('the guidebook pages at /guide/ (home/guide/); the raw .md stays at /apmes/
   for (const h of HOSTS) {
     assert.deepEqual(resolve(h, '/guide/'), { file: 'home/guide/' }, h);
     assert.deepEqual(resolve(h, '/guide'), { redirect: '/guide/' }, h);
-    assert.deepEqual(resolve(h, '/guide/epa-01-06.html'), { file: 'home/guide/epa-01-06.html' }, h);
+    assert.deepEqual(resolve(h, '/guide/epa-01.html'), { file: 'home/guide/epa-01.html' }, h);
     assert.deepEqual(resolve(h, '/guide/../logbook/x'), { notFound: true }, h);
     assert.deepEqual(resolve(h, '/apmes/guidebook/epa-01-06.md'), { file: 'apmes/guidebook/epa-01-06.md' }, h);
   }

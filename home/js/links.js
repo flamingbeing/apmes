@@ -18,7 +18,7 @@ export const LINKS = [
   { section: 'medhub', label: 'MedHub', url: 'https://nuhs.medhub.com/', note: 'EPA forms, MSF and evaluations', live: true, external: true },
   { section: 'medhub', label: 'Duty hours', url: 'https://nuhs.medhub.com/functions/apps/mobile/dutyhours.mh', note: 'Log your work hours', live: true, external: true },
   { section: 'medhub', label: 'Evaluations', url: 'https://nuhs.medhub.com/functions/apps/mobile/evaluations.mh', note: 'Your MedHub evaluations', live: true, external: true },
-  { section: 'guide', label: 'Programme guidebook', url: '/guide/', note: 'EPAs, DOPS expectations, MSF', live: true },
+  { section: 'guide', label: 'Programme guidebook', url: '/guide/', note: 'Search, entrustment questions, EPAs 1–12', live: true },
 ];
 
 // [{ ...section, links }] for the sections that have at least one live link, in SECTIONS order

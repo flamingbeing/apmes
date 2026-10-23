@@ -1,10 +1,13 @@
 // Builds the readable guidebook pages (apmes.anawj.com/guide/) from the programme guidebook's Markdown.
-//   node tools/build-guide.mjs           writes home/guide/<name>.html for each apmes/guidebook/<name>.md, plus index.html
+//   node tools/build-guide.mjs           writes home/guide/<name>.html for each apmes/guidebook/<name>.md (the two EPA files
+//                                        split into one page per EPA, epa-01.html to epa-12.html, plus appendix.html),
+//                                        entrustment.html (every DOPS, Mini-CEX and EBD item by type), index.html and
+//                                        search.json (every section as plain text, for the contents page's search)
 //   node tools/build-guide.mjs --check   exits 1 if those pages are missing, stale or left over (tools/check.mjs runs it)
 // The .md files stay the source (the evals app reads them raw at /apmes/guidebook/); never edit the .html by hand.
 // Only the Markdown the guidebook uses is handled: # headings, paragraphs, - and 1. lists (nested by indent), | tables,
 // > quotes, ---, **bold**, *italic*, `code`, [links](x.md) and the <br> <sup> <sub> <u> tags; any other HTML is shown
-// as text. Styles: home/guide/guide.css (by hand).
+// as text. Styles: home/guide/guide.css; search and tabs: home/guide/guide.js (both by hand).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -166,6 +169,7 @@ ${HEAD_THEME}
 <main class="a-main"><div class="g-col">
 ${body}
 </div></main>
+<script src="guide.js" defer></script>
 </body>
 </html>
 `;
@@ -184,28 +188,155 @@ function tocList(items, href = '') {
   return html + (depth ? '</li>' + '</ul></li>'.repeat(depth - 1) + '</ul>' : '');
 }
 
-export function build() {
+// ---- splitting: the two EPA files become one page per EPA (7a and 7b stay with 7) plus the Appendix ----
+const EPA_FILES = ['epa-01-06', 'epa-07-12'];
+// "see [Attachments](epa-07-attachments.md), EPA 7a (JR)" -> a link straight to that attachment's part
+const ATTACH = /see \[Attachments\]\(epa-07-attachments\.md\), (EPA 7[ab] \((?:JR|SR)\))/g;
+const attachId = part => 'attachment-' + part.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const linkAttachments = md => md.replace(ATTACH, (_, part) => `see [Attachments, ${part}](epa-07-attachments.md#${attachId(part)})`);
+
+export function split(md) {
+  // -> [{ name, md }]: a new part at each "## EPA <n>" with a new number, and at "## Appendix"
+  const parts = [];
+  let cur = null, num = null;
+  for (const l of md.replace(/\r\n?/g, '\n').split('\n')) {
+    const m = l.match(/^## EPA (\d+)[a-z]?:/), app = /^## Appendix\b/.test(l);
+    if ((m && +m[1] !== num) || app) {
+      num = m ? +m[1] : null;
+      parts.push(cur = { name: m ? `epa-${m[1].padStart(2, '0')}` : 'appendix', lines: [] });
+    }
+    (cur ||= parts[parts.push({ name: 'front', lines: [] }) - 1]).lines.push(l);
+  }
+  return parts.map(p => ({ name: p.name, md: p.lines.join('\n').trim() + '\n' }));
+}
+
+// the guidebook's pages in reading order: [{ name, md, group }]
+function sources() {
+  const read = n => linkAttachments(fs.readFileSync(path.join(SRC, `${n}.md`), 'utf8'));
   const names = fs.readdirSync(SRC).filter(f => f.endsWith('.md')).map(f => f.slice(0, -3))
     .sort((a, b) => (ORDER.indexOf(a) + 1 || 1e3) - (ORDER.indexOf(b) + 1 || 1e3) || a.localeCompare(b));
-  const files = {}, docs = [];
-  for (const name of names) {
-    const r = render(fs.readFileSync(path.join(SRC, `${name}.md`), 'utf8'));
-    docs.push({ name, ...r });
+  const out = [];
+  for (const n of names) {
+    if (EPA_FILES.includes(n)) for (const p of split(read(n))) out.push({ ...p, group: p.name === 'appendix' ? 'more' : 'epa' });
+    else out.push({ name: n, md: read(n), group: n === '00-introduction' ? 'intro' : 'more' });
+  }
+  return out;
+}
+
+// ---- entrustment questions: every "#### <Tool> — <item>" section of the EPA pages ----
+export const TOOLS = [{ key: 'dops', tool: 'DOPS', label: 'DOPS' }, { key: 'cex', tool: 'Mini-CEX', label: 'Mini-CEX' }, { key: 'ebd', tool: 'EBD', label: 'EBD' }];
+
+export function entrustment(pages) {
+  // -> [{ tool, epa, item, page, id, md, attachments: [part] }]
+  const items = [];
+  for (const p of pages.filter(p => p.group === 'epa')) {
+    const ids = render(p.md).toc.filter(t => t.level === 4).map(t => t.id);
+    const lines = p.md.split('\n');
+    let epa = null, k = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const h = lines[i].match(/^(#{1,6})\s+(.*?)\s*$/);
+      if (!h) continue;
+      if (h[1].length === 2) epa = (h[2].match(/^EPA \d+[a-z]?/) || [h[2]])[0];
+      if (h[1].length !== 4) continue;
+      const id = ids[k++], m = h[2].match(/^(DOPS|Mini-CEX|EBD)\s+—\s+(.*)$/);
+      if (!m) continue;
+      let j = i + 1;
+      while (j < lines.length && !/^#{1,4}\s/.test(lines[j])) j++;
+      const md = lines.slice(i + 1, j).join('\n').trim();
+      items.push({ tool: m[1], epa, item: m[2], page: p.name, id, md, attachments: [...new Set([...md.matchAll(/\[Attachments, (EPA 7[ab] \((?:JR|SR)\))\]/g)].map(x => x[1]))] });
+    }
+  }
+  return items;
+}
+
+// the attachment part "EPA 7a (JR)" as Markdown (its "## Attachment: ..." section, heading dropped)
+function attachmentPart(pages, part) {
+  const md = (pages.find(p => p.name === 'epa-07-attachments') || {}).md || '';
+  const at = md.indexOf(`## Attachment: ${part}\n`);
+  if (at < 0) return '';
+  const rest = md.slice(md.indexOf('\n', at) + 1), end = rest.search(/^## /m);
+  return (end < 0 ? rest : rest.slice(0, end)).trim();
+}
+
+// ---- search: one entry per section (heading to the next heading), as plain text ----
+const textOf = html => html.replace(/<br>/g, ' ').replace(/<\/(p|li|td|th|h\d)>/g, ' ').replace(/<[^>]+>/g, '')
+  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+
+function searchEntries(doc) {
+  const out = [];
+  const parts = doc.html.split(/(?=<h[1-6] id=")/);
+  for (const part of parts) {
+    const h = part.match(/^<h([1-6]) id="([^"]+)">([\s\S]*?)<\/h\1>/);
+    const title = h ? textOf(h[3]) : doc.title, text = textOf(h ? part.slice(h[0].length) : part);
+    if (!text && !h) continue;
+    out.push({ p: doc.name, id: h ? h[2] : '', d: doc.short, t: title, x: text });
+  }
+  return out;
+}
+
+const searchBox = (placeholder, hint) => `<form class="g-search" role="search" data-search onsubmit="return false">
+  <label class="a-search"><span class="a-sr">Search</span><input class="a-field" type="search" placeholder="${placeholder}" autocomplete="off" enterkeyhint="search"></label>
+  <p class="a-footnote g-search-hint">${hint}</p>
+  <div class="g-results" aria-live="polite"></div>
+</form>`;
+
+// short names for the contents and search results
+function shortName(d) {
+  if (d.group === 'epa') return (d.title.match(/^EPA \d+/) || [d.title])[0];
+  return { '00-introduction': 'Introduction', 'appendix': 'Appendix', 'epa-07-attachments': 'EPA 7 attachments', 'dops-expectations': 'DOPS guideline', 'msf-and-competency-forms': 'MSF and competency forms' }[d.name] || d.title;
+}
+
+function entrustmentPage(pages, items) {
+  const tab = t => items.filter(i => i.tool === t.tool);
+  const seg = `<div class="a-seg g-tabs" role="tablist" aria-label="Assessment type">${TOOLS.map((t, n) =>
+    `<button type="button" role="tab" id="tab-${t.key}" aria-controls="${t.key}" aria-selected="${n === 0}">${t.label} <span class="g-count">${tab(t).length}</span></button>`).join('')}</div>`;
+  const panel = t => {
+    let html = '', epa = null;
+    for (const i of tab(t)) {
+      if (i.epa !== epa) { html += `${epa ? '</div>' : ''}<h3 class="g-epa">${esc(i.epa)}</h3><div class="g-items">`; epa = i.epa; }
+      const extra = i.attachments.map(part => `<details class="g-attach"><summary>Detailed guide: ${esc(part)}</summary><div class="g-doc">${render(attachmentPart(pages, part)).html}</div></details>`).join('');
+      html += `<details class="g-item" id="${t.key}-${i.page}-${i.id}"><summary><span class="g-item-epa">${esc(i.epa)}</span> ${inline(i.item)}</summary>
+<div class="g-doc">${render(i.md).html}${extra}<p class="g-from"><a href="${i.page}.html#${i.id}">Open in ${esc(i.epa)} ›</a></p></div></details>`;
+    }
+    return `<section class="g-panel" id="${t.key}" role="tabpanel" aria-labelledby="tab-${t.key}"><h2 class="g-panel-title">${t.label}</h2>${html}${epa ? '</div>' : ''}</section>`;
+  };
+  return `<h1 class="g-h1">Entrustment questions</h1>
+<p class="a-footnote">The suggested entrustment questions and discussion points for every DOPS, Mini-CEX and EBD, grouped by EPA. Tap one to open it.</p>
+${searchBox('Filter, e.g. spinal, airway, EPA 9', 'Type to filter the list.')}
+${seg}
+${TOOLS.map(panel).join('\n')}`;
+}
+
+export function build() {
+  const pages = sources(), files = {}, docs = [];
+  for (const p of pages) {
+    const r = render(p.md);
+    const d = { ...p, ...r };
+    d.short = shortName(d);
+    docs.push(d);
     const toc = r.toc.filter(t => t.level === 2 || t.level === 3);
     const contents = toc.length > 1 ? `<details class="g-toc"><summary>On this page</summary>${tocList(r.toc)}</details>\n` : '';
-    files[`${name}.html`] = page({ title: r.title, back: { href: './', label: 'Contents' }, body: `${contents}<article class="g-doc">\n${r.html}\n</article>` });
+    files[`${p.name}.html`] = page({ title: r.title, back: { href: './', label: 'Contents' }, body: `${contents}<article class="g-doc">\n${r.html}\n</article>` });
   }
+  const items = entrustment(pages);
+  files['entrustment.html'] = page({ title: 'Entrustment questions', back: { href: './', label: 'Contents' }, body: entrustmentPage(pages, items) });
+  const row = d => `<li><a class="a-row" href="${d.name}.html"><span class="a-row-text">${d.group === 'epa' ? `<strong>${esc(d.short)}</strong> ${esc(d.title.replace(/^EPA \d+:\s*/, ''))}` : esc(d.title)}</span><span class="a-chev" aria-hidden="true"></span></a></li>`;
+  const section = (head, list) => list.length ? `<h2 class="g-list-head">${head}</h2><ul class="a-list">${list.map(row).join('')}</ul>` : '';
   const index = `<h1 class="g-h1">Programme guidebook</h1>
-<p class="a-footnote">The anaesthesiology EPA guidebook and its attachments, as readable pages. Tables scroll sideways on a phone.</p>
-<ul class="a-list">${docs.map(d => `<li><a class="a-row" href="${d.name}.html"><span class="a-row-text">${esc(d.title)}</span><span class="a-chev" aria-hidden="true"></span></a></li>`).join('')}</ul>
-${docs.map(d => `<details class="g-toc"><summary>${esc(d.title)}</summary>${tocList(d.toc, `${d.name}.html`)}</details>`).join('\n')}`;
+<p class="a-footnote">The anaesthesiology EPA guidebook (v8, July 2024) and its attachments, as readable pages.</p>
+${searchBox('Search the guidebook', 'Searches every page, attachments included.')}
+<ul class="a-list"><li><a class="a-row" href="entrustment.html"><span class="a-row-text"><strong>Entrustment questions</strong><span class="g-sub">DOPS · Mini-CEX · EBD, for use during an assessment</span></span><span class="a-chev" aria-hidden="true"></span></a></li></ul>
+${section('Start here', docs.filter(d => d.group === 'intro'))}
+${section('EPAs', docs.filter(d => d.group === 'epa'))}
+${section('Appendix and attachments', docs.filter(d => d.group === 'more'))}`;
   files['index.html'] = page({ title: 'Programme guidebook', back: { href: '../', label: 'APMES' }, body: index });
+  files['search.json'] = JSON.stringify(docs.flatMap(searchEntries)) + '\n';
   return files;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const files = build(), check = process.argv.includes('--check'), problems = [];
-  const have = fs.existsSync(OUT) ? fs.readdirSync(OUT).filter(f => f.endsWith('.html')) : [];
+  const have = fs.existsSync(OUT) ? fs.readdirSync(OUT).filter(f => /\.(html|json)$/.test(f)) : [];
   for (const [f, html] of Object.entries(files)) {
     const p = path.join(OUT, f);
     if (check) { if (!fs.existsSync(p) || fs.readFileSync(p, 'utf8') !== html) problems.push(f); }
