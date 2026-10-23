@@ -4,17 +4,19 @@
 //   ccc/{round}/entries/{email}      { email, name, noProjects, projects, admin, teaching, conferences, updatedAt }
 //   ccc/{round}/msf/{email}          { email, name, nominees, updatedAt }       (third parties' contact details)
 //   ccc/{round}/review/{email}       { email, marks, updatedAt }                 (staff only)
+//   ccc/{round}/invites/{id}         { resident, nomineeId, group, residentName, raterName, createdAt, createdBy }
+//   ccc/{round}/responses/{id}       { answers, comments, declined, reason?, submittedAt }   (PDs and PCs read)
 // With ?demo: the same calls against this browser's localStorage (made-up people), so the screens are the same.
 
 import { cloud } from '../../evals/js/ui-core.js';
-import { entryDoc, msfDoc, cleanEntry, cleanNominees, demoRound, purgeDue } from './model.js';
+import { entryDoc, msfDoc, cleanEntry, cleanNominees, demoRound, purgeDue, inviteDoc, newInviteId } from './model.js';
 
 const lc = s => String(s || '').trim().toLowerCase();
 const KEY = 'ccc-demo-store';
 const demoRead = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
 const demoWrite = d => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch {} };
 const demoDb = () => {
-  const d = demoRead(); d.rounds ||= {}; d.entries ||= {}; d.msf ||= {}; d.review ||= {};
+  const d = demoRead(); d.rounds ||= {}; d.entries ||= {}; d.msf ||= {}; d.review ||= {}; d.invites ||= {}; d.responses ||= {};
   if (!Object.keys(d.rounds).length) {
     // a made-up round with two residents who have sent and one who has not, so the coordinators' view has something to show
     const r = demoRound(); d.rounds[r.round] = r; const t = Date.now() - 86400000;
@@ -129,4 +131,49 @@ export async function purgeExpired(rounds, now = Date.now()) {
     for (const email of left) { await deleteNominees(r.round, email); n++; }
   }
   return n;
+}
+
+// ---- raters' one-time links ----
+
+const byId = (map, round) => Object.fromEntries(Object.entries(map).filter(([k]) => k.startsWith(round + '|')).map(([k, v]) => [k.slice(round.length + 1), v]));
+const liveById = async (round, col) => {
+  const { db, F } = await cloud.firestore();
+  return Object.fromEntries((await F.getDocs(F.collection(db, 'ccc', round, col))).docs.map(d => { const x = d.data(); return [d.id, { ...x, createdAt: ms(x.createdAt), submittedAt: ms(x.submittedAt) }]; }));
+};
+// every invite of a round, by id (staff)
+export const listInvites = round => cloud.demo ? Promise.resolve(byId(demoDb().invites, round)) : liveById(round, 'invites');
+// every answer of a round, by invite id; null when this reader may not see them (only PDs and PCs do; Admin staff do not)
+export async function listResponses(round) {
+  if (cloud.demo) return byId(demoDb().responses, round);
+  try { return await liveById(round, 'responses'); } catch (e) { if (e?.code === 'permission-denied') return null; throw e; }
+}
+// Make a rater's link for one Checked nominee: { id, ...invite }. The rules check the mark and stamp the time and writer.
+export async function createInvite(round, resident, nominee, by) {
+  const id = newInviteId(), doc = inviteDoc(resident, nominee);
+  if (cloud.demo) { const d = demoDb(); d.invites[round + '|' + id] = { ...doc, createdAt: Date.now(), createdBy: lc(by) }; demoWrite(d); return { id, ...doc }; }
+  const { db, F } = await cloud.firestore();
+  await F.setDoc(F.doc(db, 'ccc', round, 'invites', id), { ...doc, createdAt: F.serverTimestamp(), createdBy: lc(by) });
+  return { id, ...doc };
+}
+
+// ---- the rater's page (no sign-in) ----
+
+// one invite by its link, or null if there is none (an unknown or deleted link)
+export async function getInvite(round, id) {
+  if (cloud.demo) return demoDb().invites[round + '|' + id] || null;
+  const { db, F } = await cloud.firestore();
+  const s = await F.getDoc(F.doc(db, 'ccc', round, 'invites', id));
+  return s.exists() ? s.data() : null;
+}
+// Send the answers (or a decline) once. A plain await, so "sent" means the server has it. Throws { code: 'used' } when
+// the link was used already or the round has closed (the rules refuse both, and a rater may read neither).
+export async function submitResponse(round, id, doc) {
+  if (cloud.demo) {
+    const d = demoDb(), key = round + '|' + id;
+    if (!d.invites[key] || d.responses[key] || d.rounds[round]?.status !== 'open') throw Object.assign(new Error('used'), { code: 'used' });
+    d.responses[key] = { ...doc, submittedAt: Date.now() }; demoWrite(d); return;
+  }
+  const { db, F } = await cloud.firestore();
+  try { await F.setDoc(F.doc(db, 'ccc', round, 'responses', id), { ...doc, submittedAt: F.serverTimestamp() }); }
+  catch (e) { if (e?.code === 'permission-denied') throw Object.assign(new Error('used'), { code: 'used' }); throw e; }
 }

@@ -1,12 +1,14 @@
 // APMES CCC 360, the coordinators' view: PDs, Admin staff and programme coordinators (PCs) open and close rounds, see who has
-// sent, read each resident's projects and nominees, mark the nominees, and export the list or email the nominees one by one.
-// The app does not send mail: "Email" opens the coordinator's own mail app with the text filled in (edit it there).
+// sent, read each resident's projects and nominees, mark the nominees, export the lists, and invite each Checked nominee to
+// answer through a one-time link (/360/rate/). The app does not send mail: "Invite" makes the link and opens the
+// coordinator's own mail app with the text and link filled in (edit it there); reminders work the same way.
 // Everything shown comes from residents' own typing, so it is only ever put on the page as text.
 
 import { S, h, fill, toast, cloud, modal, confirmBox, empty, errText, row, download, avatar } from '../../evals/js/ui-core.js';
 import {
   GROUPS, GROUP, LISTS, MARKS, PURGE_TEXT, cleanEntry, cleanNominees, markLabel, roundId, cleanRoundInput, purgeAt,
-  roster, rosterCounts, nomineesCSV, projectsCSV, mailto, emailList, monthText, dayText,
+  roster, rosterCounts, nomineesCSV, projectsCSV, emailList, monthText, dayText,
+  invitable, rateLink, raterRows, raterCounts, notDoneEmails, inviteMailto, reminderMailto, RATER_LABEL,
 } from './model.js';
 import * as store from './store.js';
 
@@ -14,6 +16,15 @@ const lc = s => String(s || '').trim().toLowerCase();
 const when = t => (t ? new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 const chip = (kind, text) => h('span', { class: `a-pill ${kind === 'ok' ? 'a-pill--ok' : kind === 'warn' ? 'a-pill--warn' : kind === 'bad' ? 'a-pill--danger' : ''} e-chip e-chip--${kind === 'ok' ? 'submitted' : kind === 'warn' ? 'in-progress' : kind === 'bad' ? 'declined' : 'draft'}` }, text);
 const statusChip = r => (r.status === 'open' ? chip('ok', 'Open') : chip('draft', 'Closed'));
+const raterChip = s => chip(s === 'done' ? 'ok' : s === 'declined' ? 'bad' : s === 'invited' ? 'warn' : 'draft', RATER_LABEL[s]);
+const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
+const raterText = c => c.invited ? `${c.invited} invited · ${c.done} done${c.declined ? ` · ${c.declined} declined` : ''}` : '';
+// open a mailto: link the way a tap on it would (the mail app opens; nothing is sent by the app)
+const openMail = href => { const a = h('a', { href, hidden: true }); document.body.append(a); a.click(); a.remove(); };
+const copy = async (text, done, none) => {
+  if (!text) { toast(none); return; }
+  try { await navigator.clipboard.writeText(text); toast(done); } catch { toast('Couldn’t copy.'); }
+};
 
 let rounds = [];
 let purged = false;   // the clean-up of old nominees runs once per visit
@@ -71,20 +82,23 @@ function roundsScreen({ app, go }) {
 async function roundScreen(round, ctx) {
   const { app, header, go } = ctx;
   header(round.title, { back: true, to: '#staff' });
-  let residents = [], entries = {}, msfs = {}, reviews = {};
+  let residents = [], entries = {}, msfs = {}, reviews = {}, invites = {}, responses = null;
   try {
-    [entries, msfs, reviews] = await Promise.all([store.listEntries(round.round), store.listNominees(round.round), store.listReviews(round.round)]);
+    [entries, msfs, reviews, invites, responses] = await Promise.all([store.listEntries(round.round), store.listNominees(round.round), store.listReviews(round.round), store.listInvites(round.round), store.listResponses(round.round)]);
     try { residents = await cloud.listResidents(); } catch (e) { console.warn('Resident list unavailable', e); }
   } catch (e) { return fill(app, h('p', { class: 'e-alert' }, 'Couldn’t load this round: ' + errText(e))); }
   const rows = roster(residents, entries, msfs, reviews);
   const sums = rosterCounts(rows);
+  const raters = Object.fromEntries(rows.map(r => [r.email, raterRows(r.email, msfs[r.email]?.nominees, reviews[r.email]?.marks, invites, responses)]));
+  const allRaters = Object.values(raters).flat();
+  const rc = raterCounts(allRaters);
   const items = rows.filter(r => r.sent).map(r => ({ resident: { name: r.name, email: r.email }, entry: entries[r.email], nominees: cleanNominees(msfs[r.email]?.nominees), marks: reviews[r.email]?.marks || {} }));
   let filter = 'all';
   const list = h('div', { class: 'e-list' });
   const draw = () => {
     const shown = rows.filter(r => filter === 'all' || (filter === 'unsent' ? !r.sent : r.sent && r.marks.todo > 0));
     fill(list, shown.length ? shown.map(r => row({
-      name: r.name, title: r.name, meta: r.sent ? `${r.projects ? `${r.projects} project${r.projects === 1 ? '' : 's'}` : r.noProjects ? 'No projects' : 'No projects listed'} · ${r.nominees} nominee${r.nominees === 1 ? '' : 's'}${r.extra ? ' · not on the resident list' : ''}` : 'Has not sent yet',
+      name: r.name, title: r.name, meta: r.sent ? `${r.projects ? `${r.projects} project${r.projects === 1 ? '' : 's'}` : r.noProjects ? 'No projects' : 'No projects listed'} · ${r.nominees} nominee${r.nominees === 1 ? '' : 's'}${raterCounts(raters[r.email]).invited ? ' · ' + raterText(raterCounts(raters[r.email])) : ''}${r.extra ? ' · not on the resident list' : ''}` : 'Has not sent yet',
       chip: !r.sent ? chip('bad', 'Not sent') : r.marks.todo ? chip('warn', `${r.marks.todo} to check`) : r.nominees ? chip('ok', 'All checked') : chip('draft', 'No nominees'),
       onclick: () => go(`#staff/${encodeURIComponent(round.round)}/${encodeURIComponent(r.email)}`) }))
       : [h('p', { class: 'e-small', style: 'padding:12px 16px;margin:0' }, filter === 'unsent' ? 'Everyone has sent.' : 'Nothing to show.')]);
@@ -124,6 +138,7 @@ async function roundScreen(round, ctx) {
     h('section', { class: 'e-card' },
       h('div', { class: 'cc-head' }, h('h2', { class: 'e-h2', style: 'margin:0' }, round.title), statusChip(round)),
       h('p', { class: 'e-small' }, `${sums.sent} of ${sums.total} active residents have sent · ${sums.nominees} nominees${sums.toCheck ? ` · ${sums.toCheck} to check` : ''}`),
+      rc.invited ? h('p', { class: 'e-small' }, `Raters: ${raterText(rc)}${responses ? '' : ' (only PDs and PCs see who has answered)'}`) : null,
       round.deadline ? h('p', { class: 'e-small' }, `Send by ${dayText(round.deadline)}.`) : null,
       h('p', { class: 'e-hint' }, round.status === 'closed' ? (purgeAt(round) ? `Nominees' contact details are deleted on ${when(purgeAt(round))}.` : 'Closed.') : `Nominees' contact details are deleted ${PURGE_TEXT} after you close the round.`),
       h('div', { class: 'e-actions e-actions--start' },
@@ -136,6 +151,7 @@ async function roundScreen(round, ctx) {
         h('button', { class: 'a-btn a-btn--tinted', type: 'button', disabled: !items.some(i => i.nominees.length), onclick: () => download(`ccc-nominees-${slug}.csv`, new Blob([nomineesCSV(round, items)], { type: 'text/csv;charset=utf-8' })) }, 'Nominees (CSV)'),
         h('button', { class: 'a-btn a-btn--tinted', type: 'button', disabled: !items.length, onclick: () => download(`ccc-projects-${slug}.csv`, new Blob([projectsCSV(round, items)], { type: 'text/csv;charset=utf-8' })) }, 'Projects (CSV)'),
         h('button', { class: 'a-btn a-btn--tinted', type: 'button', onclick: copyUnsent }, 'Copy emails of residents not sent'),
+        h('button', { class: 'a-btn a-btn--tinted', type: 'button', disabled: !rc.invited, onclick: () => copy(notDoneEmails(allRaters), 'Copied the emails of raters who have not answered', responses ? 'Every invited rater has answered.' : 'No invited raters with an email.') }, 'Copy emails of raters not done'),
         h('button', { class: 'a-btn a-btn--danger a-btn--tinted', type: 'button', disabled: !Object.keys(msfs).length, onclick: wipe }, 'Delete nominees now'))),
     h('section', { class: 'e-card e-card--flush' }, h('div', { style: 'padding:12px 16px 0' }, seg), list)));
   window.scrollTo(0, 0);
@@ -145,10 +161,10 @@ async function roundScreen(round, ctx) {
 
 async function residentScreen(round, email, ctx) {
   const { app, header } = ctx;
-  let entry = null, msf = null, review = null;
+  let entry = null, msf = null, review = null, invites = {}, responses = null;
   try {
-    const [es, ms, rs] = await Promise.all([store.listEntries(round.round), store.listNominees(round.round), store.listReviews(round.round)]);
-    [entry, msf, review] = [es[email], ms[email], rs[email]];
+    const [es, ms, rs, iv, rp] = await Promise.all([store.listEntries(round.round), store.listNominees(round.round), store.listReviews(round.round), store.listInvites(round.round), store.listResponses(round.round)]);
+    [entry, msf, review, invites, responses] = [es[email], ms[email], rs[email], iv, rp];
   } catch (e) { return fill(app, h('p', { class: 'e-alert' }, 'Couldn’t load this resident: ' + errText(e))); }
   const name = entry?.name || msf?.name || email;
   header(name, { back: true, to: '#staff/' + encodeURIComponent(round.round) });
@@ -160,18 +176,51 @@ async function residentScreen(round, email, ctx) {
     if (mark) marks[id] = mark; else delete marks[id];
     try { await store.saveMarks(round.round, email, marks); rerender?.(); } catch (err) { toast('Couldn’t save the mark. ' + errText(err)); }
   };
+  // links point at this host (beta's at beta); the demo's stay in the demo
+  const urlOf = inv => (cloud.demo ? `${location.origin}/360/rate/?demo#${round.round}/${inv.id}` : rateLink(round.round, inv.id, location.origin));
+  let busy = false;
+  const invite = async n => {
+    if (busy) return;
+    busy = true;
+    try {
+      const inv = await store.createInvite(round.round, { email, name }, n, S.user?.email);
+      invites[inv.id] = { ...inv, createdAt: Date.now() };
+      marks[n.id] = 'sent';
+      await store.saveMarks(round.round, email, marks);
+      drawNominees();
+      openMail(inviteMailto(n, name, round, urlOf(inv)));
+      toast(`Link made for ${n.name || n.email}. Your mail app opens with it; send it from there.`);
+    } catch (err) { toast('Couldn’t make the link. ' + errText(err)); }
+    finally { busy = false; }
+  };
+  const btn = (label, onclick, attrs = {}) => h('button', { class: 'a-btn a-btn--sm a-btn--tinted', type: 'button', onclick, ...attrs }, label);
   const nomBox = h('div', { class: 'e-stack' });
-  const drawNominees = () => fill(nomBox, nominees.length ? GROUPS.map(g => {
-    const list = nominees.filter(n => n.group === g.id);
-    return list.length ? h('section', { class: 'e-card cc-card', 'aria-label': g.label },
-      h('div', { class: 'cc-head' }, h('h3', {}, g.label), h('span', { class: 'cc-count' }, `${list.length} of ${g.max}`)),
-      list.map(n => h('div', { class: 'cc-card' },
-        h('div', {}, h('b', {}, n.name || '(no name)'), n.email ? h('span', { class: 'e-small' }, ` · ${n.email}`) : null, h('div', { class: 'e-small' }, markLabel(marks[n.id]))),
-        h('div', { class: 'e-actions e-actions--start', role: 'group', 'aria-label': `Status for ${n.name || n.email}` },
-          MARKS.filter(([k]) => k !== 'sent').map(([k, label]) => h('button', { class: `a-btn a-btn--sm ${marks[n.id] === k ? '' : 'a-btn--tinted'}`, type: 'button', 'aria-pressed': String(marks[n.id] === k),
-            onclick: () => setMark(n.id, marks[n.id] === k ? '' : k, drawNominees) }, label)),
-          n.email ? h('a', { class: 'a-btn a-btn--sm a-btn--tinted', href: mailto(n, name, round), 'aria-label': `Email ${n.name || n.email}`, onclick: () => setMark(n.id, 'sent', drawNominees) }, 'Email') : null)))) : null;
-  }) : h('p', { class: 'e-small' }, 'No nominees.'));
+  const sumEl = h('p', { class: 'e-small', style: 'margin:0' });
+  const drawNominees = () => {
+    const rows = raterRows(email, nominees, marks, invites, responses);
+    const rc = raterCounts(rows);
+    sumEl.textContent = rc.invited ? `Raters: ${raterText(rc)}${responses ? '' : '. Only PDs and PCs see who has answered.'}` : 'No raters invited yet.';
+    fill(nomBox, nominees.length ? GROUPS.map(g => {
+      const list = rows.filter(r => r.nominee.group === g.id);
+      return list.length ? h('section', { class: 'e-card cc-card', 'aria-label': g.label },
+        h('div', { class: 'cc-head' }, h('h3', {}, g.label), h('span', { class: 'cc-count' }, `${list.length} of ${g.max}`)),
+        list.map(({ nominee: n, invite: inv, status }) => {
+          const who = n.name || n.email;
+          return h('div', { class: 'cc-card' },
+            h('div', { class: 'cc-head' }, h('div', {}, h('b', {}, n.name || '(no name)'), n.email ? h('span', { class: 'e-small' }, ` · ${n.email}`) : null, h('div', { class: 'e-small' }, markLabel(marks[n.id]))), raterChip(status)),
+            h('div', { class: 'e-actions e-actions--start', role: 'group', 'aria-label': `Status for ${who}` },
+              MARKS.filter(([k]) => k !== 'sent').map(([k, label]) => h('button', { class: `a-btn a-btn--sm ${marks[n.id] === k ? '' : 'a-btn--tinted'}`, type: 'button', 'aria-pressed': String(marks[n.id] === k),
+                onclick: () => setMark(n.id, marks[n.id] === k ? '' : k, drawNominees) }, label))),
+            !inv && round.status === 'open' && invitable(marks[n.id]) ? h('div', { class: 'e-actions e-actions--start' },
+              h('button', { class: 'a-btn a-btn--sm', type: 'button', 'aria-label': `Invite ${who}`, onclick: () => invite(n) }, 'Invite')) : null,
+            !inv && round.status === 'open' && !invitable(marks[n.id]) ? h('p', { class: 'e-hint', style: 'margin:0' }, 'Mark Checked to invite.') : null,
+            inv ? h('div', { class: 'e-actions e-actions--start', role: 'group', 'aria-label': `Link for ${who}` },
+              h('a', { class: 'a-btn a-btn--sm a-btn--tinted', href: inviteMailto(n, name, round, urlOf(inv)), 'aria-label': `Email the link to ${who}` }, 'Email the link'),
+              status === 'invited' ? h('a', { class: 'a-btn a-btn--sm a-btn--tinted', href: reminderMailto(n, name, round, urlOf(inv)), 'aria-label': `Remind ${who}` }, 'Reminder') : null,
+              btn('Copy link', () => copy(urlOf(inv), 'Link copied'), { 'aria-label': `Copy the link for ${who}` })) : null);
+        })) : null;
+    }) : h('p', { class: 'e-small' }, 'No nominees.'));
+  };
   drawNominees();
   const wipe = async () => {
     if (!await confirmBox(`Delete ${name}’s nominees?`, 'Their nominee list and your marks on it are deleted for this round. Projects are kept. It can’t be undone.', 'Delete', true)) return;
@@ -187,7 +236,9 @@ async function residentScreen(round, email, ctx) {
         : h('p', { class: 'e-small' }, e.noProjects ? 'None to report.' : 'None listed.'),
       LISTS.map(l => e[l.key].length ? h('div', {}, h('h3', { style: 'margin:12px 0 4px;font-size:1rem' }, l.label), h('ul', { class: 'cc-list' }, e[l.key].map(x => h('li', {}, x)))) : null)),
     h('h2', { class: 'e-h2', style: 'margin:4px 0' }, `Feedback nominees (${nominees.length})`),
-    h('p', { class: 'e-small', style: 'margin:0' }, 'Mark each nominee once you have checked them. “Email” opens your mail app with the message filled in, and marks the nominee as emailed.'),
+    h('p', { class: 'e-small', style: 'margin:0' }, 'Mark each nominee once you have checked them. “Invite” makes their one-time link and opens your mail app with the message and link filled in; send it from there.'),
+    sumEl,
+    h('div', { class: 'e-actions e-actions--start' }, btn('Copy emails of raters not done', () => copy(notDoneEmails(raterRows(email, nominees, marks, invites, responses)), 'Copied the emails of raters who have not answered', 'No invited raters waiting with an email.'))),
     nomBox,
     nominees.length ? h('div', { class: 'e-actions e-actions--start' }, h('button', { class: 'a-btn a-btn--danger a-btn--tinted', type: 'button', onclick: wipe }, 'Delete these nominees now')) : null));
   window.scrollTo(0, 0);

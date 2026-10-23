@@ -254,7 +254,16 @@ export function newInviteId(fill = a => globalThis.crypto.getRandomValues(a)) {
   return [...fill(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 export const isInviteId = id => INVITE_ID_RE.test(String(id ?? ''));
-export const rateLink = (id, origin = 'https://apmes.anawj.com') => `${origin}/360/rate/#${id}`;
+// The rater cannot list invites, so the link carries the round as well: /360/rate/#<round>/<id> (round ids are not secret).
+export const ROUND_RE = /^[A-Za-z0-9_-]{1,20}$/;
+export const rateLink = (round, id, origin = 'https://apmes.anawj.com') => `${origin}/360/rate/#${round}/${id}`;
+// the round and invite id from a rater page's hash, or null when it is not a link the app made
+export function parseRateHash(hash) {
+  const m = /^#?\/?([^/]+)\/([^/?#]+)\/?$/.exec(String(hash ?? '').trim());
+  if (!m) return null;
+  const round = decodeURIComponent(m[1]), id = m[2].toLowerCase();
+  return ROUND_RE.test(round) && isInviteId(id) ? { round, id } : null;
+}
 // the invite for one Checked nominee (the store adds createdAt = server time and createdBy = the signed-in coordinator)
 export function inviteDoc(resident, nominee) {
   const n = cleanNominee(nominee);
@@ -343,3 +352,57 @@ export function summarise(responses = {}, invites = {}, { minGroup = 3, rand = M
   const concerns = { yes: concernList.length, texts: shuffle(concernList.map(d => d.comments[CONCERN.comment]).filter(Boolean), rand) };
   return { counts, enough, minGroup, groups, items, comments, concerns };
 }
+
+// ---- the coordinators' invite flow (the app makes the link; the coordinator sends it from their own mail) ----
+
+// One row per nominee of one resident: the nominee, the coordinators' mark, the invite (if made), the rater's status.
+// invites/responses: { [inviteId]: doc } for the round; responses is null when this reader may not see answers (Admin
+// staff: only PDs and PCs read them), and the status is then 'invited' or 'not invited'.
+export function raterRows(resident, nominees, marks = {}, invites = {}, responses = {}) {
+  const email = lc(resident);
+  const byNominee = {};
+  for (const [id, inv] of Object.entries(invites || {})) {
+    if (lc(inv?.resident) !== email) continue;
+    const prev = byNominee[inv.nomineeId];
+    // two invites for one nominee (two coordinators at once): the answered one, else the newest
+    const score = x => (responses?.[x.id] ? 2 : 0) + (x.createdAt || 0) / 1e15;
+    const cur = { id, ...inv, createdAt: Number(inv.createdAt) || 0 };
+    if (!prev || score(cur) > score(prev)) byNominee[inv.nomineeId] = cur;
+  }
+  return cleanNominees(nominees).map(n => {
+    const invite = byNominee[n.id] || null;
+    const response = invite && responses ? responses[invite.id] || null : null;
+    const status = raterStatus(invite, response);
+    return { nominee: n, mark: marks[n.id] || '', invite, response, status, known: !!responses || !invite };
+  });
+}
+export const RATER_LABEL = { 'not invited': 'Not invited', invited: 'Invited', done: 'Done', declined: 'Declined' };
+// counts for one resident's raters, for the round list
+export function raterCounts(rows) {
+  const c = { invited: 0, done: 0, declined: 0, waiting: 0 };
+  for (const r of rows) {
+    if (!r.invite) continue;
+    c.invited++;
+    if (r.status === 'done') c.done++; else if (r.status === 'declined') c.declined++; else c.waiting++;
+  }
+  return c;
+}
+// the emails of invited raters who have not answered yet (to chase them)
+export const notDoneEmails = rows => emailList(rows.filter(r => r.invite && r.status === 'invited').map(r => r.nominee.email));
+
+function rateMail(nominee, residentName, round, link, reminder) {
+  const g = { senior: 'a senior doctor', peer: 'a peer', allied: 'an allied health colleague' }[nominee.group] || 'a colleague';
+  const subject = `${reminder ? 'Reminder: ' : ''}Multisource feedback for ${residentName}`;
+  const body = [
+    `Dear ${nominee.name || 'colleague'},`, '',
+    reminder
+      ? `A gentle reminder: ${residentName} would value your multisource feedback (as ${g}) before the Clinical Competency Committee meeting (${round?.title || 'CCC'}). If you have already answered, thank you, and please ignore this.`
+      : `${residentName} has nominated you to give multisource feedback, as ${g}, before the Clinical Competency Committee meeting (${round?.title || 'CCC'}). It takes about 5 minutes on a phone, with no sign-in.`,
+    '', `Your link (please keep it to yourself; it works once): ${link}`, '',
+    'Your answers are seen by the programme staff; the resident sees only a summary, without names. If you can’t give feedback, the same link has a Decline button.',
+    '', 'Thank you,', 'Programme coordinators',
+  ].join('\n');
+  return `mailto:${encodeURIComponent(nominee.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+export const inviteMailto = (nominee, residentName, round, link) => rateMail(nominee, residentName, round, link, false);
+export const reminderMailto = (nominee, residentName, round, link) => rateMail(nominee, residentName, round, link, true);

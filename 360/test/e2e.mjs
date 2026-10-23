@@ -167,26 +167,133 @@ assert.match(await page.textContent('main'), /Chandra Rao/);
 assert.doesNotMatch(await page.textContent('main'), /Aiden Tan/);
 await page.getByRole('button', { name: 'Everyone', exact: true }).click();
 
-// 10. One resident: read the projects, mark a nominee, open the email link (which marks it emailed)
+// 10. One resident: read the projects, check the nominees, invite one (the link is made and the mail app opens with it)
 await page.getByRole('button', { name: /Aiden Tan/ }).click();
 await page.getByRole('heading', { name: 'Scholarly projects' }).waitFor();
 assert.match(await page.textContent('main'), /Audit of ward handover/);
 assert.match(await page.textContent('main'), /Intubation workshop/);
-await page.getByRole('group', { name: 'Status for Dr Hana Lee' }).getByRole('button', { name: 'Checked' }).click();
-await page.getByRole('group', { name: 'Status for Dr Hana Lee' }).getByRole('button', { name: 'Checked' }).and(page.locator('[aria-pressed=true]')).waitFor();
-const link = page.getByRole('link', { name: 'Email Bea Lim' });
-assert.match(await link.getAttribute('href'), /^mailto:bea\.lim%40example\.com\?subject=Multisource%20feedback%20for%20Aiden%20Tan/);
-await link.evaluate(a => a.addEventListener('click', e => e.preventDefault()));   // the test has no mail app
-await link.click();
-await page.getByRole('group', { name: 'Status for Bea Lim' }).waitFor();
-await page.waitForFunction(() => /"bea\.lim@example\.com"[^}]*"sent"|"sent"/.test(localStorage.getItem('ccc-demo-store') || ''));
+assert.match(await page.textContent('main'), /No raters invited yet/);
+assert.equal(await page.getByRole('button', { name: /^Invite / }).count(), 0, 'nobody can be invited before they are checked');
+assert.equal(await page.getByText('Mark Checked to invite.').count(), 2);
+// the test has no mail app: catch mailto: taps and keep the address
+const catchMail = () => page.evaluate(() => document.addEventListener('click', e => { const a = e.target.closest?.('a[href^="mailto:"]'); if (a) { e.preventDefault(); (window.__mail ||= []).push(a.href); } }, true));
+await catchMail();
+for (const who of ['Dr Hana Lee', 'Bea Lim']) {
+  await page.getByRole('group', { name: 'Status for ' + who }).getByRole('button', { name: 'Checked' }).click();
+  await page.getByRole('group', { name: 'Status for ' + who }).getByRole('button', { name: 'Checked' }).and(page.locator('[aria-pressed=true]')).waitFor();
+}
+await page.getByRole('button', { name: 'Invite Bea Lim' }).click();
+await page.getByRole('link', { name: 'Email the link to Bea Lim' }).waitFor();
+let mails = await page.evaluate(() => window.__mail || []);
+assert.equal(mails.length, 1, 'Invite opens the mail app once');
+const invMail = decodeURIComponent(mails[0]);
+assert.match(invMail, /^mailto:bea\.lim@example\.com\?subject=Multisource feedback for Aiden Tan&body=Dear Bea Lim,/);
+const beaLink = invMail.match(/https:\/\/apmes\.anawj\.com\/360\/rate\/\?demo#demo\/[0-9a-f]{32}/)?.[0];
+assert.ok(beaLink, 'the email carries the one-time link');
+assert.match(await page.textContent('main'), /Raters: 1 invited · 0 done/);
 st = await store();
 const marks = Object.values(st.review).find(r => r.email === 'aiden.tan@example.com').marks;
-assert.deepEqual(Object.values(marks).sort(), ['ok', 'sent'], 'one checked, one emailed');
+assert.deepEqual(Object.values(marks).sort(), ['ok', 'sent'], 'one checked, one invited (emailed)');
+assert.equal(Object.keys(st.invites).length, 1);
+const inv = Object.values(st.invites)[0];
+assert.deepEqual([inv.resident, inv.group, inv.residentName, inv.raterName], ['aiden.tan@example.com', 'peer', 'Aiden Tan', 'Bea Lim']);
+assert.ok(!JSON.stringify(inv).includes('bea.lim@example.com'), "the invite (readable by anyone holding the link) holds no rater email");
+await page.getByRole('link', { name: 'Remind Bea Lim' }).click();
+mails = await page.evaluate(() => window.__mail);
+assert.match(decodeURIComponent(mails[1]), /subject=Reminder: Multisource feedback for Aiden Tan/);
+assert.ok(decodeURIComponent(mails[1]).includes(beaLink), 'the reminder carries the same link');
+await page.getByRole('button', { name: 'Invite Dr Hana Lee' }).click();
+await page.getByRole('link', { name: 'Email the link to Dr Hana Lee' }).waitFor();
+const hanaLink = decodeURIComponent((await page.evaluate(() => window.__mail))[2]).match(/https:\/\/apmes\.anawj\.com\/360\/rate\/\?demo#demo\/[0-9a-f]{32}/)[0];
+assert.equal(await page.getByText('Invited', { exact: true }).count(), 2);
 await axe('resident detail'); await shot('9-staff-resident');
 await page.reload();
 await page.getByRole('heading', { name: 'Scholarly projects' }).waitFor();
-assert.equal(await page.getByRole('group', { name: 'Status for Dr Hana Lee' }).getByRole('button', { name: 'Checked' }).getAttribute('aria-pressed'), 'true', 'marks are kept');
+assert.equal(await page.getByText('Emailed', { exact: true }).count(), 2, 'marks are kept: invited means emailed');
+assert.equal(await page.getByRole('button', { name: /^Invite / }).count(), 0, 'invited raters are not invited twice');
+
+// 10a. The rater (no sign-in) opens the link on a phone: who, as which group, the form; nothing sent until every rating is answered
+const rater = await ctx.newPage();
+rater.on('pageerror', e => errors.push(String(e)));
+rater.on('console', m => { if (m.type() === 'error' && !/favicon|404/.test(m.text())) errors.push(m.text()); });
+await rater.goto(beaLink);
+await rater.getByRole('heading', { name: 'Feedback for Aiden Tan' }).waitFor();
+assert.match(await rater.textContent('main'), /You are answering as: Peer/);
+assert.match(await rater.textContent('main'), /seen by the programme staff; the resident sees only a summary/);
+assert.equal(await rater.locator('input[type=range], .e-scale9').count(), 0, 'a labelled radio list, no sliders');
+await axe('rater form', rater); if (SHOTS) await rater.screenshot({ path: path.join(SHOTS, '10-rater.png'), fullPage: true });
+await rater.getByRole('button', { name: 'Submit feedback' }).click();
+await rater.getByRole('alert').filter({ hasText: 'Please answer every rating' }).waitFor();
+assert.match(await rater.getByRole('alert').textContent(), /Clinical care.*Teamwork.*Any concern/);
+await axe('rater problems', rater);
+const q = t => rater.getByRole('group', { name: t });
+await q('Clinical care').getByLabel('Above expectations').check();
+await q('Communication with patients and families').getByLabel('Meets expectations').check();
+await q('Teamwork').getByLabel('Meets expectations').check();
+await q('Professionalism').getByLabel('Borderline').check();
+await rater.getByLabel('One thing to keep doing (optional)').fill('Calm in a crisis <b>really</b>');
+await rater.reload();   // kept on this device until Submit
+await rater.getByText('Your earlier answers on this device are back').waitFor();
+assert.equal(await q('Clinical care').getByLabel('Above expectations').isChecked(), true);
+assert.equal(await rater.getByLabel('One thing to keep doing (optional)').inputValue(), 'Calm in a crisis <b>really</b>');
+await q('Teaching and supervision').getByLabel('Not observed').check();
+await q("Any concern about this resident's conduct or patient safety?").getByLabel('No').check();
+await rater.getByRole('button', { name: 'Submit feedback' }).click();
+await rater.getByRole('heading', { name: 'Thank you' }).waitFor();
+assert.match(await rater.textContent('main'), /Your feedback for Aiden Tan is sent/);
+await axe('rater done', rater);
+st = await store();
+const resp = st.responses['demo|' + beaLink.split('/').pop()];
+assert.deepEqual(resp.answers, { q1: 4, q2: 3, q3: 3, q4: 2, q5: 'na', q6: 'no' });
+assert.deepEqual(resp.comments, { c1: 'Calm in a crisis <b>really</b>' });
+assert.equal(resp.declined, false);
+assert.ok(!Object.keys(await rater.evaluate(() => ({ ...localStorage }))).some(k => k.includes('-draft-demo-')), 'the device draft is gone once sent');
+// the same link again: on this phone it says thank you; elsewhere (no device note) a second submit is refused kindly
+await rater.reload();
+await rater.getByRole('heading', { name: 'Thank you' }).waitFor();
+await rater.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('ccc-demo-rate-')) localStorage.removeItem(k); });
+await rater.reload();
+await rater.getByRole('heading', { name: 'Feedback for Aiden Tan' }).waitFor();
+for (const t of ['Clinical care', 'Communication with patients and families', 'Teamwork', 'Professionalism', 'Teaching and supervision']) await q(t).getByLabel('Not observed').check();
+await q("Any concern about this resident's conduct or patient safety?").getByLabel('No').check();
+await rater.getByRole('button', { name: 'Submit feedback' }).click();
+await rater.getByRole('heading', { name: 'This link has already been used' }).waitFor();
+assert.equal((await store()).responses['demo|' + beaLink.split('/').pop()].answers.q1, 4, 'the first answers stand');
+await axe('rater used', rater);
+
+// 10b. A decline, with a reason; then an unknown and a broken link
+await rater.goto(hanaLink);
+await rater.getByRole('heading', { name: 'Feedback for Aiden Tan' }).waitFor();
+assert.match(await rater.textContent('main'), /You are answering as: Senior doctor/);
+await q('Clinical care').getByLabel('Below expectations').check();
+await rater.getByRole('button', { name: 'I can’t give feedback' }).click();
+await rater.getByLabel('Reason (optional)').fill('Only worked together once');
+await axe('rater decline', rater);
+await rater.getByRole('button', { name: 'Decline', exact: true }).click();
+await rater.getByRole('heading', { name: 'Thank you for letting us know' }).waitFor();
+const dec = (await store()).responses['demo|' + hanaLink.split('/').pop()];
+assert.deepEqual(dec, { answers: {}, comments: {}, declined: true, reason: 'Only worked together once', submittedAt: dec.submittedAt }, 'a decline sends no ratings');
+await rater.goto(BASE + '360/rate/?demo#demo/' + 'f'.repeat(32));
+await rater.getByRole('heading', { name: 'This link doesn’t work' }).waitFor();
+await axe('rater unknown', rater);
+await rater.goto(BASE + '360/rate/?demo#demo/abc');
+await rater.getByRole('heading', { name: 'This link doesn’t work' }).waitFor();
+await rater.close();
+
+// 10c. Back with the coordinators: each rater's status, counts, the emails of raters not done
+await page.reload();
+await page.getByRole('heading', { name: 'Scholarly projects' }).waitFor();
+assert.match(await page.textContent('main'), /Raters: 2 invited · 1 done · 1 declined/);
+assert.equal(await page.getByText('Done', { exact: true }).count(), 1);
+assert.equal(await page.getByText('Declined', { exact: true }).count(), 1);
+assert.equal(await page.getByRole('link', { name: /^Remind / }).count(), 0, 'no reminders once answered');
+await axe('resident raters');
+await page.getByRole('button', { name: 'Back', exact: true }).click();
+await page.locator('main h2', { hasText: 'CCC round (demo)' }).waitFor();
+assert.match(await page.textContent('main'), /Raters: 2 invited · 1 done · 1 declined/);
+assert.match(await page.getByRole('button', { name: /Aiden Tan/ }).textContent(), /2 invited · 1 done · 1 declined/);
+await page.getByRole('button', { name: /Aiden Tan/ }).click();
+await page.getByRole('heading', { name: 'Scholarly projects' }).waitFor();
 
 // 11. Hostile text from a resident is shown as text and made safe in the CSV
 await setStore(() => { const k = 'demo|aiden.tan@example.com'; d.msf[k].nominees.push({ id: 'evil', group: 'other', name: '=HYPERLINK("http://x")', email: 'evil@example.com' }, { id: 'evil2', group: 'other', name: '<img src=x onerror=window.__x2=1>', email: 'evil2@example.com' }); });
@@ -198,7 +305,7 @@ await page.locator('main h2', { hasText: 'CCC round (demo)' }).waitFor();
 const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Nominees (CSV)' }).click()]);
 const csv = fs.readFileSync(await dl.path(), 'utf8');
 assert.match(csv, /^Round,Resident,Resident email,Group,Nominee,Nominee email,Status\r\n/);
-assert.match(csv, /Dr Hana Lee,dr\.hana\.lee@example\.com,Checked/);
+assert.match(csv, /Dr Hana Lee,dr\.hana\.lee@example\.com,Emailed/);
 assert.match(csv, /"'=HYPERLINK\(""http:\/\/x""\)"/, 'a nominee cannot inject a formula');
 assert.equal(dl.suggestedFilename(), 'ccc-nominees-demo.csv');
 const [dl2] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Projects (CSV)' }).click()]);

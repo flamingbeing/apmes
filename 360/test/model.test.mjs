@@ -196,7 +196,7 @@ console.log('ccc 360 model: all checks passed');
   assert.notEqual(newInviteId(), id);
   assert.equal(newInviteId(a => a.fill(255)), 'f'.repeat(32));
   assert.ok(!isInviteId('abc') && !isInviteId('A'.repeat(32)) && !isInviteId(null));
-  assert.equal(rateLink(id), `https://apmes.anawj.com/360/rate/#${id}`);
+  assert.equal(rateLink("r2026-10", id), `https://apmes.anawj.com/360/rate/#r2026-10/${id}`);
   assert.deepEqual(inviteDoc({ email: ' Bob@Example.com ', name: ' Bob  Tan ' }, { id: 'n1', group: 'allied', name: 'Nurse Lee', email: 'lee@example.com' }),
     { resident: 'bob@example.com', nomineeId: 'n1', group: 'allied', residentName: 'Bob Tan', raterName: 'Nurse Lee' });
   assert.equal(inviteDoc({ email: 'b@example.com' }, { id: 'n2', group: 'x', email: 'only@example.com' }).raterName, 'only@example.com');
@@ -286,5 +286,48 @@ console.log('ccc 360 model: all checks passed');
   // a response without an invite is ignored (it cannot be placed in a group)
   s = summarise({ ...rsp, stray: { answers: { q1: 1 }, comments: {} } }, inv);
   assert.equal(s.counts.done, 3);
+}
+// ---- the rater page's link and the coordinators' invite flow ----
+{
+  const { parseRateHash, raterRows, raterCounts, notDoneEmails, inviteMailto, reminderMailto, rateLink } = await import('../js/model.js');
+  const id = 'a'.repeat(32);
+  assert.deepEqual(parseRateHash('#r2026-10/' + id), { round: 'r2026-10', id });
+  assert.deepEqual(parseRateHash('#demo/' + id.toUpperCase()), { round: 'demo', id }, 'ids are matched in lower case');
+  assert.deepEqual(parseRateHash(new URL(rateLink('r2026-10-2', id)).hash), { round: 'r2026-10-2', id });
+  for (const bad of ['', '#', '#' + id, '#r2026-10/abc', '#r2026-10/' + id + 'x', '#a b/' + id, '#' + 'r'.repeat(21) + '/' + id, null]) assert.equal(parseRateHash(bad), null, String(bad));
+
+  const nominees = [{ id: 'n1', group: 'senior', name: 'Dr A', email: 'a@x.com' }, { id: 'n2', group: 'peer', name: 'B', email: 'b@x.com' },
+    { id: 'n3', group: 'allied', name: 'C', email: 'c@x.com' }, { id: 'n4', group: 'other', name: 'D', email: '' }, { id: 'n5', group: 'senior', name: 'E', email: 'e@x.com' }];
+  const invites = {
+    i1: { resident: 'amy@x.com', nomineeId: 'n1', group: 'senior', createdAt: 1 },
+    i2: { resident: 'amy@x.com', nomineeId: 'n2', group: 'peer', createdAt: 2 },
+    i3: { resident: 'amy@x.com', nomineeId: 'n3', group: 'allied', createdAt: 3 },
+    i4: { resident: 'amy@x.com', nomineeId: 'n4', group: 'other', createdAt: 4 },
+    i5old: { resident: 'amy@x.com', nomineeId: 'n5', group: 'senior', createdAt: 5 },
+    i5new: { resident: 'amy@x.com', nomineeId: 'n5', group: 'senior', createdAt: 6 },
+    other: { resident: 'bob@x.com', nomineeId: 'n1', group: 'senior', createdAt: 7 },
+  };
+  const responses = { i2: { answers: { q1: 3 }, declined: false }, i3: { answers: {}, declined: true }, i5old: { answers: { q1: 4 }, declined: false }, other: { answers: {}, declined: true } };
+  const rows = raterRows(' Amy@x.com ', nominees, { n1: 'sent' }, invites, responses);
+  assert.deepEqual(rows.map(r => r.status), ['invited', 'done', 'declined', 'invited', 'done'], "another resident's invite for the same nominee id is ignored");
+  assert.equal(rows[4].invite.id, 'i5old', 'of two invites for one nominee, the answered one counts');
+  assert.equal(raterRows('amy@x.com', nominees, {}, { a: invites.i5old, b: invites.i5new }, {})[4].invite.id, 'b', 'else the newest');
+  assert.deepEqual(raterCounts(rows), { invited: 5, done: 2, declined: 1, waiting: 2 });
+  assert.equal(notDoneEmails(rows), 'a@x.com', 'only invited raters with an email who have not answered');
+  // Admin staff may not read answers: statuses stay invited / not invited
+  const blind = raterRows('amy@x.com', nominees, {}, invites, null);
+  assert.deepEqual(blind.map(r => r.status), ['invited', 'invited', 'invited', 'invited', 'invited']);
+  assert.deepEqual(raterRows('amy@x.com', nominees, {}, {}, {}).map(r => r.status), Array(5).fill('not invited'));
+  assert.deepEqual(raterCounts(raterRows('amy@x.com', [], {}, invites, responses)), { invited: 0, done: 0, declined: 0, waiting: 0 });
+
+  const link = rateLink('r2026-10', id);
+  const m = decodeURIComponent(inviteMailto(nominees[2], 'Amy First', { title: 'CCC Dec' }, link));
+  assert.ok(m.startsWith('mailto:c@x.com?subject=Multisource feedback for Amy First&body=Dear C,'));
+  assert.ok(m.includes(link) && m.includes('as an allied health colleague'), 'the link and the group are in the email');
+  assert.ok(m.includes('(CCC Dec)') && m.includes('Decline'));
+  const r = decodeURIComponent(reminderMailto(nominees[0], 'Amy First', { title: 'CCC Dec' }, link));
+  assert.ok(r.includes('subject=Reminder: Multisource feedback for Amy First') && r.includes(link));
+  assert.ok(decodeURIComponent(inviteMailto(nominees[3], 'Amy', {}, link)).startsWith('mailto:?subject='), 'no email: the coordinator fills in the address');
+  assert.ok(!/[<>]/.test(m), 'plain text only');
 }
 console.log('360 rater model checks passed');
