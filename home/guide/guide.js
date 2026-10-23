@@ -2,6 +2,8 @@
 // Contents page: searches search.json (every section of every page) and lists matches that link to the section.
 // Entrustment page: DOPS / Mini-CEX / EBD tabs (remembered in the address, #dops #cex #ebd) and a filter over the items.
 // Other pages: a search result's link (page.html?q=words#part) marks the words and scrolls to the first one in that part.
+// Every page: registers sw.js (the guidebook as an installable app, readable offline); the contents page shows the
+// app version and a "Get the latest version" button.
 // Without this script every page still reads in full: the tabs show as three plain lists.
 (() => {
   const $ = (s, el = document) => el.querySelector(s), $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -34,6 +36,27 @@
     }
     return marks;
   };
+  // ---- the installable app: keep every page offline (sw.js, scope /guide/) ----
+  if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
+  // contents page: "App version <date> (<hash>)" (the saved copy's name, sw.js VERSION stamped at deploy) and
+  // "Get the latest version", which clears only this app's worker and saved copy, never the Logbook's or Evals'
+  const ver = $('[data-appver]');
+  if (ver) {
+    (window.caches ? caches.keys() : Promise.resolve([])).then(ks => {
+      const k = ks.find(x => x.startsWith('guide-'));
+      ver.textContent = k ? 'App version ' + k.replace(/^guide-/, '').replace(/-([0-9a-f]{8})$/, ' ($1)') : 'App version: not saved on this device';
+    }).catch(() => { ver.textContent = 'App version: unknown'; });
+    $('[data-latest]').addEventListener('click', async () => {
+      try { if (!(await fetch('sw.js', { cache: 'no-store' })).ok) throw new Error(); }
+      catch { ver.textContent = 'No connection. Try again when you have signal.'; return; }
+      try {
+        for (const r of await navigator.serviceWorker?.getRegistrations?.() || []) if (/\/guide\/$/.test(r.scope)) await r.unregister();
+        for (const k of await caches.keys()) if (k.startsWith('guide-')) await caches.delete(k);
+      } catch { /* reload anyway */ }
+      location.reload();
+    });
+  }
+
   const form = $('[data-search]'), input = form && $('input', form), out = form && $('.g-results', form);
   const tabs = $$('.g-tabs [role="tab"]');
 

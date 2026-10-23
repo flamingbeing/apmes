@@ -86,3 +86,8 @@ html.g-filtering .g-tabs { display: none; }
 .g-attach h3 { font-size: 16px; margin: 16px 0 6px; }
 .g-from { margin: 4px 0 0; font-size: 14px; }
 .g-sub { display: block; font-size: 14px; color: var(--a-ink-2); margin-top: 2px; }
+
+/* contents page: app version and "Get the latest version" (small muted text, as in the other apps) */
+.g-appver { margin: 4px 4px 0; text-align: center; }
+.g-appver[data-appver] { margin-top: 28px; }
+.g-linkbtn { background: none; border: 0; padding: 8px 0; min-height: 44px; font: inherit; color: var(--a-tint); cursor: pointer; text-decoration: underline; }

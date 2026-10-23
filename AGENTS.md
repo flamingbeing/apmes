@@ -40,8 +40,8 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
   `node evals/tools/build-data.mjs` (`tools/check.mjs` fails when they are stale).
   `home/guide/*.html` (the readable guidebook at `/guide/`): edit `apmes/guidebook/*.md` or `tools/build-guide.mjs`,
   then run `node tools/build-guide.mjs` (it also writes `entrustment.html` and `search.json`; `tools/check.mjs` fails
-  when they are stale; reading them is denied in `.claude/settings.json`). By hand: `home/guide/guide.css` and
-  `guide.js` (search and the entrustment tabs).
+  when they are stale; reading them is denied in `.claude/settings.json`). By hand: `home/guide/guide.css`,
+  `guide.js` (search and the entrustment tabs), and `sw.js` with `manifest.webmanifest` (the installable app).
 - The NUHS design kit (and the shared QR generator, `/v1/feedback/qr.js`) load from `https://design.anawj.com/v1/`
   (another repo); never copy them in. The service workers cache the kit at install and answer it offline (`KIT`).
 - **Service workers:** each `sw.js` VERSION starts with its folder name and is stamped at deploy
@@ -51,11 +51,11 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - **Vital app:** the logbook holds residents' real records: full tests before merging.
 - **Home page** (`home/`, served at `/`): lists only links with `live: true` in `home/js/links.js` (an app goes on it by
   flipping its flag). It reads the Logbook's theme and sign-in, never writes them, never writes Firestore, and has no
-  service worker (one at `/` would cover the apps below it).
+  service worker (one at `/` would cover the apps below it; the guidebook's own worker sits at `/guide/`).
 - NUH Junior Monthly (People's roster import) lives in the rosters repo at nuhjuniormonthly.anawj.com.
 - **App icons** come from anawj-site `tools/app-icons/` (one SVG per app, rendered there): copy its output into each
   app's `icons/` (`icon-maskable-512.png` is saved as `maskable-512.png`), never redraw here. Each manifest's `id` is
-  fixed (`/logbook/, /evals/, /people/, /ccc/ (was /360/ until 23 Oct 2026)`): changing it makes installed copies a different app.
+  fixed (`/logbook/, /evals/, /people/, /ccc/ (was /360/ until 23 Oct 2026), /guide/`): changing it makes installed copies a different app.
 
 ## Checks before merging
 

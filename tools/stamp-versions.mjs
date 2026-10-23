@@ -30,7 +30,8 @@ const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(d => {
   return d.isDirectory() ? walk(f) : [f];
 });
 
-for (const app of fs.readdirSync(ROOT).filter(d => fs.existsSync(path.join(ROOT, d, 'sw.js')))) {
+// each top-level folder with sw.js, plus the guidebook (home/guide/, served at /guide/; its VERSION starts with guide-)
+for (const app of [...fs.readdirSync(ROOT), 'home/guide'].filter(d => fs.existsSync(path.join(ROOT, d, 'sw.js')))) {
   const swPath = path.join(ROOT, app, 'sw.js');
   const sw = fs.readFileSync(swPath, 'utf8');
   const m = sw.match(RE);

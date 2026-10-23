@@ -17,11 +17,12 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const errors = [];
 const fail = msg => errors.push(msg);
 
-const apps = fs.readdirSync(ROOT).filter(d => fs.existsSync(path.join(ROOT, d, 'sw.js')));
+// apps with a service worker: each top-level folder with sw.js, plus the guidebook (home/guide/, served at /guide/)
+const apps = [...fs.readdirSync(ROOT), 'home/guide'].filter(d => fs.existsSync(path.join(ROOT, d, 'sw.js')));
 for (const app of apps) {
   const swPath = `${app}/sw.js`;
   const sw = fs.readFileSync(path.join(ROOT, swPath), 'utf8');
-  const prefix = `${app}-`;
+  const prefix = `${path.basename(app)}-`;   // the address's folder name (home/guide -> guide-)
 
   const version = sw.match(/const VERSION = '([^']+)'/)?.[1];
   if (!version) fail(`${swPath}: no VERSION constant`);

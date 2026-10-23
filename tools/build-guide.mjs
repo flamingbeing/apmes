@@ -158,6 +158,12 @@ function page({ title, back, body }) {
 <meta name="referrer" content="no-referrer">
 <title>${esc(title)} · APMES</title>
 <meta name="theme-color" content="#f9f9fb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Guidebook">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 ${HEAD_THEME}
 <link rel="stylesheet" href="https://design.anawj.com/v1/tokens.css">
 <link rel="stylesheet" href="https://design.anawj.com/v1/app.css">
@@ -328,7 +334,9 @@ ${searchBox('Search the guidebook', 'Searches every page, attachments included.'
 <ul class="a-list"><li><a class="a-row" href="entrustment.html"><span class="a-row-text"><strong>Entrustment questions</strong><span class="g-sub">DOPS · Mini-CEX · EBD, for use during an assessment</span></span><span class="a-chev" aria-hidden="true"></span></a></li></ul>
 ${section('Start here', docs.filter(d => d.group === 'intro'))}
 ${section('EPAs', docs.filter(d => d.group === 'epa'))}
-${section('Appendix and attachments', docs.filter(d => d.group === 'more'))}`;
+${section('Appendix and attachments', docs.filter(d => d.group === 'more'))}
+<p class="a-footnote g-appver" data-appver>App version: checking…</p>
+<p class="a-footnote g-appver"><button class="g-linkbtn" type="button" data-latest>Not updating? Get the latest version</button></p>`;
   files['index.html'] = page({ title: 'Programme guidebook', back: { href: '../', label: 'APMES' }, body: index });
   files['search.json'] = JSON.stringify(docs.flatMap(searchEntries)) + '\n';
   return files;
