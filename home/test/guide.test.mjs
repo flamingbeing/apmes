@@ -40,6 +40,7 @@ test('build: one page per EPA, the other .md files, the entrustment page and the
   for (const t of ['dops', 'cex', 'ebd']) assert.match(e, new RegExp(`role="tabpanel" aria-labelledby="tab-${t}"`));
   assert.ok((e.match(/class="g-item"/g) || []).length >= 59, 'every DOPS, Mini-CEX and EBD item');
   assert.match(e, /Detailed guide: EPA 7a \(SR\)/, 'EPA 7 attachments inside their items');
+  assert.ok((e.match(/Suggested entrustment questions \(at least 2\)/g) || []).length >= 59 && !/Suggested entrustment questions<\/strong>/.test(e), 'at least 2 of the questions');
   const index = JSON.parse(files['search.json']);
   assert.ok(index.length > 150 && index.every(x => files[`${x.p}.html`] && typeof x.x === 'string'));
   assert.ok(index.some(x => x.p === 'epa-07-attachments' && /dural puncture/i.test(x.x)), 'attachments are searchable');

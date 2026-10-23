@@ -187,7 +187,7 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   await item.getByLabel('Done: question 1', { exact: true }).check();
   await item.getByRole('button', { name: 'Add note' }).first().click();
   await item.getByLabel('Notes: question 1', { exact: true }).fill('Fake note about sizing');
-  assert.match(await item.locator('summary').getAttribute('data-prog'), /^1\/\d+$/);
+  assert.equal(await item.locator('summary').getAttribute('data-prog'), '1/2', 'at least 2 questions per item');
   await page.getByText('1 done · 1 note.').waitFor();
   await axe(page, 'guide notes');
   await page.reload();
