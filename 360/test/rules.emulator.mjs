@@ -15,6 +15,9 @@ const FAC = 'dr.fac@example.com', STRANGER = 'stranger@example.com', ADMIN2 = 'a
 const round = (o = {}) => ({ round: 'r1', title: 'CCC round', status: 'open', deadline: '2026-12-01', updatedAt: 1, ...o });
 const entry = (email, o = {}) => ({ email, name: 'Someone', noProjects: false, projects: [{ title: 'Audit', status: 'ongoing' }], admin: [], teaching: [], conferences: [], updatedAt: serverTimestamp(), ...o });
 const msf = (email, o = {}) => ({ email, name: 'Someone', nominees: [{ id: 'n1', group: 'senior', name: 'Dr Example' }], updatedAt: serverTimestamp(), ...o });
+const INV = 'a'.repeat(32), INV_OLD = 'b'.repeat(32), INV_NEW = 'c'.repeat(32), INV_NONE = 'd'.repeat(32);
+const invite = (o = {}) => ({ resident: RES2, nomineeId: 'n1', group: 'senior', residentName: 'Bob', raterName: 'Dr Example', createdAt: serverTimestamp(), createdBy: PC, ...o });
+const answer = (o = {}) => ({ answers: { q1: 3, q2: 4, q3: 'na', q4: 2, q5: 3, q6: 'no' }, comments: { c1: 'Calm in a crisis.', c2: 'Speak up sooner.' }, declined: false, submittedAt: serverTimestamp(), ...o });
 await env.withSecurityRulesDisabled(async ctx => {
   const db = ctx.firestore();
   await setDoc(doc(db, 'admins', ADMIN), { name: 'Boss' });
@@ -31,6 +34,10 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, 'ccc', 'old'), round({ round: 'old', status: 'closed' }));
   await setDoc(doc(db, 'ccc', 'r1', 'entries', RES2), entry(RES2, { updatedAt: 1 }));
   await setDoc(doc(db, 'ccc', 'r1', 'msf', RES2), msf(RES2, { updatedAt: 1 }));
+  // raters: RES2's nominees n1 Checked, n2 to swap, n3 Emailed; one invite in the open round, one in a closed round
+  await setDoc(doc(db, 'ccc', 'r1', 'review', RES2), { email: RES2, marks: { n1: 'ok', n2: 'swap', n3: 'sent' }, updatedAt: 1 });
+  await setDoc(doc(db, 'ccc', 'r1', 'invites', INV), invite({ createdAt: 1, createdBy: PC }));
+  await setDoc(doc(db, 'ccc', 'old', 'invites', INV_OLD), invite({ createdAt: 1, createdBy: PC }));
 });
 let n = 0, fail = 0;
 async function t(name, p) { n++; try { await p; } catch (e) { fail++; console.log('FAIL', name, e.message.slice(0, 300)); } }
@@ -109,6 +116,55 @@ await t('admin staff writes marks', assertSucceeds(setDoc(doc(adm, 'ccc', 'r1', 
 await t('faculty cannot write marks', assertFails(setDoc(doc(fac, 'ccc', 'r1', 'review', RES), rev(RES))));
 await t('marks take no extra fields', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'review', RES), rev(RES, { x: 1 }))));
 await t('pc clears marks', assertSucceeds(deleteDoc(doc(pc, 'ccc', 'r1', 'review', RES))));
+
+// ---- raters: invites (one-time links) ----
+await t('pc invites a Checked nominee', assertSucceeds(setDoc(doc(pc, 'ccc', 'r1', 'invites', INV_NEW), invite())));
+await t('pd invites an Emailed nominee', assertSucceeds(setDoc(doc(pd, 'ccc', 'r1', 'invites', 'e'.repeat(32)), invite({ nomineeId: 'n3', createdBy: PD }))));
+await t('no invite for a nominee to swap', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'invites', 'f'.repeat(32)), invite({ nomineeId: 'n2' }))));
+await t('no invite for an unchecked nominee', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'invites', 'f'.repeat(32)), invite({ nomineeId: 'n9' }))));
+await t('no invite without the PCs\' marks', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'invites', 'f'.repeat(32)), invite({ resident: RES }))));
+await t('invite id must be 32 hex characters', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'invites', 'guessable'), invite())));
+await t('invite createdBy must be the writer', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'invites', 'f'.repeat(32)), invite({ createdBy: PD }))));
+await t('invite createdAt must be the server time', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'invites', 'f'.repeat(32)), invite({ createdAt: 5 }))));
+await t('invite takes no extra fields', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'invites', 'f'.repeat(32)), invite({ email: 'x@example.com' }))));
+await t('invite group is checked', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'invites', 'f'.repeat(32)), invite({ group: 'boss' }))));
+await t('pc cannot change an invite', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'invites', INV), invite({ raterName: 'Someone else' }))));
+for (const [who, db] of [['resident', res], ['resident whose invite it is', res2], ['faculty', fac], ['stranger', str], ['signed out', anon]]) {
+  await t(`${who} cannot invite`, assertFails(setDoc(doc(db, 'ccc', 'r1', 'invites', 'f'.repeat(32)), invite({ createdBy: who === 'signed out' ? PC : RES }))));
+}
+await t('signed out reads one invite by its link', assertSucceeds(getDoc(doc(anon, 'ccc', 'r1', 'invites', INV))));
+await t('signed out cannot list invites', assertFails(getDocs(collection(anon, 'ccc', 'r1', 'invites'))));
+await t('resident cannot list invites', assertFails(getDocs(collection(res2, 'ccc', 'r1', 'invites'))));
+await t('faculty cannot list invites', assertFails(getDocs(collection(fac, 'ccc', 'r1', 'invites'))));
+await t('pc lists invites', assertSucceeds(getDocs(collection(pc, 'ccc', 'r1', 'invites'))));
+await t('admin staff lists invites', assertSucceeds(getDocs(collection(adm, 'ccc', 'r1', 'invites'))));
+await t('signed out cannot delete an invite', assertFails(deleteDoc(doc(anon, 'ccc', 'r1', 'invites', INV_NEW))));
+await t('pc deletes an invite', assertSucceeds(deleteDoc(doc(pc, 'ccc', 'r1', 'invites', INV_NEW))));
+
+// ---- raters: responses ----
+await t('response values are checked', assertFails(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV), answer({ answers: { q1: 5 } }))));
+await t('response answers cannot carry long text', assertFails(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV), answer({ answers: { q1: 'x'.repeat(50) } }))));
+await t('response comment slots are fixed', assertFails(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV), answer({ comments: { name: 'Dr X' } }))));
+await t('response comments are capped', assertFails(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV), answer({ comments: { c1: 'x'.repeat(2001) } }))));
+await t('response reason is capped', assertFails(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV), answer({ declined: true, reason: 'x'.repeat(1001) }))));
+await t('response takes no extra fields', assertFails(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV), answer({ rater: 'Dr X' }))));
+await t('response submittedAt must be the server time', assertFails(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV), answer({ submittedAt: 5 }))));
+await t('no response without an invite', assertFails(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV_NONE), answer())));
+await t('no response to a closed round', assertFails(setDoc(doc(anon, 'ccc', 'old', 'responses', INV_OLD), answer())));
+await t('signed out rater submits once', assertSucceeds(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV), answer())));
+await t('a second submit is denied', assertFails(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV), answer({ answers: { q1: 1 } }))));
+await t('a decline after submitting is denied', assertFails(setDoc(doc(anon, 'ccc', 'r1', 'responses', INV), answer({ answers: {}, comments: {}, declined: true }))));
+await t('pc cannot change a response', assertFails(setDoc(doc(pc, 'ccc', 'r1', 'responses', INV), answer())));
+await t('a rater declines with a reason', assertSucceeds(setDoc(doc(anon, 'ccc', 'r1', 'responses', 'e'.repeat(32)), { answers: {}, comments: {}, declined: true, reason: 'On leave', submittedAt: serverTimestamp() })));
+for (const [who, db] of [['pc', pc], ['pd', pd]]) {
+  await t(`${who} reads a response`, assertSucceeds(getDoc(doc(db, 'ccc', 'r1', 'responses', INV))));
+  await t(`${who} lists responses`, assertSucceeds(getDocs(collection(db, 'ccc', 'r1', 'responses'))));
+}
+for (const [who, db] of [['resident', res2], ['faculty', fac], ['admin staff', adm], ['stranger', str], ['signed out', anon]]) {
+  await t(`${who} cannot read a response`, assertFails(getDoc(doc(db, 'ccc', 'r1', 'responses', INV))));
+  await t(`${who} cannot list responses`, assertFails(getDocs(collection(db, 'ccc', 'r1', 'responses'))));
+}
+await t('signed out cannot delete a response', assertFails(deleteDoc(doc(anon, 'ccc', 'r1', 'responses', INV))));
 
 // ---- residents can see each other (owner, 17 Oct 2026) ----
 const active = c => query(collection(c, 'residents'), where('status', '==', 'ACTIVE'));

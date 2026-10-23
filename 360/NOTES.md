@@ -12,7 +12,8 @@ made-up residents). Same people and sign-in as logbook, evals and People. Not th
 - Lists: scholarly projects (title, supervisor, status, start, end, note; "nothing to report" tick), committee / admin work,
   teaching / presentations, conference presentations (free text). Nominees: name, group (senior, peer, allied health, other),
   email (required for allied health, optional for doctors). Limits: 6 seniors (Associate Consultant or above), 2 peers, 4 allied health.
-- PCs review nominees (ok or swap) and send emails **outside the app** (CSV export, or one `mailto:` per nominee).
+- PCs review nominees (ok or swap) and send emails **outside the app** (CSV export, or one `mailto:` per nominee). Nominees
+  answer through a one-time link ("Rater feedback" below).
 - **Roles live in the app**: `access/{google-email}` holds `{ roles }` (owner, admin, pc, pd). A PC has Admin staff's powers, so
   PDs, Admin staff and PCs read every entry and nominee list; residents see only their own; faculty none. Residents' private
   logbooks, reflections and assessment comments stay out of reach of admin staff and PCs.
@@ -31,6 +32,33 @@ made-up residents). Same people and sign-in as logbook, evals and People. Not th
   open, and by PCs and PDs any time (retention).
 - `ccc/{round}/review/{email}` `{ email, marks }`: the PCs' marks on that resident's nominees (by nominee id); PCs and PDs only.
 - Rules cannot check the items inside the lists (only their count); the app's `model.js` does.
+
+## Rater feedback (rules and model, 23 Oct 2026; rater page and invites next, then the CCC report)
+
+Nominees answer in the app through a **one-time link**, with no account (owner, 23 Oct 2026). Coordinators send the links
+from their own mail (`mailto:`); the app never sends mail.
+
+- `ccc/{round}/invites/{id}` `{ resident, nomineeId, group, residentName, raterName, createdAt, createdBy }`: made by staff
+  only for a nominee marked Checked (or Emailed) in `review/`; `createdAt` is the server time, `createdBy` the writer. The id
+  is 128 random bits as 32 hex characters (`newInviteId`), sent as `/360/rate/#<id>` (the hash never reaches server logs).
+  Anyone may `get` one invite by its id; only staff `list` or delete them; no update.
+- `ccc/{round}/responses/{id}` (same id) `{ answers, comments, declined?, reason?, submittedAt }`: created once, with no
+  sign-in, only while the round is open and the invite exists; never changed. Answer values are 1-4, `na`, `yes` or
+  `no` (at most 30); comments use slots `c1`-`c5` of up to 2000 characters; a decline has empty maps, `declined: true`
+  and an optional reason (1000). Read by PDs and PCs only: not Admin staff, residents or faculty. Raters are told so
+  (`PRIVACY` in `msf-form.js`). Deleting responses (retention) comes with the report session.
+- `js/msf-form.js`: the questionnaire as data. **Draft, made-up questions** until the programme's own MSF form arrives;
+  a new form keeps to the rules' answer values and comment slots. The concern question (yes/no + comment) is for PDs
+  and PCs only.
+- `model.js`: `inviteDoc`, `invitable`, `cleanAnswers`, `answerProblems`, `responseDoc`, `declineDoc`, `raterStatus`
+  and `summarise(responses, invites, { minGroup: 3 })`: counts (invited, done, declined, waiting, per group), means per
+  item overall and per shown group ("Not observed" left out and counted), comments without names in random order, and
+  the concerns apart. A group is shown alone only with 3 or more answers; smaller groups fold into Others; if Others is
+  still under 3 it joins the smallest shown group (so no group's mean can be found by subtraction); under 3 answers in
+  all, only counts.
+- Tests: `360/test/model.test.mjs` (edge cases: none, all declined, small groups) and `360/test/rules.emulator.mjs`
+  (list denied to the public, second submit and closed round denied, residents, faculty and Admin staff cannot read
+  responses).
 
 ## Lesson: the rules engine's 1000-expression limit
 
