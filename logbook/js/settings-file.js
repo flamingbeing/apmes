@@ -16,6 +16,7 @@ import { cleanLook, KEEP_GROUPS } from './look-schema.js';
 import { cleanLayout } from './analytics.js';
 import { cleanLabels, cleanCaseTemplate } from './parts.js';
 import { cleanListFormat } from './list-format.js';
+import { cleanHideList } from './hide-mode.js';
 
 export const SETTINGS_KIND = 'apmes-logbook-settings';
 // account-specific bookkeeping that shouldn't travel with the file (your residency year is yours, not a colleague's)
@@ -53,6 +54,7 @@ const OBJECTS = {
   tabOrder: v => strs(v).slice(0, 10),
   moreOrder: v => strs(v).slice(0, 20),
   tabHidden: v => strs(v).slice(0, 10),
+  hideList: v => cleanHideList(v),   // tapped-away buttons and cards (Layout; hide-mode.js)
   subcats: v => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).slice(0, 100).map(([k, x]) => [String(k).slice(0, 10), strs(x)])) : {}),
   savedSearches: v => (Array.isArray(v) ? v : []).filter(x => x && typeof x === 'object' && !Array.isArray(x) && typeof x.name === 'string').slice(0, 20)
     .map(x => ({ id: str(x.id, 20) || Math.random().toString(36).slice(2, 8), name: str(x.name, 40), q: str(x.q), has: strs(x.has), not: strs(x.not), from: str(x.from, 10), to: str(x.to, 10), flag: str(x.flag, 20), scope: str(x.scope, 20) || 'all', ...(x.global === true ? { global: true } : {}) })),   // global: saved on Search

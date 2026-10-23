@@ -16,6 +16,8 @@ import { FACETS, FACET_GROUPS, facetDefault, FINE_TUNE, TUNE_KEYS, cleanTune, TA
 import { WALLPAPERS, cleanWall, dimOf, DIM_MAX, inkOf, INK_MIN, INK_MAX, INK_STEP, savePhoto, getPhoto, deletePhoto, mainColour, colourAt } from './wallpaper.js';
 import { cleanMarkdown, storedMarkdown, mdCase, mdDay, reflectionPath, reflectionNote, CASE_FILLINS, REFL_FILLINS, FM_FIELDS, HEAD_STYLES, mdDate, fileDate } from './markdown.js';
 import { checkCss } from './custom-css.js';
+import { parseSettings, cleanValues, cleanValue, valueOf } from './css-settings.js';
+import { cleanHideList, hideKey } from './hide-mode.js';
 import { cleanMine, saveMine, minePatch, matchMine, exportText, importText, lookOf, nightRef } from './my-themes.js';
 import { FONTS, fontStack, fontAvailable, cleanFontName, logChoice, saveUserFont, getUserFont, deleteUserFont, keepThemeFonts, themeFonts, putThemeFonts, useThemeFonts, dropThemeFonts } from './fonts.js';
 import { SWITCHES, switchLabel, switchChanges, applyPatch, resetPatch, tabsAfter } from './profiles.js';
@@ -513,8 +515,27 @@ export function renderLayout() {
       toggle('Hide the tab bar while typing', deviceOn(st, profile(), 'hideTabsTyping'), v => { applyDisplay(setDisplay({ hideTabsTyping: v })); toast('Saved on this device'); },
         'Phones: more room above the keyboard for the box you’re typing in and its Save button.', 'The tab bar comes back when the keyboard goes down. Off unless you switch it on (on in the Personal profile).'),
       DEVICE_NOTE()),
-    resetLink('the start tab, the tab bar (place, order and hidden tabs), the Logbook row buttons, the page width, upside down, pinning, the gestures and the tab bar while typing on this device', () =>
-      applyDisplay(setDisplay({ startTab: null, tabBar: null, tabOrder: null, tabHidden: null, rowMenu: null, rowCopy: null, dayCopy: null, lineWidth: null, caseInverted: null, pinBox: null, pinSearch: null, swipeTabs: null, edgeBack: null, rowHold: null, hideTabsTyping: null }))));
+    hideCard(),
+    resetLink('the start tab, the tab bar (place, order and hidden tabs), the Logbook row buttons, the page width, upside down, pinning, the gestures, the tab bar while typing and the hidden buttons and cards on this device', () =>
+      applyDisplay(setDisplay({ startTab: null, tabBar: null, tabOrder: null, tabHidden: null, rowMenu: null, rowCopy: null, dayCopy: null, lineWidth: null, caseInverted: null, pinBox: null, pinSearch: null, swipeTabs: null, edgeBack: null, rowHold: null, hideTabsTyping: null, hideList: null }))));
+}
+// Tap to hide (hide-mode.js, theme-revamp S6): Start hiding opens the Add tab in Hide mode; the list shows each hidden
+// button or card with its page and Show, and Show all brings everything back (with Undo)
+function hideCard() {
+  const list = cleanHideList(display().hideList);
+  const put = (next, msg, before = display().hideList || null) => {
+    setDisplay({ hideList: next.length ? next : null }); hooks.render();
+    toast(msg, { action: 'Undo', onaction: () => { setDisplay({ hideList: before }); hooks.render(); } });
+  };
+  return h('section', { class: 'card hide-card' },
+    h('h2', {}, 'Hide buttons and cards'),
+    help('Strip the pages down to what you use: tap anything you don’t need to hide it on this device.', 'Save, each page’s main button, the case box, the tab bar, the header and the Settings pages always stay. Open the app with ?nohide at the end of the address to see everything for one visit.'),
+    h('div', { class: 'bar', style: 'margin:8px 0' }, h('button', { class: 'small', onclick: () => hooks.hideMode(true) }, 'Start hiding')),
+    list.length ? h('ul', { class: 'hidden-list', 'aria-label': 'Hidden on this device' }, list.map(x => h('li', { class: 'bar', 'data-key': hideKey(x) },
+      h('span', { class: 'grow' }, h('strong', {}, x.name), h('span', { class: 'hint' }, ` · ${x.kind === 'card' ? 'card' : 'button'} on ${hooks.tabLabel(x.tab)}`)),
+      h('button', { class: 'small linkish', onclick: () => put(list.filter(y => hideKey(y) !== hideKey(x)), `Showing ${x.name} again`) }, 'Show')))) :
+      h('p', { class: 'hint', style: 'margin:0' }, 'Nothing hidden.'),
+    list.length > 1 ? h('p', { style: 'margin:8px 0 0' }, h('button', { class: 'small linkish', onclick: () => put([], 'Everything shows again') }, `Show all ${list.length}`)) : null);
 }
 export function renderAccessibility() {
   const st = display();
@@ -608,6 +629,7 @@ function customCssCard() {
     if (!res.ok) { note.textContent = 'Not saved: ' + res.problems.join(', ') + '.'; note.style.color = 'var(--err)'; return; }
     applyDisplay(setDisplay({ customCss: res.css || null, customCssOn: !!res.css }));
     sw.checked = !!res.css; note.style.color = ''; note.textContent = res.css ? 'Saved and on. It shows on every page except this one.' : 'Cleared.';
+    if (parseSettings(res.css).settings.length || parseSettings(d.customCss).settings.length) { hooks.render(); toast(res.css ? 'Custom CSS saved (not on this page)' : 'Custom CSS cleared'); }   // (its settings below change)
   };
   return h('section', { class: 'card' },
     h('details', { open: !!d.customCss },
@@ -619,7 +641,31 @@ function customCssCard() {
         h('span', { class: 'grow' }),
         h('button', { class: 'small linkish', onclick: () => { box.value = ''; save(); } }, 'Clear')),
       note,
+      cssSettings(d),
       h('p', { class: 'hint help', style: 'margin:6px 0 0' }, 'It never applies on this page, so you can always come back and fix it. If something goes wrong elsewhere, open the app with ?nocss at the end of the address. Saved on this device only; app updates can change the class names it relies on.')));
+}
+
+// The CSS's own settings (css-settings.js, theme-revamp S6): a /* @settings */ comment in the saved CSS becomes sliders,
+// colours and switches here, kept per device (customCssVals); Reset puts them back to the CSS's defaults
+function cssSettings(d) {
+  const { settings, problems } = parseSettings(d.customCss);
+  if (!settings.length && !problems.length) return h('p', { class: 'hint help', style: 'margin:6px 0 0' }, 'Add a /* @settings */ comment to get sliders here, one a line: slider --gap 0 24 2 8px Gap, colour --mark #ffcc00 Highlight, switch --pill 4px 999px Round chips. Use them in the CSS as var(--gap).');
+  const vals = () => cleanValues(settings, display().customCssVals);
+  const put = (name, v) => { const next = { ...vals(), [name]: v }; if (v == null) delete next[name]; applyDisplay(setDisplay({ customCssVals: Object.keys(next).length ? next : null })); };
+  const row = s => {
+    const id = 'css-set-' + s.name.slice(2), v = valueOf(s, vals());
+    if (s.kind === 'switch') return h('label', { class: 'check' }, h('input', { type: 'checkbox', role: 'switch', id, checked: v, onchange: e => put(s.name, e.target.checked || null) }), s.label);
+    if (s.kind === 'colour') return h('label', { class: 'field' }, s.label, h('input', { type: 'color', id, value: v, onchange: e => put(s.name, cleanValue(s, e.target.value) === s.def ? null : e.target.value) }));
+    const out = h('output', { for: id, class: 'hint' }, v + s.unit);
+    return h('label', { class: 'field' }, h('span', { class: 'bar' }, h('span', { class: 'grow' }, s.label), out),
+      h('input', { type: 'range', id, min: s.min, max: s.max, step: s.step, value: v,
+        oninput: e => { out.textContent = e.target.value + s.unit; }, onchange: e => { const x = cleanValue(s, e.target.value); put(s.name, x === s.def ? null : x); } }));
+  };
+  return h('div', { class: 'css-settings', style: 'margin-top:10px' },
+    h('h3', {}, 'Your CSS’s settings'),
+    settings.map(row),
+    problems.length ? h('p', { class: 'hint', style: 'color:var(--err)' }, 'Skipped: ' + problems.join('; ') + '.') : null,
+    settings.length ? h('p', { style: 'margin:6px 0 0' }, h('button', { class: 'small linkish', onclick: () => { applyDisplay(setDisplay({ customCssVals: null })); hooks.render(); toast('Back to the CSS’s own values'); } }, 'Reset these')) : null);
 }
 
 // suggested colours, then More colours… (TE S2: the colour sheet, ui-colour-sheet.js, instead of the phone's own picker,

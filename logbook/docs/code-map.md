@@ -24,6 +24,7 @@ Moved from [../README.md](../README.md) on 22 Oct 2026 (read on demand, not at s
 - `js/cloud.js`: sign-in and Firestore (Firebase JS SDK 10.12.2 from gstatic, offline cache on). Writes return once queued locally, so saving works without signal; a write the server later rejects is reported through `onSyncError`. `?emulator` on localhost (tests only) uses the Firestore and Auth emulators.
 - `js/sync.js`, `js/store.js`: the sync engine. Cases, reflections and notes keep a copy on the device (IndexedDB, one store per account) and listen only for what changed since the last sync, so reopening costs about one read per collection; a full read on first use and weekly. Design and limits: `NOTES.md`, "Sync".
 - `js/demo-backend.js`: the `?demo` stand-in for `cloud.js` (localStorage, fake admin `demo@example.com`).
+- `js/hide-mode.js`: tap to hide (Layout): the hidden list, what may never be hidden, applying it to a page. `js/css-settings.js`: the `/* @settings */` parser for custom CSS and the variables it writes. Both tested.
 - `js/app.js`: boot, sign-in, tabs, service worker. Each screen is in `js/ui-*.js` (`ui-core.js` holds shared state and helpers).
 - `sw.js`: offline app shell (cache-first). Its `VERSION` is stamped at deploy with a hash of the SHELL files (`tools/stamp-versions.mjs`), so installed phones get the new copy; with a new version the app shows "Update available — Reload".
 - `firestore.rules`: access rules for the whole project, logbook and evaluations (deployed automatically on merge to `main`).
