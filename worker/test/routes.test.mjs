@@ -8,7 +8,7 @@ const HOSTS = ['apmes.anawj.com', 'beta-apmes.anawj.com'];
 
 test('each app at its own path, on live and beta alike', () => {
   for (const h of HOSTS) {
-    for (const app of ['logbook', 'evals', 'people', 'applicants', 'ccc']) {
+    for (const app of ['logbook', 'evals', 'people', 'ccc']) {
       assert.deepEqual(resolve(h, `/${app}/`), { file: `${app}/` }, h);
       assert.deepEqual(resolve(h, `/${app}`), { redirect: `/${app}/` }, h);
     }
@@ -87,4 +87,13 @@ test('every folder in SITES exists', () => {
   for (const [host, s] of Object.entries(SITES))
     for (const f of [s.root, ...Object.values(s.prefixes || {}), ...Object.values(s.pages || {})].filter(Boolean))
       assert.ok(fs.existsSync(new URL(`../../${f}`, import.meta.url)), `${host}: ${f}`);
+});
+
+test('the applicants app forwards to its own site, on live and beta alike', () => {
+  for (const h of HOSTS) {
+    assert.deepEqual(resolve(h, '/applicants/'), { redirect: 'https://residencyapps.anawj.com/' }, h);
+    assert.deepEqual(resolve(h, '/applicants'), { redirect: 'https://residencyapps.anawj.com/' }, h);
+    assert.deepEqual(resolve(h, '/applicants/index.html'), { redirect: 'https://residencyapps.anawj.com/index.html' }, h);
+    assert.deepEqual(resolve(h, '/logbook/'), { file: 'logbook/' }, h);
+  }
 });
