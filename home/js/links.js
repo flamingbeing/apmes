@@ -5,11 +5,12 @@
 export const SECTIONS = [
   { id: 'apps', title: 'Apps' },
   { id: 'medhub', title: 'MedHub', note: 'Each MedHub link opens on its sign-in page first.' },
-  { id: 'guide', title: 'Guidebook' },
 ];
 
 export const LINKS = [
   { section: 'apps', label: 'Open Logbook', url: '/logbook/', note: 'Log cases and track your targets', live: true, primary: true },
+  // the guidebook is an installable app of its own since 23 Oct 2026 (home/guide/sw.js, manifest id /guide/)
+  { section: 'apps', label: 'Guidebook', url: '/guide/', note: 'Search, entrustment questions, EPAs 1–12', live: true },
   { section: 'apps', label: 'Assessments', url: '/evals/', note: 'DOPS, Mini-CEX and EBD', live: false },
   { section: 'apps', label: 'People', url: '/people/', live: false },
   { section: 'apps', label: 'CCC', url: '/ccc/', live: false },
@@ -17,7 +18,6 @@ export const LINKS = [
   { section: 'medhub', label: 'MedHub', url: 'https://nuhs.medhub.com/', note: 'EPA forms, MSF and evaluations', live: true, external: true },
   { section: 'medhub', label: 'Duty hours', url: 'https://nuhs.medhub.com/functions/apps/mobile/dutyhours.mh', note: 'Log your work hours', live: true, external: true },
   { section: 'medhub', label: 'Evaluations', url: 'https://nuhs.medhub.com/functions/apps/mobile/evaluations.mh', note: 'Your MedHub evaluations', live: true, external: true },
-  { section: 'guide', label: 'Programme guidebook', url: '/guide/', note: 'Search, entrustment questions, EPAs 1–12', live: true },
 ];
 
 // [{ ...section, links }] for the sections that have at least one live link, in SECTIONS order

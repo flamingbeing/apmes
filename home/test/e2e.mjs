@@ -172,6 +172,47 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   await page.close();
 }
 
+// 6. the guidebook as an installable app: a manifest, and its service worker saves every page, so the guidebook
+//    reads offline (a real worker: served from this checkout on localhost, the one plain-http address workers allow)
+{
+  const http = await import('node:http');
+  const server = http.createServer((req, res) => {
+    const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
+    let f = path.join(root, rel);
+    if (!f.startsWith(root) || !fs.existsSync(f)) { res.writeHead(404); return res.end('not found'); }
+    if (fs.statSync(f).isDirectory()) f = path.join(f, 'index.html');
+    res.writeHead(200, { 'Content-Type': MIME[f.split('.').pop()] || 'application/octet-stream' });
+    res.end(fs.readFileSync(f));
+  });
+  await new Promise(ok => server.listen(0, '127.0.0.1', ok));
+  const base = `http://localhost:${server.address().port}/home/guide/`;
+  const c2 = await b.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await c2.newPage();
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(base);
+  const manifest = await page.locator('link[rel="manifest"]').getAttribute('href');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'home/guide', manifest), 'utf8')).id, '/guide/', 'manifest id is fixed');
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.waitForFunction(async () => {
+    const k = (await caches.keys()).find(x => x.startsWith('guide-'));
+    return k && (await (await caches.open(k)).keys()).some(r => r.url.endsWith('/epa-12.html'));
+  }, null, { timeout: 15000 });
+  await page.reload();
+  await page.getByText(/^App version v1$/).waitFor();
+  await c2.setOffline(true);
+  await page.goto(base + 'epa-05.html?q=airway#x');
+  await page.locator('.g-doc h2').first().waitFor();
+  await page.goto(base + 'entrustment.html#cex');
+  await page.locator('#cex .g-item').first().waitFor();
+  await c2.setOffline(false);
+  await page.goto(base);
+  await page.getByRole('button', { name: 'Not updating? Get the latest version' }).click();
+  await page.waitForLoadState('load');
+  await page.getByRole('heading', { name: 'Programme guidebook' }).waitFor();
+  await c2.close();
+  server.close();
+}
+
 assert.deepEqual(errors, [], 'no page errors');
 await b.close();
 console.log('home e2e: ok');
