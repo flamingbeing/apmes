@@ -33,14 +33,15 @@ made-up residents). Same people and sign-in as logbook, evals and People. Not th
 - `ccc/{round}/review/{email}` `{ email, marks }`: the PCs' marks on that resident's nominees (by nominee id); PCs and PDs only.
 - Rules cannot check the items inside the lists (only their count); the app's `model.js` does.
 
-## Rater feedback (rules and model, 23 Oct 2026; rater page and invites next, then the CCC report)
+## Rater feedback (rules and model, then rater page and invites, 23 Oct 2026; the CCC report next)
 
 Nominees answer in the app through a **one-time link**, with no account (owner, 23 Oct 2026). Coordinators send the links
 from their own mail (`mailto:`); the app never sends mail.
 
 - `ccc/{round}/invites/{id}` `{ resident, nomineeId, group, residentName, raterName, createdAt, createdBy }`: made by staff
   only for a nominee marked Checked (or Emailed) in `review/`; `createdAt` is the server time, `createdBy` the writer. The id
-  is 128 random bits as 32 hex characters (`newInviteId`), sent as `/360/rate/#<id>` (the hash never reaches server logs).
+  is 128 random bits as 32 hex characters (`newInviteId`), sent as `/360/rate/#<round>/<id>` (`rateLink`; the hash never
+  reaches server logs; the round is in it because a rater cannot list invites to find theirs, and round ids are not secret).
   Anyone may `get` one invite by its id; only staff `list` or delete them; no update.
 - `ccc/{round}/responses/{id}` (same id) `{ answers, comments, declined?, reason?, submittedAt }`: created once, with no
   sign-in, only while the round is open and the invite exists; never changed. Answer values are 1-4, `na`, `yes` or
@@ -59,6 +60,28 @@ from their own mail (`mailto:`); the app never sends mail.
 - Tests: `360/test/model.test.mjs` (edge cases: none, all declined, small groups) and `360/test/rules.emulator.mjs`
   (list denied to the public, second submit and closed round denied, residents, faculty and Admin staff cannot read
   responses).
+
+### The rater page and the invite flow (23 Oct 2026)
+
+- **Rater page** `360/rate/` (`js/rate.js`), no sign-in: reads the one invite from the link, shows whom they rate and as
+  which group (about 5 minutes), the questions from `msf-form.js` as labelled radio lists (no sliders, no stars, all on
+  one page), comment boxes, the privacy line. Typing is kept on the device (`ccc-rate-draft-<round>-<id>`) until Submit;
+  Submit is a plain await and checks every rating first ("Not observed" counts). "I can't give feedback" opens Decline
+  with an optional reason (no ratings are sent). After sending, a done screen; the device remembers it
+  (`ccc-rate-done-…`). Light or dark follows the phone (or evals' theme choice on that device).
+- **Used or closed:** a rater may read neither the response nor the round, so a second submit (or one after the round
+  closed) is refused by the rules and the page says "This link has already been used" kindly. An unknown or broken link
+  says "This link doesn't work". On another device a used link shows the form until Submit (accepted, rare).
+- **Coordinators** (resident screen): a nominee marked Checked gets an **Invite** button: it makes the invite, marks the
+  nominee Emailed and opens the coordinator's mail app with the text and link filled in (`inviteMailto`). Then each rater
+  shows Not invited / Invited / Done / Declined, with "Email the link", "Reminder" (while invited; `reminderMailto`) and
+  "Copy link"; nominees without an email get the mail with no address. Counts per resident on the round list, "Copy
+  emails of raters not done" on the round and resident screens. Admin staff (not PDs or PCs) cannot read responses, so
+  they see Invited only, with a note. Links point at the host in use (beta links at beta); the demo's at `?demo`.
+- The invite holds no rater email (anyone holding the link can read it); emails stay in `msf/` and the mailto.
+- Tests: `model.test.mjs` (link parsing, rater rows and counts, mail text) and `e2e.mjs` (invite, reminder, a submit, a
+  reload with the device draft, a reused link, a decline, unknown links, statuses back with the coordinators; axe at
+  390 px on each rater screen).
 
 ## Lesson: the rules engine's 1000-expression limit
 
@@ -107,7 +130,7 @@ after any change to them: a first version broke the evals decline and reassign c
   Projects stay. Deleting a whole round is not offered; if it ever is, delete its nominees first (rules do not cascade).
 - **CSV safety:** every cell that starts with `=`, `+`, `-`, `@` or a tab gets a leading apostrophe (`csvCell`); all resident text is put on
   the page as text only. Tested with hostile names.
-- **Not built:** a reminder email, the resident's view of the coordinators' marks (deliberately never shown), and a custom email text.
+- **Not built:** a reminder to residents, the resident's view of the coordinators' marks (deliberately never shown), and a custom email text.
 
 ## Lessons
 
