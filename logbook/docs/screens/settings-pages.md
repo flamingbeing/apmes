@@ -64,7 +64,10 @@ Part of the logbook working notes; index of screens in [../screens.md](../screen
   draws Display, Advanced display, Logging, Advanced logging, Reflections and Markdown off screen and indexes their
   headings, field labels, switches and folds (with the hint under each), so it never goes stale; a result opens the
   page and scrolls to the option, which flashes (`findAfterRender`). **Display preview** (`displayPreview`, top of
-  both Display pages, sticky): a made-up row, chips and buttons with the app's own classes. **Reset this page**
+  Themes, Advanced theme settings, Layout and Accessibility): one slim made-up line (a chip, a tag, Save) and **See it
+  in action** (23 Oct 2026, app.js `tryMode`), which opens the real Logbook with a bar at the bottom: ‹ theme ›
+  (the name is a list of Your themes, Classic and Inspired), light or dark, and Done back to the settings page. Pages
+  work as normal; opening Settings another way or Esc ends it. e2e: `try-mode.mjs`. **Reset this page**
   (`resetLink`) on Display, Advanced display, Advanced logging and Reflections (Codex's on Logging): only that page's
   keys, after a confirm; custom CSS is switched off but kept, own font files stay stored.
 - **Settings**: a menu of Themes, Layout (incl. the tab the app opens on; a #hash still wins), Accessibility,
