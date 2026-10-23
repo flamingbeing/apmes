@@ -13,6 +13,8 @@
 2. anawj-site drops the apmes folders, hosts, guest sign-in code and its logbook rules and MCP workflows.
 
 ## Recently done
+- 23 Oct 2026: Logbook See it in action: the Display preview is one slim line whose button opens the real Logbook
+  with a theme bar (‹ theme ›, light or dark, Done).
 - 21 Oct 2026: rules deploy workflow (keyless) and logbook MCP release workflow moved here; apmes.anawj.com moved here.
 - 21 Oct 2026: imported logbook, evals, people, applicants, 360, apmes, `__/auth/`, apmes-auth, apmes-auth-beta;
   own exceljs and jszip (`logbook/vendor/`); kit from design.anawj.com (cached offline); guest sign-in code; checks.

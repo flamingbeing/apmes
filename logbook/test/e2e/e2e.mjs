@@ -1738,7 +1738,7 @@ async function run(label, ctxOpts) {
     await tab('themesadv');
     await p.locator('input[type=range][aria-label="Line strength"]').fill('0'); await nap(150);
     await tab('themesadv');
-    assert(await p.locator('.display-preview .row-btn').count() >= 1, 'no Display preview');
+    assert(await p.locator('.display-preview .dp-sample').count() >= 1, 'no Display preview');
     await p.locator('.reset-row button', { hasText: 'Reset this page' }).click();
     await p.locator('dialog[open] button', { hasText: /^Reset$/ }).click(); await nap(300);
     assert(!(await p.evaluate(() => document.documentElement.classList.contains('edges'))), 'reset did not put borders back');

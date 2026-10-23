@@ -623,6 +623,7 @@ function changeScreen(id, scroll = 0) {
   // the page feedback is about: the last one before More or Send feedback (its name only goes with the feedback)
   if (S.tab && !['more', 'feedback'].includes(S.tab)) S.lastScreen = S.tab;
   S.tab = id;
+  hooks.leaveTry?.(id);   // (See it in action ends on Settings)
   window.scrollTo(0, 0);
   render();
   // the inverted Add tab always opens at the bottom, where the case box is (not where it was left)
@@ -815,6 +816,7 @@ function hideTap(e) {
 }
 for (const ev of ['click', 'pointerdown', 'mousedown', 'submit']) document.addEventListener(ev, hideTap, true);
 function hideMode(on) {
+  if (on && trying) tryMode(false);
   hiding = !!on;
   document.documentElement.classList.toggle('hide-mode', hiding);
   document.querySelector('.hide-bar')?.remove();
@@ -828,6 +830,43 @@ function hideMode(on) {
 }
 document.addEventListener('keydown', e => { if (hiding && e.key === 'Escape') hideMode(false); });
 hooks.hideMode = hideMode;
+
+// See it in action (owner, 23 Oct 2026; the button on the Display preview of Themes, Layout and Accessibility): the real
+// Logbook with a bar at the bottom to step through the themes (‹ name ›, the name a list of them all) and flip light or
+// dark, while every page works as normal. Done goes back to the settings page it came from; opening Settings another
+// way, Esc or a reload ends it.
+let trying = null;   // the settings page to go back to
+async function tryMode(on) {
+  document.querySelector('.try-bar')?.remove();
+  if (!on) { trying = null; document.documentElement.classList.remove('try-mode'); return; }
+  if (hiding) hideMode(false);
+  const from = S.tab, { themeSteps } = await import('./ui-settings.js');
+  await go('logbook');
+  if (hideFree(S.tab)) await go('log');   // (a profile without the Logbook tab)
+  trying = from;
+  document.documentElement.classList.add('try-mode');
+  const bar = h('div', { class: 'hide-bar try-bar', role: 'region', 'aria-label': 'See it in action' });
+  const paint = () => {
+    const { steps, now } = themeSteps(), i = Math.max(0, steps.findIndex(x => x.id === now));
+    const use = x => { x?.use(); paint(); };
+    const mode = document.documentElement.dataset.theme;
+    const dark = mode === 'dark' || (mode === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+    fill(bar,
+      h('button', { type: 'button', class: 'small', 'aria-label': 'Previous theme', onclick: () => use(steps[(i - 1 + steps.length) % steps.length]) }, '‹'),
+      h('select', { class: 'grow', 'aria-label': 'Theme', onchange: e => use(steps.find(x => x.id === e.target.value)) },
+        [...new Set(steps.map(x => x.group))].map(g => h('optgroup', { label: g },
+          steps.filter(x => x.group === g).map(x => h('option', { value: x.id, selected: x.id === now }, x.name))))),
+      h('button', { type: 'button', class: 'small', 'aria-label': 'Next theme', onclick: () => use(steps[(i + 1) % steps.length]) }, '›'),
+      h('button', { type: 'button', class: 'small', 'aria-label': dark ? 'Light' : 'Dark', title: dark ? 'Light' : 'Dark',
+        onclick: () => { applyTheme(dark ? 'light' : 'dark'); setDisplay({ themeMode: null }); render(); paint(); } }, dark ? '☀' : '☾'),
+      h('button', { type: 'button', class: 'primary small', onclick: () => { tryMode(false); go(from); } }, 'Done'));
+  };
+  paint();
+  document.body.append(bar);
+}
+document.addEventListener('keydown', e => { if (trying && e.key === 'Escape') tryMode(false); });
+hooks.tryMode = tryMode;
+hooks.leaveTry = id => { if (trying && hideFree(id)) tryMode(false); };
 hooks.paintHidden = paintHidden;
 hooks.tabLabel = id => (TABS.find(t => t.id === id) || {}).label || id;
 

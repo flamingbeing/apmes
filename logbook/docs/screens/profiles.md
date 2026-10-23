@@ -61,6 +61,6 @@ Part of the logbook working notes; index of screens in [../screens.md](../screen
     summaries, never case details. The rules let active
     faculty read `summaries/` (counts are no secret, owner); they still can't read the residents list, cases,
     reflections or notes. Case logs is listed in More for them in other profiles.
-  - Display preview (`displayPreview`): dashed accent edge, faint stripes and a "Preview only: not a real case" pill,
-    so it never reads as a real case (owner).
+  - Display preview (`displayPreview`): dashed accent edge and faint stripes, so it never reads as a real case
+    (owner); since 23 Oct 2026 one slim line with See it in action (the real app, settings-pages.md).
   e2e: `simpler.mjs`.

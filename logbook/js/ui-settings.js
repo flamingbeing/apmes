@@ -4,7 +4,7 @@
 import { YEAR_NAMES, DEFAULT_NAMES, BY_CODE } from './categories.js';
 import { sortCodes, uid, academicYear, withParents, weekStart, humanAge, cleanSkip, parseBulk } from './engine.js';
 import { cleanListFormat, startUsable, learnFormat } from './list-format.js';
-import { S, h, toast, modal, confirmBox, cloud, catChip, catName, catShort, PICKER_ORDER, settings, patchLogbook, displayName, hooks, rYear, myYearName, fill, PROFILES, profile, facultyRole, shows, setShown, caseShown, setCaseShown, categoryNames, setCategoryNames, catPills, tagSet, resetters, download, fileButton, todayISO, updateMany, updatedToast, UNDO_SECS, rowIcon } from './ui-core.js';
+import { S, h, toast, modal, confirmBox, cloud, catChip, catName, catShort, PICKER_ORDER, settings, patchLogbook, displayName, hooks, rYear, myYearName, fill, PROFILES, profile, facultyRole, shows, setShown, caseShown, setCaseShown, categoryNames, setCategoryNames, catPills, tagSet, resetters, download, fileButton, todayISO, updateMany, updatedToast, UNDO_SECS } from './ui-core.js';
 import { MAX_TAGS, tagLinks as tagLinksIn, learnShorthand, cleanShorthand, shorthandOf, DEFAULT_SHORTHAND, cleanTagSet, defaultTagSet, tagTree, flatTree, moveTag, reparentTag, removeTag, newKey, tagSetToCsv, tagSetFromCsv, dropTag, canPlace, placeNewTag } from './tags.js';
 import { pickDialog, CASE_PARTS, AFTER_SAVE, RECENT_COUNTS } from './ui-log.js';
 import { recentCount as snapRecent } from './logging.js';
@@ -43,18 +43,15 @@ export function residencyCard() {
       h('p', { class: 'hint', style: 'margin:4px 0 0' }, 'Programme residents get their year from the programme list automatically. If you are an APMES resident, ask the programme admins to add your email.')));
 }
 
-// Display preview (owner): a made-up case row, chips and buttons drawn with the app's own classes, so colour,
-// borders, fonts, text size and compact show at once; it stays in view while the page scrolls
-export const displayPreview = () => h('div', { class: 'display-preview', 'aria-hidden': 'true' },
-  h('div', { class: 'dp-label' }, 'Preview only: not a real case'),
-  h('ul', { class: 'cases' }, h('li', { tabindex: '-1' },
-    h('span', { class: 'd' }, h('span', { class: 'wd' }, 'Sun'), ' 11th Oct'),
-    h('span', { class: 't' }, h('b', {}, 'AB'), ' 34F LSCS under spinal'),
-    h('span', { class: 'c' }, h('span', { class: 'c-tags' }, h('span', { class: 'lb-tags' }, ['LSCS', 'CNB(Obs)', 'Spinal'].map(t => h('span', { class: 'lb-tag' }, t)))),
-      h('span', { class: 'acts' }, document.documentElement.classList.contains('row-copy') ? h('button', { class: 'small row-btn', tabindex: '-1', type: 'button' }, rowIcon('copy'), h('span', { class: 'lbl' }, 'Copy')) : null,
-        h('button', { class: 'small row-btn has-refl', tabindex: '-1', type: 'button' }, rowIcon('done'), h('span', { class: 'lbl' }, 'Reflect')))))),
-  h('div', { class: 'chips' }, h('span', { class: 'chip on' }, 'Spinal'), h('span', { class: 'chip' }, 'LSCS'), h('span', { class: 'chip' }, 'GA'),
-    h('span', { class: 'grow' }), h('button', { class: 'small primary', tabindex: '-1', type: 'button' }, 'Save')));
+// Display preview (owner): one slim made-up line (a chip, a tag and Save) drawn with the app's own classes,
+// and See it in action (owner, 23 Oct 2026), which opens the real Logbook with a theme bar (app.js tryMode) instead of
+// a bigger fake case
+export const displayPreview = () => h('div', { class: 'display-preview slim' },
+  h('span', { class: 'dp-sample', 'aria-hidden': 'true' },
+    h('span', { class: 'chip on' }, 'Spinal'), h('span', { class: 'lb-tag' }, 'LSCS'),
+    h('button', { class: 'small primary', tabindex: '-1', type: 'button' }, 'Save')),
+  h('span', { class: 'grow' }),
+  h('button', { type: 'button', class: 'small try-it', onclick: () => hooks.tryMode(true) }, 'See it in action'));
 
 // a link to a settings page's own Advanced page, like a row of the More list (never hidden: profiles hide interface
 // items, not settings)
@@ -430,6 +427,20 @@ async function exportThemes(st) {
   download('my-logbook-themes.json', new Blob([exportText(list, fonts)], { type: 'application/json' }));
   toast(mine.length ? 'Themes saved as a file' : 'This look saved as a file');
 }
+function useMine(t) {
+  const before = display();
+  applyDisplay(setDisplay(minePatch(t, display()))); hooks.render();
+  useThemeFonts(t).catch(() => {});   // its own uploaded font, if it has one
+  toast(`Theme: ${t.name}`, { action: 'Undo', onaction: () => { applyDisplay(setDisplay(Object.fromEntries([...THEME_KEYS, 'theme'].map(k => [k, before[k] ?? null])))); hooks.render(); } });
+}
+// See it in action's theme bar (app.js tryMode): Your themes, then Classic, then Inspired, each { id, name, group, use };
+// now is the one showing (a changed theme counts as the one it is based on)
+export function themeSteps() {
+  const st = display(), mine = cleanMine(st.myThemes), own = matchMine(mine, st), { theme } = themeState(st);
+  const steps = [...mine.map(t => ({ id: 'mine:' + t.id, name: t.name, group: 'Your themes', use: () => useMine(t) })),
+    ...['classic', 'inspired'].flatMap(g => THEMES.filter(t => t.group === g).map(t => ({ id: t.id, name: t.name, group: g === 'classic' ? 'Classic' : 'Inspired', use: () => pickTheme(t) })))];
+  return { steps, now: own ? 'mine:' + own.id : theme.id };
+}
 function myThemesCard(st, custom) {
   const mine = cleanMine(st.myThemes), now = matchMine(mine, st);
   const put = list => { setDisplay({ myThemes: list.length ? list : null }); hooks.render(); };
@@ -440,12 +451,6 @@ function myThemesCard(st, custom) {
       put(list); keepThemeFonts(list[0]).catch(() => {}); toast(`Saved as “${name.value.trim()}”`);
     }
     catch (err) { toast(err.message); }
-  };
-  const use = t => {
-    const before = display();
-    applyDisplay(setDisplay(minePatch(t, display()))); hooks.render();
-    useThemeFonts(t).catch(() => {});   // its own uploaded font, if it has one
-    toast(`Theme: ${t.name}`, { action: 'Undo', onaction: () => { applyDisplay(setDisplay(Object.fromEntries([...THEME_KEYS, 'theme'].map(k => [k, before[k] ?? null])))); hooks.render(); } });
   };
   const drop = t => {
     const before = display().myThemes;
@@ -467,7 +472,7 @@ function myThemesCard(st, custom) {
       : help('Change anything on this page, then save the look here under a name of your own.'),
     h('div', { class: 'bar', style: 'margin:6px 0 0' }, name, h('button', { type: 'button', class: custom && !now ? 'primary' : '', onclick: save }, now ? 'Save changes' : 'Save this look')),
     mine.length ? h('ul', { class: 'theme-list', role: 'list', style: 'margin-top:10px' }, mine.map(t => h('li', { class: 'my-theme' },
-      h('button', { type: 'button', class: 'theme-row', 'aria-pressed': String(!!now && now.id === t.id), onclick: () => use(t) },
+      h('button', { type: 'button', class: 'theme-row', 'aria-pressed': String(!!now && now.id === t.id), onclick: () => useMine(t) },
         themeSwatch({ look: t.look, mode: t.mode === 'dark' || t.mode === 'oled' ? t.mode : null }), h('span', { class: 'mt' }, h('b', {}, t.name), h('small', {}, t.mode ? `Yours · ${t.mode}` : 'Yours'))),
       h('button', { type: 'button', class: 'small icon-btn', 'aria-label': `Delete ${t.name}`, title: 'Delete', onclick: () => drop(t) }, '×')))) : null,
     h('div', { class: 'bar', style: 'margin:10px 0 0' },
