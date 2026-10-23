@@ -20,6 +20,7 @@ import { PAGE_MOVES, movedSetting } from './navigation.js';
 import { notesChanged } from './ui-notepad.js';
 import { finePrint, signOutCard } from './more-cards.js';
 import { wipeSyncDevice } from './sync-forget.js';
+import { applyHidden, targetOf, keptBecause, entryFor, cleanHideList } from './hide-mode.js';
 
 // ---------- pages that load on first use ----------
 
@@ -788,6 +789,47 @@ document.addEventListener('touchend', e => edgeEnd(e, false), { passive: true })
 document.addEventListener('touchcancel', e => edgeEnd(e, true), { passive: true });
 hooks.render = render;
 hooks.paintTabs = () => paintTabs();
+
+// Tap to hide (hide-mode.js; Settings → Layout): the device's hidden buttons and cards stay hidden whenever a page is
+// drawn or redraws a part (an observer on the page); never on Settings pages or More. Hide mode: a bar at the bottom,
+// and a tap on the page hides what it lands on (with Undo) instead of pressing it; the tab bar still works, to go to
+// another page. Done, Esc or a reload ends it.
+let hiding = false;
+const hideFree = tab => { for (let t = TABS.find(x => x.id === tab); t; t = TABS.find(x => x.id === t.under)) if (t.id === 'settings' || t.id === 'more') return true; return false; };
+function paintHidden() { applyHidden(app, S.tab, display().hideList, { free: hideFree(S.tab), marking: hiding }); }
+let hideQueued = false;
+new MutationObserver(() => { if (hideQueued) return; hideQueued = true; requestAnimationFrame(() => { hideQueued = false; paintHidden(); }); }).observe(app, { childList: true, subtree: true });
+function hideTap(e) {
+  if (!hiding || !app.contains(e.target)) return;
+  e.preventDefault(); e.stopPropagation();   // (pointerdown and mousedown too: no focus, no press, no keyboard)
+  if (e.type !== 'click') return;
+  if (hideFree(S.tab)) { toast('Nothing on Settings pages can be hidden. Go to another tab.'); return; }
+  const el = targetOf(e.target);
+  if (!el) return;
+  const why = keptBecause(el);
+  if (why) { toast(why); return; }
+  const entry = entryFor(el, S.tab), before = display().hideList || null;
+  setDisplay({ hideList: cleanHideList([...(before || []), entry]) });
+  paintHidden();
+  toast(`Hidden: ${entry.name}`, { action: 'Undo', onaction: () => { setDisplay({ hideList: before }); paintHidden(); } });
+}
+for (const ev of ['click', 'pointerdown', 'mousedown', 'submit']) document.addEventListener(ev, hideTap, true);
+function hideMode(on) {
+  hiding = !!on;
+  document.documentElement.classList.toggle('hide-mode', hiding);
+  document.querySelector('.hide-bar')?.remove();
+  if (hiding) {
+    document.body.append(h('div', { class: 'hide-bar', role: 'region', 'aria-label': 'Hide mode' },
+      h('span', { class: 'grow' }, 'Tap a button or card to hide it. Show them again in Settings → Layout.'),
+      h('button', { class: 'primary small', onclick: () => hideMode(false) }, 'Done')));
+    if (hideFree(S.tab)) go('log');
+  }
+  paintHidden();
+}
+document.addEventListener('keydown', e => { if (hiding && e.key === 'Escape') hideMode(false); });
+hooks.hideMode = hideMode;
+hooks.paintHidden = paintHidden;
+hooks.tabLabel = id => (TABS.find(t => t.id === id) || {}).label || id;
 
 // Folds open and close smoothly (owner's Apple-apps review): every <details> grows to its height or shrinks to its
 // title row, with the chevron turning (style.css). The height is held for a moment first, so content a fold draws

@@ -46,6 +46,11 @@ Part of the logbook working notes; index of screens in [../screens.md](../screen
   elsewhere (url(), @import, image-set(), @font-face, @namespace, script hooks, backslash escapes), over 10 KB or with
   unbalanced braces; never applied on the Display page (applyCustomCss runs in render()); `?nocss` turns it off;
   device only and never in the settings file.
+  Its own settings (theme-revamp S6, `css-settings.js` `parseSettings`, tested): a `/* @settings */` comment, one line
+  each (`slider --gap 0 24 2 8px Label`, `colour --mark #ffcc00 Label`, `switch --pill 4px 999px Label`; at most 24),
+  shows sliders, colour wells and switches under Custom CSS; values per device (`customCssVals`, only in range, a
+  hex or a plain word, Reset these), written as `:root { --gap: … }` after the CSS in the custom layer. Bad lines are
+  listed as Skipped. Like the CSS, they never show on Themes or Layout and never go in a settings file.
   Defaults are pixel-identical to before.
 - **Borders** (Display, per device `borders`: 0 Borderless, 1 Faint, 2 Light, 3 Soft, null = Normal; a range input):
   every border in style.css (and the reflection editor's inline ones) uses `var(--edge, var(--line))`; `html.edges`
@@ -109,3 +114,12 @@ Part of the logbook working notes; index of screens in [../screens.md](../screen
   Focused checks: `node logbook/test/layouts.test.mjs` and `node logbook/test/e2e/layouts.mjs` (phone/desk, tap,
   menu and selection holds, resizing, keyboard activation, disclosure fields, and accessibility). The standard
   App-style browser suite includes these layout checks.
+- **Hide buttons and cards** (theme-revamp S6, Layout; `hide-mode.js`, device key `hideList`): Start hiding opens the
+  Add tab in Hide mode (`html.hide-mode`, a bar with Done; Esc or a reload ends it). A tap on the page hides the button
+  tapped, or the card around it, instead of pressing it (Undo in the toast); the tab bar still works. Items are kept as
+  page + kind + words (a button's aria-label or text, a card's first heading) and hidden again whenever the page draws
+  (a MutationObserver on `#app`, class `user-hidden`). Never hidden: Save and every `.primary` button, the case box and
+  cards holding either, Undo / Done / Cancel / Back / Settings / Sign in or out, choices (`aria-pressed`, `.seg`, tabs),
+  names with a digit (calendar days, counts), the tab bar, the header, pop-ups, and everything on Settings pages and
+  More (where the list is). Layout lists them with Show and Show all; the Layout reset clears them; `?nohide` shows
+  everything for one visit; they travel in the settings file. Test: `node logbook/test/e2e/hide-mode.mjs`.

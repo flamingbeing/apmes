@@ -8,6 +8,7 @@ import { lookCss, TINTS } from './themes.js';
 import { lookNow, nightRef } from './my-themes.js';
 import { cleanFacet, foldCompact } from './theme-engine.js';
 import { checkCss } from './custom-css.js';
+import { parseSettings, settingsCss } from './css-settings.js';
 import { applyFonts } from './fonts.js';
 import { cleanWall, dimOf, minDim, patternSamples, inkOf, scrimFor, frostAlpha, cssHex, getPhoto } from './wallpaper.js';
 import { rowLayoutOf } from './device-presets.js';
@@ -109,9 +110,11 @@ export const DISPLAY_KEYS = ['colours', 'listHeight', 'myThemes', 'pageSize', 'l
   'theme', 'themeMode', 'headFont', 'bgTint', 'spacing', 'tabStyle', 'band', 'barBlur', 'tabActiveLabel', 'listStyle', 'titleAlign', 'switchStyle', 'pressStyle', 'iconWeight', 'typeStyle',
   'statusBar', 'headerStyle', 'tabIconFill', 'iconSet', 'pageMotion', 'sheetStyle', 'toastStyle', 'fieldStyle', 'checkStyle', 'headingTone', 'tabTone',
   'ftBtn', 'ftGap', 'ftLine', 'ftShadow', 'ftCases', 'ftDays', 'ftLetter', 'ftWeight',
-  'wallpaper', 'wallDim', 'iconTint', 'iconTintStrength', 'tabIcon', 'nightTheme', 'caseSize', 'themeKeep', 'wallInk', 'wallFrost'];
+  'wallpaper', 'wallDim', 'iconTint', 'iconTintStrength', 'tabIcon', 'nightTheme', 'caseSize', 'themeKeep', 'wallInk', 'wallFrost',
+  'hideList', 'customCssVals'];
 // (the last lines: Fine-tune, theme-engine.js TUNE_KEYS; wallpaper.js and the icon tint, theme-revamp S4; the theme when
-// the phone is dark, my-themes.js lookNow, and case text size, theme-revamp S5; what stays when changing theme, look-schema.js)
+// the phone is dark, my-themes.js lookNow, and case text size, theme-revamp S5; what stays when changing theme, look-schema.js;
+// tapped-away buttons and cards, hide-mode.js, and the values of custom CSS's own settings, css-settings.js, theme-revamp S6)
 export function deviceDisplay() {
   try { const d = JSON.parse(localStorage.getItem(DISPLAY_KEY) || 'null'); return d && typeof d === 'object' && !Array.isArray(d) ? d : null; } catch { return null; }
 }
@@ -407,7 +410,9 @@ export function applyCustomCss(d = display()) {
   const on = !!d.customCssOn && res.ok && !!res.css && !/[?&]nocss\b/.test(location.search) && !CSS_FREE.includes(S.tab);
   if (!on) { if (el) el.textContent = ''; return; }
   if (!el) { el = document.createElement('style'); el.id = 'user-css'; document.head.append(el); }
-  const css = layered('custom', res.css);   // the last layer: wins over every look
+  // the CSS's own @settings (css-settings.js) as variables after it, so its var()s follow the sliders
+  const vars = settingsCss(parseSettings(res.css).settings, d.customCssVals);
+  const css = layered('custom', vars ? res.css + '\n' + vars : res.css);   // the last layer: wins over every look
   if (el.textContent !== css) el.textContent = css;
 }
 // Settings → Accessibility (#access; owner, 13 Oct 2026): size, contrast and motion (the gestures moved to Layout in
