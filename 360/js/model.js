@@ -1,7 +1,10 @@
 // APMES CCC 360: what a resident gives the programme coordinators (PCs) before a CCC meeting, and the checks on it.
 // Pure logic, no page code (unit tests in test/model.test.mjs). Two halves: the scholar projects (and the other lists on
 // the department's form) and the people to ask for multisource feedback (MSF). Storage shapes match the rules in
-// logbook/firestore.rules ("CCC 360"): entries/{email} holds the projects, msf/{email} holds the nominees.
+// logbook/firestore.rules ("CCC 360"): entries/{email} holds the projects, msf/{email} holds the nominees,
+// invites/{id} and responses/{id} hold the raters' one-time links and answers (questions in msf-form.js).
+
+import { ITEMS, SCALE_ITEMS, CONCERN, SUMMARY_COMMENTS, VALUES, COMMENT_SLOTS, COMMENT_MAX, REASON_MAX } from './msf-form.js';
 
 export const GROUPS = [
   { id: 'senior', label: 'Senior doctors', one: 'Senior doctor', max: 6, emailRequired: false,
@@ -241,3 +244,102 @@ export function mailto(nominee, residentName, round) {
   return `mailto:${encodeURIComponent(nominee.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 export const emailList = list => [...new Set((list || []).map(x => lc(x)).filter(x => EMAIL_RE.test(x)))].join(', ');
+
+// ---- raters: one-time links, answers and the CCC summary ----
+
+// A rater's link is /360/rate/#<id>: 128 random bits as 32 hex characters, in the hash so it never reaches server logs.
+// Anyone holding it may read that one invite and answer once (the rules); nobody can list the invites but staff.
+export const INVITE_ID_RE = /^[0-9a-f]{32}$/;
+export function newInviteId(fill = a => globalThis.crypto.getRandomValues(a)) {
+  return [...fill(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+export const isInviteId = id => INVITE_ID_RE.test(String(id ?? ''));
+export const rateLink = (id, origin = 'https://apmes.anawj.com') => `${origin}/360/rate/#${id}`;
+// the invite for one Checked nominee (the store adds createdAt = server time and createdBy = the signed-in coordinator)
+export function inviteDoc(resident, nominee) {
+  const n = cleanNominee(nominee);
+  return { resident: lc(resident.email).slice(0, 200), nomineeId: n.id, group: n.group, residentName: str(resident.name, 120) || lc(resident.email), raterName: n.name || n.email.slice(0, 120) };
+}
+// a nominee can be invited once a coordinator has checked them (Emailed comes after Checked)
+export const invitable = mark => mark === 'ok' || mark === 'sent';
+
+// Answers as the rules take them: { answers: { itemId: 1-4 | 'na' | 'yes' | 'no' }, comments: { slot: text } }. Unknown
+// items, values and empty comments are dropped.
+export function cleanAnswers(raw, items = ITEMS) {
+  const a = raw?.answers || {}, c = raw?.comments || {};
+  const answers = {}, comments = {};
+  const text = v => String(v ?? '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, COMMENT_MAX);
+  for (const it of items) {
+    const v = a[it.id];
+    if (it.kind === 'scale' && (VALUES.slice(0, 4).includes(v) || (it.notObserved && v === 'na'))) answers[it.id] = v;
+    if (it.kind === 'yesno' && (v === 'yes' || v === 'no')) answers[it.id] = v;
+    const slot = it.kind === 'comment' ? it.id : it.comment;
+    if (slot && COMMENT_SLOTS.includes(slot) && text(c[slot])) comments[slot] = text(c[slot]);
+  }
+  return { answers, comments };
+}
+// what blocks Submit: every rating and yes/no needs an answer ("Not observed" counts)
+export function answerProblems(raw, items = ITEMS) {
+  const { answers } = cleanAnswers(raw, items);
+  return items.filter(it => (it.kind === 'scale' || it.kind === 'yesno') && !(it.id in answers)).map(it => it.title);
+}
+export const responseDoc = raw => ({ ...cleanAnswers(raw), declined: false });
+export const declineDoc = reason => {
+  const r = String(reason ?? '').trim().slice(0, REASON_MAX);
+  return { answers: {}, comments: {}, declined: true, ...(r ? { reason: r } : {}) };
+};
+// per rater: 'invited' (link made, no answer yet), 'done' or 'declined'
+export const raterStatus = (invite, response) => !invite ? 'not invited' : !response ? 'invited' : response.declined ? 'declined' : 'done';
+
+function shuffle(list, rand) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+const mean = xs => xs.length ? Math.round(xs.reduce((s, x) => s + x, 0) / xs.length * 100) / 100 : null;
+
+// The anonymised summary for the CCC from the invites and responses passed in (normally one resident's; both are
+// { [inviteId]: doc }). A rater group is shown on its own only with `minGroup` or more completed answers; smaller groups
+// fold into Others. If Others is then still too small (but not empty), it joins the smallest group shown, so no group's
+// mean can be worked out by subtraction from the overall one. With fewer than `minGroup` answers in all, only the counts
+// are given. Comments come without names, in random order. The concern question is kept apart (`concerns`): for PDs and
+// PCs only, never the resident.
+export function summarise(responses = {}, invites = {}, { minGroup = 3, rand = Math.random } = {}) {
+  const counts = { invited: 0, done: 0, declined: 0, waiting: 0, byGroup: Object.fromEntries(GROUPS.map(g => [g.id, { invited: 0, done: 0, declined: 0 }])) };
+  const done = [];
+  for (const [id, inv] of Object.entries(invites || {})) {
+    const g = GROUP[inv?.group] ? inv.group : 'other';
+    const r = responses?.[id];
+    const s = raterStatus(inv, r);
+    counts.invited++; counts.byGroup[g].invited++;
+    if (s === 'done') { counts.done++; counts.byGroup[g].done++; done.push({ group: g, ...cleanAnswers(r) }); }
+    else if (s === 'declined') { counts.declined++; counts.byGroup[g].declined++; }
+    else counts.waiting++;
+  }
+  // which groups stand alone, and what folds into Others
+  const by = id => done.filter(d => d.group === id);
+  let shown = GROUPS.filter(g => g.id !== 'other' && by(g.id).length >= minGroup).map(g => ({ id: g.id, label: g.label, groups: [g.id] }));
+  const rest = GROUPS.map(g => g.id).filter(id => !shown.some(s => s.groups.includes(id)));
+  const restN = done.filter(d => rest.includes(d.group)).length;
+  if (restN >= minGroup) shown.push({ id: 'others', label: 'Others', groups: rest });
+  else if (restN > 0 && shown.length) {
+    const small = shown.reduce((a, b) => (done.filter(d => b.groups.includes(d.group)).length < done.filter(d => a.groups.includes(d.group)).length ? b : a));
+    small.groups = [...small.groups, ...rest]; small.label += ' and others';
+  }
+  const enough = done.length >= minGroup;
+  if (!enough) shown = [];
+  const itemRow = (it, list) => {
+    const xs = list.map(d => d.answers[it.id]).filter(v => typeof v === 'number');
+    return { mean: mean(xs), n: xs.length, notObserved: list.filter(d => d.answers[it.id] === 'na').length };
+  };
+  const items = !enough ? [] : SCALE_ITEMS.map(it => ({
+    id: it.id, title: it.title,
+    overall: itemRow(it, done),
+    groups: Object.fromEntries(shown.map(s => [s.id, itemRow(it, done.filter(d => s.groups.includes(d.group)))])),
+  }));
+  const groups = shown.map(s => ({ id: s.id, label: s.label, n: done.filter(d => s.groups.includes(d.group)).length }));
+  const comments = !enough ? [] : SUMMARY_COMMENTS.map(c => ({ ...c, texts: shuffle(done.map(d => d.comments[c.slot]).filter(Boolean), rand) }));
+  const concernList = CONCERN ? done.filter(d => d.answers[CONCERN.id] === 'yes') : [];
+  const concerns = { yes: concernList.length, texts: shuffle(concernList.map(d => d.comments[CONCERN.comment]).filter(Boolean), rand) };
+  return { counts, enough, minGroup, groups, items, comments, concerns };
+}
