@@ -1,0 +1,43 @@
+/* The guidebook pages (home/guide/*.html, built by tools/build-guide.mjs). The design kit gives the bar, lists and
+   colours; this adds readable text, contents and tables that scroll sideways on a phone. */
+
+/* the Logbook's palette drives the kit, as on the home page (index.html) */
+html.lb-colours.lb-colours {
+  --a-tint: var(--accent); --a-tint-ink: var(--accent-ink); --a-tint-soft: var(--accent-soft); --a-focus: var(--accent);
+  --a-bg: var(--bg); --a-surface: var(--panel); --a-ink: var(--ink); --a-ink-2: var(--muted); --a-sep: var(--line);
+}
+.g-col { max-width: 760px; margin: 0 auto; }
+.g-back { color: var(--a-tint); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }
+.g-h1 { font-size: 24px; margin: 8px 0; }
+
+.g-toc { margin: 0 0 16px; background: var(--a-surface); border-radius: 12px; padding: 0 14px; }
+.g-toc summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--a-tint); font-weight: 600; }
+.g-toc ul { margin: 0; padding: 0 0 10px 0; list-style: none; }
+.g-toc ul ul { padding: 0 0 0 16px; }
+.g-toc li a { display: block; padding: 8px 0; color: var(--a-ink); text-decoration: none; line-height: 1.35; }
+.g-toc li a:hover { color: var(--a-tint); }
+
+.g-doc { line-height: 1.55; overflow-wrap: break-word; }
+.g-doc h1 { font-size: 24px; line-height: 1.25; margin: 8px 0 12px; }
+.g-doc h2 { font-size: 21px; line-height: 1.3; margin: 32px 0 10px; padding-top: 12px; border-top: 1px solid var(--a-sep); }
+.g-doc h3 { font-size: 18px; line-height: 1.3; margin: 24px 0 8px; }
+.g-doc h4 { font-size: 16px; line-height: 1.35; margin: 20px 0 6px; }
+.g-doc h1, .g-doc h2, .g-doc h3, .g-doc h4 { scroll-margin-top: 64px; }
+.g-doc p, .g-doc ul, .g-doc ol { margin: 0 0 12px; }
+.g-doc ul, .g-doc ol { padding-left: 24px; }
+.g-doc li { margin: 4px 0; }
+.g-doc li > ul, .g-doc li > ol { margin: 4px 0 0; }
+.g-doc a { color: var(--a-tint); }
+.g-doc blockquote { margin: 0 0 12px; padding: 8px 14px; border-left: 3px solid var(--a-tint); background: var(--a-surface); border-radius: 0 8px 8px 0; }
+.g-doc blockquote p { margin: 0; }
+.g-doc hr { border: 0; border-top: 1px solid var(--a-sep); margin: 24px 0; }
+.g-doc code { font-size: 0.9em; }
+
+/* wide tables scroll sideways inside their box, never the page */
+.g-table { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 0 16px; border: 1px solid var(--a-sep); border-radius: 8px; }
+.g-table:focus-visible { outline: 2px solid var(--a-focus); outline-offset: 2px; }
+.g-table table { border-collapse: collapse; min-width: 100%; font-size: 14px; line-height: 1.45; }
+.g-table th, .g-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--a-sep); min-width: 9em; max-width: 28em; }
+.g-table th { background: var(--a-surface); font-weight: 600; }
+.g-table tr:last-child td { border-bottom: 0; }
+.g-table th + th, .g-table td + td { border-left: 1px solid var(--a-sep); }
