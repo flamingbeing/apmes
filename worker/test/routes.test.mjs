@@ -8,7 +8,7 @@ const HOSTS = ['apmes.anawj.com', 'beta-apmes.anawj.com'];
 
 test('each app at its own path, on live and beta alike', () => {
   for (const h of HOSTS) {
-    for (const app of ['logbook', 'evals', 'people', '360']) {
+    for (const app of ['logbook', 'evals', 'people', 'ccc']) {
       assert.deepEqual(resolve(h, `/${app}/`), { file: `${app}/` }, h);
       assert.deepEqual(resolve(h, `/${app}`), { redirect: `/${app}/` }, h);
     }
@@ -18,12 +18,12 @@ test('each app at its own path, on live and beta alike', () => {
   }
 });
 
-test('the applicants app forwards to its own site, on live and beta alike', () => {
+test('the old CCC address /360/ forwards to /ccc/ (raters\' links already sent)', () => {
   for (const h of HOSTS) {
-    assert.deepEqual(resolve(h, '/applicants/'), { redirect: 'https://residencyapps.anawj.com/' }, h);
-    assert.deepEqual(resolve(h, '/applicants'), { redirect: 'https://residencyapps.anawj.com/' }, h);
-    assert.deepEqual(resolve(h, '/applicants/index.html'), { redirect: 'https://residencyapps.anawj.com/index.html' }, h);
-    assert.deepEqual(resolve(h, '/logbook/'), { file: 'logbook/' }, h);
+    assert.deepEqual(resolve(h, '/360/'), { redirect: '/ccc/' }, h);
+    assert.deepEqual(resolve(h, '/360'), { redirect: '/ccc/' }, h);
+    assert.deepEqual(resolve(h, '/360/rate/'), { redirect: '/ccc/rate/' }, h);
+    assert.deepEqual(resolve(h, '/360/js/app.js'), { redirect: '/ccc/js/app.js' }, h);
   }
 });
 
@@ -46,7 +46,7 @@ test('the guidebook pages at /guide/ (home/guide/); the raw .md stays at /apmes/
   for (const h of HOSTS) {
     assert.deepEqual(resolve(h, '/guide/'), { file: 'home/guide/' }, h);
     assert.deepEqual(resolve(h, '/guide'), { redirect: '/guide/' }, h);
-    assert.deepEqual(resolve(h, '/guide/epa-01-06.html'), { file: 'home/guide/epa-01-06.html' }, h);
+    assert.deepEqual(resolve(h, '/guide/epa-01.html'), { file: 'home/guide/epa-01.html' }, h);
     assert.deepEqual(resolve(h, '/guide/../logbook/x'), { notFound: true }, h);
     assert.deepEqual(resolve(h, '/apmes/guidebook/epa-01-06.md'), { file: 'apmes/guidebook/epa-01-06.md' }, h);
   }
@@ -87,4 +87,13 @@ test('every folder in SITES exists', () => {
   for (const [host, s] of Object.entries(SITES))
     for (const f of [s.root, ...Object.values(s.prefixes || {}), ...Object.values(s.pages || {})].filter(Boolean))
       assert.ok(fs.existsSync(new URL(`../../${f}`, import.meta.url)), `${host}: ${f}`);
+});
+
+test('the applicants app forwards to its own site, on live and beta alike', () => {
+  for (const h of HOSTS) {
+    assert.deepEqual(resolve(h, '/applicants/'), { redirect: 'https://residencyapps.anawj.com/' }, h);
+    assert.deepEqual(resolve(h, '/applicants'), { redirect: 'https://residencyapps.anawj.com/' }, h);
+    assert.deepEqual(resolve(h, '/applicants/index.html'), { redirect: 'https://residencyapps.anawj.com/index.html' }, h);
+    assert.deepEqual(resolve(h, '/logbook/'), { file: 'logbook/' }, h);
+  }
 });

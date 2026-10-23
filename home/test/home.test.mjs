@@ -13,13 +13,13 @@ function mem(init = {}) {
 
 test('only live links show; Logbook first; beta apps hidden; the guidebook shown', () => {
   const v = visibleSections();
-  assert.deepEqual(v.map(s => s.id), ['apps', 'medhub', 'guide']);
+  assert.deepEqual(v.map(s => s.id), ['apps', 'medhub']);
   assert.equal(v[0].links[0].label, 'Open Logbook');
   assert.equal(v[0].links[0].primary, true);
-  assert.deepEqual(v[0].links.map(l => l.url), ['/logbook/']);
+  assert.deepEqual(v[0].links.map(l => l.url), ['/logbook/', '/guide/'], 'the guidebook sits with the apps');
   for (const l of LINKS) assert.ok(SECTIONS.some(s => s.id === l.section), l.label);
   // flipping one flag takes a section off the page (or puts it back)
-  assert.ok(!visibleSections(LINKS.map(l => (l.section === 'guide' ? { ...l, live: false } : l))).some(s => s.id === 'guide'));
+  assert.ok(!visibleSections(LINKS.map(l => (l.section === 'medhub' ? { ...l, live: false } : l))).some(s => s.id === 'medhub'));
 });
 
 test('links: inside this site or https only', () => {

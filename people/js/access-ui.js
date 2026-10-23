@@ -4,7 +4,7 @@
 
 import { S, h, fill, toast, cloud, modal, confirmBox, avatar, icon, errText, fmtAgo } from '../../evals/js/ui-core.js';
 import { field, input, cleanEmail, validEmail } from '../../evals/js/ui-admin.js';
-import { ROLES, roleLabel, cleanRoles, mayChange, changeText, parseAccessPaste } from './access.js';
+import { ROLES, roleLabel, cleanRoles, mayChange, changeText, parseAccessPaste, mergeAccess } from './access.js';
 
 const actor = () => ({ owner: !!S.roles.owner, admin: !!S.roles.admin });
 const mayEdit = () => !!(S.roles.admin || S.roles.owner);
@@ -23,7 +23,8 @@ function knownPeople({ access, fac, res, pds }) {
   return out;
 }
 
-export function accessScreen({ access, log, fac, res, pds, reload }) {
+export function accessScreen({ access: records, log, fac, res, pds, reload }) {
+  const access = mergeAccess(records);
   const edit = mayEdit();
   const me = (S.user?.email || '').toLowerCase();
   const list = h('div', { class: 'e-list' });
@@ -32,7 +33,8 @@ export function accessScreen({ access, log, fac, res, pds, reload }) {
   const paint = () => {
     const rows = access.filter(a => matches(q, a.name, a.email, rolesLabel(a.roles)));
     const body = r => [avatar(r.name || r.email),
-      h('span', { class: 'e-row__body' }, h('span', { class: 'e-row__title' }, r.name || '(no name)'), h('span', { class: 'e-row__meta' }, r.email)),
+      h('span', { class: 'e-row__body' }, h('span', { class: 'e-row__title' }, r.name || '(no name)'), h('span', { class: 'e-row__meta' }, r.email),
+        r.strays?.length ? h('span', { class: 'e-row__meta' }, r.active ? 'Also saved with capitals; Save tidies it up.' : 'Saved with capitals, so these roles don’t work yet; open and Save to fix.') : null),
       ...cleanRoles(r.roles).map(roleChip)];
     fill(list, rows.length
       ? rows.map(r => edit
@@ -58,7 +60,7 @@ export function accessScreen({ access, log, fac, res, pds, reload }) {
       const ok = mayChange({ actor: actor(), actorEmail: me, targetEmail: em, oldRoles: old, newRoles: [], removing: true });
       if (!ok.ok) return say(ok.why);
       if (!await confirmBox('Remove all roles?', `${rec.name || em} loses ${old.map(roleLabel).join(', ')}.`, 'Remove', true)) return;
-      try { await cloud.removeAccess(em, changeText(old, [], true)); m.close(); toast('Removed'); reload(); } catch (e) { say('Couldn’t remove. ' + errText(e)); }
+      try { await cloud.removeAccess(em, changeText(old, [], true), rec.strays); m.close(); toast('Removed'); reload(); } catch (e) { say('Couldn’t remove. ' + errText(e)); }
     };
     const m = modal(rec ? 'Edit roles' : 'Add a person', h('form', { onsubmit: async e => {
       e.preventDefault();
@@ -67,7 +69,7 @@ export function accessScreen({ access, log, fac, res, pds, reload }) {
       if (bad) return say(bad);
       const ok = mayChange({ actor: actor(), actorEmail: me, targetEmail: em, oldRoles: old, newRoles: roles });
       if (!ok.ok) return say(ok.why);
-      try { await cloud.saveAccess({ email: em, name: nm, roles, change: changeText(old, roles) }); m.close(); toast(rec ? 'Saved' : `${nm} added`); reload(); }
+      try { await cloud.saveAccess({ email: em, name: nm, roles, change: changeText(old, roles), strays: rec?.strays }); m.close(); toast(rec ? 'Saved' : `${nm} added`); reload(); }
       catch (e2) { say('Couldn’t save. ' + errText(e2)); }
     } },
       field('Name', name), field('Google account email', email), rec ? null : h('p', { class: 'e-hint' }, 'The email they sign in with.'),
@@ -92,11 +94,11 @@ export function accessScreen({ access, log, fac, res, pds, reload }) {
       rows = parseAccessPaste(ta.value, known).map(r => {
         if (r.problem || !r.email) return r;
         const rec = access.find(a => a.email === r.email);
-        const old = cleanRoles(rec?.roles);
+        const old = rec?.active ? cleanRoles(rec.roles) : [];
         if (old.includes(role.value)) return { ...r, skip: `already ${roleLabel(role.value)}` };
         const roles = cleanRoles([...old, role.value]);
         const ok = mayChange({ actor: actor(), actorEmail: me, targetEmail: r.email, oldRoles: old, newRoles: roles });
-        return ok.ok ? { ...r, old, roles } : { ...r, problem: ok.why };
+        return ok.ok ? { ...r, old, roles, strays: rec?.strays } : { ...r, problem: ok.why };
       });
       const good = rows.filter(r => !r.problem && !r.skip);
       fill(out, rows.map(r => h('li', { class: r.problem ? 'is-bad' : r.skip ? 'is-dup' : '' },
@@ -111,7 +113,7 @@ export function accessScreen({ access, log, fac, res, pds, reload }) {
       btn.disabled = true;
       let ok = 0; const fails = [];
       for (const r of good) {
-        try { await cloud.saveAccess({ email: r.email, name: r.name, roles: r.roles, change: changeText(r.old, r.roles) }); ok++; } catch (e) { fails.push(`${r.email}: ${errText(e)}`); }
+        try { await cloud.saveAccess({ email: r.email, name: r.name, roles: r.roles, change: changeText(r.old, r.roles), strays: r.strays }); ok++; } catch (e) { fails.push(`${r.email}: ${errText(e)}`); }
       }
       m.close();
       toast(fails.length ? `Done for ${ok}; ${fails.length} failed (${fails[0]})` : `Done for ${ok}`);

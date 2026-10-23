@@ -2,7 +2,7 @@
 
 The APMES web apps of the anaesthesia residency programme, all on [apmes.anawj.com](https://apmes.anawj.com/logbook/):
 
-- Case logbook (`logbook/`), assessments (`evals/`), People (`people/`), CCC 360 (`360/`), and the programme documents they read (`apmes/`).
+- Case logbook (`logbook/`), assessments (`evals/`), People (`people/`), CCC (`ccc/`), and the programme documents they read (`apmes/`).
 
 Static pages served by a Cloudflare Worker (`worker/sites.js`; which folder each address serves is in
 `worker/routes.js`). The applicants feedback app moved to its own repo, `residencyapps` (Oct 2026); its old address

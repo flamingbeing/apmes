@@ -10,7 +10,7 @@ The APMES apps of the anaesthesia residency programme, production at `apmes.anaw
 | APMES case logbook | `logbook/` | apmes.anawj.com/logbook/ |
 | APMES assessments (evals) | `evals/` | apmes.anawj.com/evals/ |
 | APMES People | `people/` | apmes.anawj.com/people/ |
-| CCC 360 | `360/` | apmes.anawj.com/360/ |
+| CCC | `ccc/` | apmes.anawj.com/ccc/ (`/360/` forwards here) |
 | Programme documents | `apmes/` | not served (only `apmes/guidebook/`, which evals reads raw) |
 
 `__/` holds Firebase's sign-in helper pages; `apmes-auth/` and `apmes-auth-beta/` hold each host's `init.json`.
@@ -39,8 +39,11 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - **Generated files:** `evals/js/catalogue.js` and `forms.js`. Edit `apmes/` or `evals/tools/build-data.mjs`, then run
   `node evals/tools/build-data.mjs` (`tools/check.mjs` fails when they are stale).
   `home/guide/*.html` (the readable guidebook at `/guide/`): edit `apmes/guidebook/*.md` or `tools/build-guide.mjs`,
-  then run `node tools/build-guide.mjs` (`tools/check.mjs` fails when they are stale; reading them is denied in
-  `.claude/settings.json`). Styles: `home/guide/guide.css` (by hand).
+  then run `node tools/build-guide.mjs` (it also writes `entrustment.html` and `search.json`; `tools/check.mjs` fails
+  when they are stale; reading them is denied in `.claude/settings.json`). By hand: `home/guide/guide.css`,
+  `guide.js` (search and the entrustment tabs), `notes.js` and `notes-core.js` (a note and a Done tick on each
+  entrustment question, synced to `logbooks/{email}/guide/entrustment` when signed in to the Logbook, export), and
+  `sw.js` with `manifest.webmanifest` (the installable app).
 - The NUHS design kit (and the shared QR generator, `/v1/feedback/qr.js`) load from `https://design.anawj.com/v1/`
   (another repo); never copy them in. The service workers cache the kit at install and answer it offline (`KIT`).
 - **Service workers:** each `sw.js` VERSION starts with its folder name and is stamped at deploy
@@ -50,11 +53,11 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - **Vital app:** the logbook holds residents' real records: full tests before merging.
 - **Home page** (`home/`, served at `/`): lists only links with `live: true` in `home/js/links.js` (an app goes on it by
   flipping its flag). It reads the Logbook's theme and sign-in, never writes them, never writes Firestore, and has no
-  service worker (one at `/` would cover the apps below it).
+  service worker (one at `/` would cover the apps below it; the guidebook's own worker sits at `/guide/`).
 - NUH Junior Monthly (People's roster import) lives in the rosters repo at nuhjuniormonthly.anawj.com.
 - **App icons** come from anawj-site `tools/app-icons/` (one SVG per app, rendered there): copy its output into each
   app's `icons/` (`icon-maskable-512.png` is saved as `maskable-512.png`), never redraw here. Each manifest's `id` is
-  fixed (`/logbook/, /evals/, /people/, /360/`): changing it makes installed copies a different app.
+  fixed (`/logbook/, /evals/, /people/, /ccc/ (was /360/ until 23 Oct 2026), /guide/`): changing it makes installed copies a different app.
 
 ## Checks before merging
 
@@ -64,7 +67,7 @@ for f in */test/*.test.mjs; do node "$f" || break; done   # unit tests
 node tools/proofread.mjs                      # page and doc mistakes
 bash tools/test-logbook.sh                    # logbook: full e2e (`quick` skips it); a11y: node logbook/test/e2e/a11y.mjs
 python3 -m http.server 8110 &                 # evals: node evals/test/e2e.spec.mjs, edge.e2e.mjs, a11y.mjs
-node people/test/e2e.mjs                      # people, 360, home: each test/e2e.mjs (no server needed)
+node people/test/e2e.mjs                      # people, ccc, home: each test/e2e.mjs (no server needed)
 bash tools/test-rules.sh                      # when logbook/firestore.rules changes (needs Java)
 ```
 

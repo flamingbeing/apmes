@@ -11,11 +11,21 @@
 ## Next (in order)
 1. Sign-in check on apmes.anawj.com (Google) after the move.
 2. anawj-site drops the apmes folders, hosts, guest sign-in code and its logbook rules and MCP workflows.
+3. Guidebook notes and ticks (branch `claude/guide-entrustment-notes`): on beta for the owner to try; merge on his "ship it"
+   (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 23 Oct 2026: guidebook as an installable app (manifest id `/guide/`, icon from anawj-site `tools/app-icons/`
+  `guide.svg`), `home/guide/sw.js` keeps every page offline, app version line and "Get the latest version" on the
+  contents page; on the home page it moved to Apps. `check.mjs` and `stamp-versions.mjs` include `home/guide`.
 - 23 Oct 2026: applicants feedback moved out to its own repo and site (`residencyapps`, residencyapps.anawj.com):
   `/applicants/` forwards there; its folder, guest passcode sign-in, rules block and People › Access role removed.
   Its old data stays in `apmes-logbook` for now (no rules: console only).
+- 23 Oct 2026: guidebook pages reorganised: one page per EPA (`epa-01.html` to `epa-12.html`, 7a/7b with 7) and the
+  Appendix, a contents page with search over every section (`search.json`), and `entrustment.html`: every DOPS,
+  Mini-CEX and EBD item in three tabs, grouped by EPA, with a filter and the EPA 7 attachments inside their items.
+  Later the same day: while filtering, all three types show at once under their own headings, each item carries a
+  coloured DOPS / Mini-CEX / EBD label and the matched words are marked.
 - 23 Oct 2026: guidebook as readable pages at `/guide/` (`home/guide/`, built by `tools/build-guide.mjs` from
   `apmes/guidebook/`; contents, anchors, tables that scroll sideways); its section is on the home page.
 - 23 Oct 2026: home page at apmes.anawj.com/ (`home/`): Open Logbook, MedHub links, an opt-in counts card (own
@@ -27,6 +37,8 @@
   own exceljs and jszip (`logbook/vendor/`); kit from design.anawj.com (cached offline); guest sign-in code; checks.
 
 ## Decisions (dated, one line each)
+- 23 Oct 2026: the guidebook `.md` files keep their names (evals reads `epa-01-06.md` and `epa-07-12.md`); the page
+  builder splits them per EPA. Search runs in the browser over a built `search.json`, no server.
 - 23 Oct 2026: guidebook pages are built HTML committed with the repo (no Markdown library on the phone); the raw
   `.md` at `/apmes/guidebook/` stays for evals.
 - 23 Oct 2026: home page at `/` lists live apps only (Logbook for now); MedHub links go to MedHub's home and its mobile

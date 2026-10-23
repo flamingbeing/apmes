@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Multisource feedback · APMES CCC</title>
+<meta name="description" content="Give multisource feedback on a resident, through the link the programme coordinators sent you.">
+<meta name="theme-color" content="#f9f9fb">
+<link rel="icon" type="image/svg+xml" href="../icons/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" media="print" onload="this.media='all'">
+<script>
+  // Raters reach this page from a link in an email (no sign-in). Light or dark follows the phone unless evals' theme
+  // choice says otherwise on this device.
+  try { var t = localStorage.getItem('evals-theme'); if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; document.documentElement.dataset.theme = t; if (t === 'dark') document.querySelector('meta[name="theme-color"]').content = '#161618'; } catch (e) {}
+</script>
+<link rel="stylesheet" href="https://design.anawj.com/v1/tokens.css">
+<link rel="stylesheet" href="https://design.anawj.com/v1/app.css">
+<link rel="stylesheet" href="../../evals/style.css">
+<script src="https://design.anawj.com/v1/app.js" defer></script>
+<style>
+  .rt-col { max-width: 640px; margin: 0 auto; }
+  .rt-col .a-btn { border-radius: 10px; max-width: 100%; white-space: normal; text-align: center; }
+  .rt-intro h2 { margin: 0 0 6px; }
+  .rt-intro p { margin: 0 0 6px; }
+  .rt-facts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 0; padding: 0; list-style: none; font-size: var(--a-text-sm); color: var(--a-ink-2); }
+  .rt-facts b { color: var(--a-ink); font-weight: 600; }
+  .rt-private { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--a-surface-2); font-size: var(--a-text-sm); color: var(--a-ink-2); }
+  .rt-section { margin: 18px 4px 8px; font-size: var(--a-text-md, 1.0625rem); font-weight: 700; }
+  .rt-q .e-q__label { display: block; }
+  .rt-q .e-q__help { margin: 2px 0 10px; }
+  .rt-q .e-radios { margin-top: 4px; }
+  .rt-q .e-radio--na { color: var(--a-ink-2); }
+  .rt-q .e-textarea { width: 100%; min-height: 96px; }
+  .rt-saved { margin: 4px 0 0; font-size: var(--a-text-sm); color: var(--a-ink-2); }
+  .rt-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .rt-bar .a-btn { margin: 0; min-width: 0; flex: 1 1 160px; }
+  .rt-done { text-align: left; }
+  .rt-done h2 { margin-top: 0; }
+  .rt-problems { margin: 8px 0 0; padding-left: 18px; }
+</style>
+</head>
+<body class="a-app e-nonav">
+<header class="a-bar e-appbar">
+  <div class="a-band"><i></i><i></i><i></i><i></i></div>
+  <div class="a-bar-row">
+    <div class="e-appbar__titles">
+      <h1 id="title" class="a-bar-title e-appbar__title">Multisource feedback</h1>
+      <p id="sub" class="e-appbar__sub" hidden></p>
+    </div>
+  </div>
+</header>
+<main id="app" class="a-main"><p class="e-loading">Loading…</p></main>
+<div id="toast" class="a-toast" role="status" aria-live="polite"></div>
+<script type="module" src="../js/rate.js"></script>
+</body>
+</html>
