@@ -130,7 +130,11 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
   assert.ok(await page.locator('.a-list a.a-row').count() >= 6, 'one row per document');
   await axe(page, 'guide contents');
-  await page.locator('a.a-row[href="epa-01-06.html"]').click();
+  await page.locator('input[type="search"]').fill('malignant hyperthermia');
+  await page.locator('.g-results li').first().waitFor();
+  assert.ok(await page.locator('.g-results a[href^="epa-02.html?q=malignant%20hyperthermia#"]').count() >= 1, 'search finds EPA 2');
+  await page.locator('input[type="search"]').fill('');
+  await page.locator('a.a-row[href="epa-01.html"]').click();
   await page.locator('.g-doc h2').first().waitFor();
   const w = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, view: innerWidth, wide: [...document.querySelectorAll('.g-table')].some(t => t.scrollWidth > t.clientWidth) }));
   assert.ok(w.page <= w.view, `no sideways page scroll (${w.page} > ${w.view})`);
@@ -142,6 +146,23 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   assert.ok(Math.abs(await page.locator(`[id="${id}"]`).evaluate(e => e.getBoundingClientRect().top)) < 120, 'jumps to the part');
   await axe(page, 'guide page');
   await shot(page, 'guide');
+  // the entrustment questions: DOPS / Mini-CEX / EBD tabs, a filter, and a link back to the item in its EPA page
+  await page.goto(page.url().replace(/epa-01\.html.*$/, 'entrustment.html'));
+  await page.locator('#dops .g-item').first().waitFor();
+  assert.ok(await page.locator('#cex').isHidden(), 'one tab at a time');
+  await page.locator('#tab-ebd').click();
+  assert.equal(await page.evaluate(() => location.hash), '#ebd');
+  const all = await page.locator('#ebd .g-item').count();
+  await page.locator('input[type="search"]').fill('solo call as SR');
+  const shown = await page.locator('#ebd .g-item:visible').count();
+  assert.ok(shown >= 1 && shown < all, `the filter narrows the list (${shown} of ${all})`);
+  const item = page.locator('#ebd .g-item:visible', { has: page.locator('summary', { hasText: 'as SR' }) });
+  if (!(await item.evaluate(d => d.open))) await item.locator('summary').first().click();   // a short list opens itself
+  await item.locator('.g-attach summary').click();
+  await item.getByText('Managing Postpartum Neurological Deficit').first().waitFor();
+  await axe(page, 'guide entrustment');
+  await item.locator('.g-from a').click();
+  await page.locator('.g-doc h4:target').waitFor();
   await page.close();
 }
 
