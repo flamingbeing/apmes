@@ -132,7 +132,10 @@ export function render(md) {
       out.push(`<p>${p.map(inline).join('<br>')}</p>`);
     }
   }
-  return { title: title || 'Guidebook', html: out.join('\n'), toc };
+  // residents cover at least 2 of the suggested questions, not all of them (owner, 23 Oct 2026); the .md keeps the
+  // guidebook's own wording, which evals/tools/build-data.mjs reads
+  const html = out.join('\n').replace(/<strong>Suggested entrustment questions<\/strong>/g, '<strong>Suggested entrustment questions (at least 2)</strong>');
+  return { title: title || 'Guidebook', html, toc };
 }
 
 // ---- pages ----

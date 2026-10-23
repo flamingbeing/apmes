@@ -89,10 +89,12 @@ function paint() {
     s.all++; if (e.d === true) s.done++; if (core.touched(e)) s.any = true;
     byItem.set(q.item, s);
   }
-  // the item's progress, on its summary line (an attribute: the filter rewrites the summary's text)
+  // the item's progress (of the 2 needed), on its summary line (an attribute: the filter rewrites the summary's text)
   for (const [item, s] of byItem) {
     const sum = $('summary', item);
-    if (s.any) sum.dataset.prog = s.done === s.all ? '✓ done' : `${s.done}/${s.all}`; else delete sum.dataset.prog;
+    // at least 2 questions per item (or the one there is) count as covered
+    const need = Math.min(2, s.all);
+    if (s.any) sum.dataset.prog = s.done >= need ? `✓ ${s.done} done` : `${s.done}/${need}`; else delete sum.dataset.prog;
   }
   paintBar();
 }
