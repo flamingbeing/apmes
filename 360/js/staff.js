@@ -1,7 +1,8 @@
 // APMES CCC 360, the coordinators' view: PDs, Admin staff and programme coordinators (PCs) open and close rounds, see who has
 // sent, read each resident's projects and nominees, mark the nominees, export the lists, and invite each Checked nominee to
 // answer through a one-time link (/360/rate/). The app does not send mail: "Invite" makes the link and opens the
-// coordinator's own mail app with the text and link filled in (edit it there); reminders work the same way.
+// coordinator's own mail app with the text and link filled in (edit it there); reminders work the same way. PDs and PCs
+// also see the CCC report (anonymised summary per resident, round overview, print to PDF) and each rater's raw answers.
 // Everything shown comes from residents' own typing, so it is only ever put on the page as text.
 
 import { S, h, fill, toast, cloud, modal, confirmBox, empty, errText, row, download, avatar } from '../../evals/js/ui-core.js';
@@ -9,7 +10,9 @@ import {
   GROUPS, GROUP, LISTS, MARKS, PURGE_TEXT, cleanEntry, cleanNominees, markLabel, roundId, cleanRoundInput, purgeAt,
   roster, rosterCounts, nomineesCSV, projectsCSV, emailList, monthText, dayText,
   invitable, rateLink, raterRows, raterCounts, notDoneEmails, inviteMailto, reminderMailto, RATER_LABEL,
+  summarise, invitesOf, invitedResidents, fromReport, overviewRows, meanText, SCALE_TEXT, answerLines, raterStatus,
 } from './model.js';
+import { DRAFT } from './msf-form.js';
 import * as store from './store.js';
 
 const lc = s => String(s || '').trim().toLowerCase();
@@ -36,12 +39,19 @@ export async function staffScreen(parts, ctx) {
   try { rounds = await store.listRounds(); } catch (e) { return fill(app, h('p', { class: 'e-alert' }, 'Couldn’t load the rounds: ' + errText(e))); }
   if (!purged) {
     purged = true;
-    try { const n = await store.purgeExpired(rounds); if (n) toast(`Deleted ${n} nominee list${n === 1 ? '' : 's'} from rounds closed more than ${PURGE_TEXT} ago.`); }
+    try {
+      const { lists, reports } = await store.purgeExpired(rounds);
+      const said = [lists ? `Deleted ${lists} nominee list${lists === 1 ? '' : 's'}` : '', reports ? `${lists ? 'saved' : 'Saved'} ${reports} CCC summar${reports === 1 ? 'y' : 'ies'} and deleted the raters’ answers` : ''].filter(Boolean).join(' and ');
+      if (said) toast(`${said} from rounds closed more than ${PURGE_TEXT} ago.`);
+    }
     catch (e) { console.warn('Clean-up of old nominees failed', e); }
   }
   const round = rounds.find(r => r.round === decodeURIComponent(parts[0] || ''));
   if (!round) { header('Coordinators', { back: false }); return roundsScreen(ctx); }
+  if (parts[1] === 'report') return roundReport(round, ctx);
   const email = parts[1] ? lc(decodeURIComponent(parts[1])) : '';
+  if (email && parts[2] === 'report') return residentReport(round, email, ctx);
+  if (email && parts[2] === 'answers') return rawAnswers(round, email, ctx);
   return email ? residentScreen(round, email, ctx) : roundScreen(round, ctx);
 }
 
@@ -145,6 +155,11 @@ async function roundScreen(round, ctx) {
         round.status === 'open' ? h('button', { class: 'a-btn', type: 'button', onclick: () => setStatus('closed') }, 'Close the round') : h('button', { class: 'a-btn', type: 'button', onclick: () => setStatus('open') }, 'Reopen'),
         h('button', { class: 'a-btn a-btn--tinted', type: 'button', onclick: edit }, 'Edit'))),
     h('section', { class: 'e-card' },
+      h('h2', { class: 'e-h2', style: 'margin-top:0' }, 'CCC report'),
+      responses ? h('p', { class: 'e-small' }, 'The anonymised feedback summary per resident, ready to print or save as PDF. Raters’ names are never on it.')
+        : h('p', { class: 'e-small' }, 'Only PDs and PCs see the report and the raters’ answers.'),
+      responses ? h('div', { class: 'e-actions e-actions--start' }, h('a', { class: 'a-btn', href: `#staff/${encodeURIComponent(round.round)}/report` }, 'Open the CCC report')) : null),
+    h('section', { class: 'e-card' },
       h('h2', { class: 'e-h2', style: 'margin-top:0' }, 'Export'),
       h('p', { class: 'e-small' }, 'Spreadsheets open these directly. Text that could run as a formula is made safe.'),
       h('div', { class: 'e-actions e-actions--start' },
@@ -235,11 +250,144 @@ async function residentScreen(round, email, ctx) {
       e.projects.length ? h('ul', { class: 'cc-list' }, e.projects.map(p => h('li', {}, h('b', {}, p.title), ` · ${p.status}`, p.supervisor ? ` · ${p.supervisor}` : '', p.start || p.end ? ` · ${monthText(p.start) || '?'} to ${monthText(p.end) || 'ongoing'}` : '', p.note ? h('div', { class: 'e-small' }, p.note) : null)))
         : h('p', { class: 'e-small' }, e.noProjects ? 'None to report.' : 'None listed.'),
       LISTS.map(l => e[l.key].length ? h('div', {}, h('h3', { style: 'margin:12px 0 4px;font-size:1rem' }, l.label), h('ul', { class: 'cc-list' }, e[l.key].map(x => h('li', {}, x)))) : null)),
+    responses ? h('div', { class: 'e-actions e-actions--start' },
+      h('a', { class: 'a-btn a-btn--tinted', href: `#staff/${encodeURIComponent(round.round)}/${encodeURIComponent(email)}/report` }, 'CCC report'),
+      h('a', { class: 'a-btn a-btn--tinted', href: `#staff/${encodeURIComponent(round.round)}/${encodeURIComponent(email)}/answers` }, 'Raters’ answers')) : null,
     h('h2', { class: 'e-h2', style: 'margin:4px 0' }, `Feedback nominees (${nominees.length})`),
     h('p', { class: 'e-small', style: 'margin:0' }, 'Mark each nominee once you have checked them. “Invite” makes their one-time link and opens your mail app with the message and link filled in; send it from there.'),
     sumEl,
     h('div', { class: 'e-actions e-actions--start' }, btn('Copy emails of raters not done', () => copy(notDoneEmails(raterRows(email, nominees, marks, invites, responses)), 'Copied the emails of raters who have not answered', 'No invited raters waiting with an email.'))),
     nomBox,
     nominees.length ? h('div', { class: 'e-actions e-actions--start' }, h('button', { class: 'a-btn a-btn--danger a-btn--tinted', type: 'button', onclick: wipe }, 'Delete these nominees now')) : null));
+  window.scrollTo(0, 0);
+}
+
+// ---------- the CCC report (PDs and PCs) ----------
+
+// Each resident's summary for a round: worked out from the live answers, or the one saved when they were deleted.
+// { ok: false } when this reader may not see answers (Admin staff).
+async function summaries(round) {
+  const [invites, responses, reports] = await Promise.all([store.listInvites(round.round), store.listResponses(round.round), store.listReports(round.round)]);
+  if (!responses) return { ok: false };
+  const out = {};
+  for (const r of invitedResidents(invites)) {
+    const iv = invitesOf(invites, r.email);
+    out[r.email] = { name: r.name, saved: false, summary: summarise(Object.fromEntries(Object.keys(iv).filter(id => responses[id]).map(id => [id, responses[id]])), iv), invites: iv };
+  }
+  for (const [email, d] of Object.entries(reports || {})) if (!out[email]) out[email] = { name: d.name || email, saved: true, summary: fromReport(d), invites: {} };
+  return { ok: true, out, invites, responses };
+}
+const noReport = (app, text) => fill(app, h('div', { class: 'e-stack cc-col' }, empty('Only PDs and PCs see this', text)));
+const countsText = c => `${plural(c.invited, 'rater')} invited · ${c.done} answered · ${c.declined} declined · ${c.waiting} waiting`;
+// Concerns are for PDs and PCs: on screen always, on paper only when ticked (off by default, on this device).
+const printConcernsBox = () => {
+  const on = (() => { try { return localStorage.getItem('ccc-print-concerns') === '1'; } catch { return false; } })();
+  document.body.classList.toggle('cc-print-concerns', on);
+  const box = h('input', { type: 'checkbox', id: 'cc-pc', checked: on, onchange: e => { document.body.classList.toggle('cc-print-concerns', e.target.checked); try { localStorage.setItem('ccc-print-concerns', e.target.checked ? '1' : '0'); } catch {} } });
+  return h('label', { class: 'e-check', for: 'cc-pc' }, box, ' Include concerns when printing');
+};
+const printBar = () => h('div', { class: 'e-actions e-actions--start cc-noprint' },
+  h('button', { class: 'a-btn', type: 'button', onclick: () => window.print() }, 'Print or save as PDF'), printConcernsBox());
+const draftNote = () => (DRAFT ? h('p', { class: 'e-hint' }, 'Draft questions: these are made up until the programme’s own MSF form is in the app.') : null);
+
+function reportBody(round, name, s, saved) {
+  const g = s.summary.groups;
+  const head = h('section', { class: 'e-card cc-report-head' },
+    h('h2', { class: 'e-h2', style: 'margin:0' }, `Multisource feedback: ${name}`),
+    h('p', { class: 'e-small' }, `${round.title} · ${countsText(s.summary.counts)}`),
+    saved ? h('p', { class: 'e-hint' }, `Summary saved ${when(s.summary.savedAt)}, when the raters’ answers were deleted.`) : null,
+    h('p', { class: 'e-hint' }, `Anonymised: a rater group is shown on its own only with ${s.summary.minGroup} or more answers; smaller groups are folded together. Comments are in random order, without names.`));
+  if (!s.summary.enough) return [head, h('section', { class: 'e-card' }, h('p', { class: 'e-small', style: 'margin:0' }, `Fewer than ${s.summary.minGroup} raters have answered, so only the counts are shown.`)), concernsCard(s.summary.concerns)];
+  const cell = c => h('td', { class: 'cc-num' }, meanText(c?.mean), c?.n ? h('span', { class: 'cc-n' }, ` (${c.n})`) : null);
+  const table = h('div', { class: 'cc-scroll' }, h('table', { class: 'cc-table' },
+    h('caption', {}, 'Mean rating per item (number of ratings)'),
+    h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Item'), h('th', { scope: 'col' }, 'All raters'), g.map(x => h('th', { scope: 'col' }, `${x.label} (${x.n})`)))),
+    h('tbody', {},
+      s.summary.items.map(it => h('tr', {}, h('th', { scope: 'row' }, it.title, it.overall.notObserved ? h('span', { class: 'cc-n' }, ` · ${it.overall.notObserved} not observed`) : null), cell(it.overall), g.map(x => cell(it.groups[x.id])))),
+      h('tr', { class: 'cc-total' }, h('th', { scope: 'row' }, 'All items'), cell(s.summary.overall), g.map(() => h('td', {}))))));
+  return [head,
+    h('section', { class: 'e-card' }, h('h3', { class: 'cc-h3' }, 'Ratings'), table, h('p', { class: 'e-hint' }, `Scale: ${SCALE_TEXT}. “Not observed” is left out of the means.`)),
+    h('section', { class: 'e-card' }, h('h3', { class: 'cc-h3' }, 'Comments'),
+      s.summary.comments.map(c => h('div', {}, h('h4', { class: 'cc-h4' }, c.title), c.texts.length ? h('ul', { class: 'cc-list' }, c.texts.map(t => h('li', { class: 'cc-quote' }, t))) : h('p', { class: 'e-small' }, 'None.')))),
+    concernsCard(s.summary.concerns)];
+}
+const concernsCard = c => h('section', { class: 'e-card cc-concern' },
+  h('h3', { class: 'cc-h3' }, 'Concerns about conduct or patient safety'),
+  h('p', { class: 'e-hint' }, 'For the programme directors and coordinators.'),
+  c.yes ? [h('p', { class: 'e-small' }, `${plural(c.yes, 'rater')} raised a concern.`), c.texts.length ? h('ul', { class: 'cc-list' }, c.texts.map(t => h('li', { class: 'cc-quote' }, t))) : null]
+    : h('p', { class: 'e-small' }, 'None raised.'));
+
+async function residentReport(round, email, ctx) {
+  const { app, header } = ctx;
+  let r;
+  try { r = await summaries(round); } catch (e) { return fill(app, h('p', { class: 'e-alert' }, 'Couldn’t load the report: ' + errText(e))); }
+  header('CCC report', { back: true, to: `#staff/${encodeURIComponent(round.round)}/${encodeURIComponent(email)}` });
+  if (!r.ok) return noReport(app, 'The CCC report is built from the raters’ answers, which only PDs and PCs may read.');
+  const s = r.out[email];
+  if (!s) return fill(app, h('div', { class: 'e-stack cc-col' }, empty('No raters yet', 'Invite this resident’s checked nominees first; the report fills in as they answer.')));
+  fill(app, h('div', { class: 'e-stack cc-col cc-report' }, printBar(), reportBody(round, s.name, s, s.saved), draftNote()));
+  window.scrollTo(0, 0);
+}
+
+async function roundReport(round, ctx) {
+  const { app, header } = ctx;
+  let r;
+  try { r = await summaries(round); } catch (e) { return fill(app, h('p', { class: 'e-alert' }, 'Couldn’t load the report: ' + errText(e))); }
+  header('CCC report', { back: true, to: '#staff/' + encodeURIComponent(round.round) });
+  if (!r.ok) return noReport(app, 'The CCC report is built from the raters’ answers, which only PDs and PCs may read.');
+  const rows = overviewRows(r.out);
+  const link = row => `#staff/${encodeURIComponent(round.round)}/${encodeURIComponent(row.email)}/report`;
+  const table = rows.length ? h('div', { class: 'cc-scroll' }, h('table', { class: 'cc-table' },
+    h('caption', {}, 'Raters per resident and the mean of all ratings'),
+    h('thead', {}, h('tr', {}, ['Resident', 'Invited', 'Answered', 'Declined', 'Mean (1-4)'].map(t => h('th', { scope: 'col' }, t)), h('th', { scope: 'col', class: 'cc-concern' }, 'Concerns'))),
+    h('tbody', {}, rows.map(x => h('tr', {},
+      h('th', { scope: 'row' }, h('a', { href: link(x) }, x.name)),
+      h('td', { class: 'cc-num' }, String(x.invited)), h('td', { class: 'cc-num' }, String(x.done)), h('td', { class: 'cc-num' }, String(x.declined)),
+      h('td', { class: 'cc-num' }, x.enough ? meanText(x.mean) : 'too few'), h('td', { class: 'cc-num cc-concern' }, x.concerns ? String(x.concerns) : '–')))))) : null;
+  // the whole round on paper: the overview, then each resident's report on its own page
+  const printAll = () => {
+    const all = h('div', { class: 'cc-print-all' }, rows.map(x => h('div', { class: 'cc-page' }, reportBody(round, x.name, r.out[x.email], x.saved))));
+    app.querySelector('.cc-report').append(all);
+    const done = () => { all.remove(); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    window.print();
+  };
+  fill(app, h('div', { class: 'e-stack cc-col cc-report' },
+    h('section', { class: 'e-card' },
+      h('h2', { class: 'e-h2', style: 'margin:0' }, `CCC report: ${round.title}`),
+      h('p', { class: 'e-small' }, rows.length ? `${plural(rows.length, 'resident')} with raters. Open a name for the full summary.` : 'No raters invited in this round yet.'),
+      h('p', { class: 'e-hint' }, 'A mean shows once 3 or more raters have answered.')),
+    rows.length ? h('div', { class: 'e-actions e-actions--start cc-noprint' },
+      h('button', { class: 'a-btn', type: 'button', onclick: () => window.print() }, 'Print this table'),
+      h('button', { class: 'a-btn a-btn--tinted', type: 'button', onclick: printAll }, 'Print every resident’s report'),
+      printConcernsBox()) : null,
+    table ? h('section', { class: 'e-card' }, table) : null,
+    draftNote()));
+  window.scrollTo(0, 0);
+}
+
+// ---------- raw answers (PDs and PCs; names shown, so never part of the report) ----------
+
+async function rawAnswers(round, email, ctx) {
+  const { app, header } = ctx;
+  let r;
+  try { r = await summaries(round); } catch (e) { return fill(app, h('p', { class: 'e-alert' }, 'Couldn’t load the answers: ' + errText(e))); }
+  header('Raters’ answers', { back: true, to: `#staff/${encodeURIComponent(round.round)}/${encodeURIComponent(email)}` });
+  if (!r.ok) return noReport(app, 'Only PDs and PCs may read the raters’ answers.');
+  const s = r.out[email];
+  const list = Object.entries(s?.invites || {}).map(([id, inv]) => ({ id, inv, resp: r.responses[id] || null }))
+    .sort((a, b) => (b.resp?.submittedAt || 0) - (a.resp?.submittedAt || 0) || String(a.inv.raterName).localeCompare(String(b.inv.raterName)));
+  fill(app, h('div', { class: 'e-stack cc-col' },
+    h('section', { class: 'e-card' },
+      h('h2', { class: 'e-h2', style: 'margin:0' }, `Raters’ answers: ${s?.name || email}`),
+      h('p', { class: 'e-small' }, `${round.title}. With the raters’ names, for PDs and PCs only: never share this page with the resident or print it for the CCC; use the CCC report.`),
+      s?.saved ? h('p', { class: 'e-hint' }, 'The answers were deleted with the clean-up a year after the round closed; only the summary is kept.') : null),
+    list.length ? list.map(({ inv, resp }) => {
+      const st = raterStatus(inv, resp);
+      return h('section', { class: 'e-card cc-card', 'aria-label': inv.raterName },
+        h('div', { class: 'cc-head' }, h('div', {}, h('b', {}, inv.raterName), h('div', { class: 'e-small' }, `${GROUP[inv.group]?.one || inv.group}${resp?.submittedAt ? ` · ${when(resp.submittedAt)}` : ''}`)), raterChip(st)),
+        st === 'done' ? h('dl', { class: 'cc-dl' }, answerLines(resp).map(l => [h('dt', {}, l.title), h('dd', { class: l.text ? 'cc-quote' : '' }, l.value)])) : null,
+        st === 'declined' ? h('p', { class: 'e-small', style: 'margin:0' }, resp.reason ? `Reason: ${resp.reason}` : 'No reason given.') : null);
+    }) : s?.saved ? null : empty('No raters yet', 'Invite this resident’s checked nominees first.')));
   window.scrollTo(0, 0);
 }

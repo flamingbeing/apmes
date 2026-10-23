@@ -33,7 +33,7 @@ made-up residents). Same people and sign-in as logbook, evals and People. Not th
 - `ccc/{round}/review/{email}` `{ email, marks }`: the PCs' marks on that resident's nominees (by nominee id); PCs and PDs only.
 - Rules cannot check the items inside the lists (only their count); the app's `model.js` does.
 
-## Rater feedback (rules and model, then rater page and invites, 23 Oct 2026; the CCC report next)
+## Rater feedback (rules and model, rater page and invites, CCC report and clean-up, 23 Oct 2026)
 
 Nominees answer in the app through a **one-time link**, with no account (owner, 23 Oct 2026). Coordinators send the links
 from their own mail (`mailto:`); the app never sends mail.
@@ -47,7 +47,7 @@ from their own mail (`mailto:`); the app never sends mail.
   sign-in, only while the round is open and the invite exists; never changed. Answer values are 1-4, `na`, `yes` or
   `no` (at most 30); comments use slots `c1`-`c5` of up to 2000 characters; a decline has empty maps, `declined: true`
   and an optional reason (1000). Read by PDs and PCs only: not Admin staff, residents or faculty. Raters are told so
-  (`PRIVACY` in `msf-form.js`). Deleting responses (retention) comes with the report session.
+  (`PRIVACY` in `msf-form.js`). PDs and PCs also delete them (the clean-up below).
 - `js/msf-form.js`: the questionnaire as data. **Draft, made-up questions** until the programme's own MSF form arrives;
   a new form keeps to the rules' answer values and comment slots. The concern question (yes/no + comment) is for PDs
   and PCs only.
@@ -82,6 +82,28 @@ from their own mail (`mailto:`); the app never sends mail.
 - Tests: `model.test.mjs` (link parsing, rater rows and counts, mail text) and `e2e.mjs` (invite, reminder, a submit, a
   reload with the device draft, a reused link, a decline, unknown links, statuses back with the coordinators; axe at
   390 px on each rater screen).
+
+### The CCC report and the clean-up (23 Oct 2026)
+
+- **Report** (PDs and PCs; Admin staff are told only PDs and PCs see it): from a round, "Open the CCC report" lists each
+  resident with raters (invited, answered, declined, mean of all ratings once 3+ answered, concerns), with "Print this
+  table" and "Print every resident's report" (one page each). A resident's report (`#staff/<round>/<email>/report`): the
+  counts, a table of item means overall and per shown group (the folding rule of `summarise`), the mean of all items, the
+  comments without names in random order, and the concerns card. The resident screen links to it and to **Raters'
+  answers** (`…/answers`): each rater's name, group and answers, for PDs and PCs only, never printed for the CCC.
+- **Print:** the app bar and buttons drop away. Concerns show on screen but are left off paper unless "Include concerns
+  when printing" is ticked (off by default, kept on this device: `ccc-print-concerns`). Rater names are never on the report.
+- **Clean-up** (`purgeExpired`, when staff open the app, a year after a round closes): nominees as before; then, for a PD or
+  PC only, per resident one batch saves `ccc/{round}/report/{email}` (`reportDoc`: counts without per-group splits, the
+  shown groups, item means, comments, concerns, `formId`, `savedAt` = server time) and deletes that resident's responses
+  and invites, so a failure leaves all or nothing. Admin staff cannot read answers, so with them the rater data waits.
+  After it, the report screens draw from the saved summary ("Summary saved …"); raw answers are gone.
+- Rules: `report/{email}` is read, written and deleted by **PDs and PCs only** (it holds the concerns, like the answers;
+  the plan said staff, narrowed so Admin staff see no more than before), shape-checked (`validCccReport`). Responses may be
+  deleted by PDs and PCs.
+- Tests: `model.test.mjs` (summary snapshot, round trip, clean-up plan, overview, raw lines), `e2e.mjs` (round report,
+  resident report, print view, raw answers, the clean-up keeping the summary), `rules.emulator.mjs` (report access and
+  shape, response deletes, the clean-up batch).
 
 ## Lesson: the rules engine's 1000-expression limit
 

@@ -4,7 +4,7 @@
 // logbook/firestore.rules ("CCC 360"): entries/{email} holds the projects, msf/{email} holds the nominees,
 // invites/{id} and responses/{id} hold the raters' one-time links and answers (questions in msf-form.js).
 
-import { ITEMS, SCALE_ITEMS, CONCERN, SUMMARY_COMMENTS, VALUES, COMMENT_SLOTS, COMMENT_MAX, REASON_MAX } from './msf-form.js';
+import { ITEMS, SCALE_ITEMS, CONCERN, SUMMARY_COMMENTS, VALUES, COMMENT_SLOTS, COMMENT_MAX, REASON_MAX, FORM_ID, SCALE, NOT_OBSERVED } from './msf-form.js';
 
 export const GROUPS = [
   { id: 'senior', label: 'Senior doctors', one: 'Senior doctor', max: 6, emailRequired: false,
@@ -350,7 +350,81 @@ export function summarise(responses = {}, invites = {}, { minGroup = 3, rand = M
   const comments = !enough ? [] : SUMMARY_COMMENTS.map(c => ({ ...c, texts: shuffle(done.map(d => d.comments[c.slot]).filter(Boolean), rand) }));
   const concernList = CONCERN ? done.filter(d => d.answers[CONCERN.id] === 'yes') : [];
   const concerns = { yes: concernList.length, texts: shuffle(concernList.map(d => d.comments[CONCERN.comment]).filter(Boolean), rand) };
-  return { counts, enough, minGroup, groups, items, comments, concerns };
+  // every rating on every item together (the round overview's one number)
+  const all = !enough ? [] : done.flatMap(d => SCALE_ITEMS.map(it => d.answers[it.id]).filter(v => typeof v === 'number'));
+  const overall = { mean: mean(all), n: all.length };
+  return { counts, enough, minGroup, groups, items, comments, concerns, overall };
+}
+
+// ---- the CCC report and what is kept after the clean-up ----
+
+// one resident's invites (and their answers) out of a round's: { [inviteId]: doc }
+export const invitesOf = (invites, email) => Object.fromEntries(Object.entries(invites || {}).filter(([, v]) => lc(v?.resident) === lc(email)));
+// the residents who have raters in this round: [{ email, name }] by name
+export function invitedResidents(invites) {
+  const by = {};
+  for (const inv of Object.values(invites || {})) { const e = lc(inv?.resident); if (e && !by[e]) by[e] = { email: e, name: str(inv.residentName, 120) || e }; }
+  return Object.values(by).sort((a, b) => a.name.localeCompare(b.name));
+}
+// The summary kept at ccc/{round}/report/{email} once the raw answers are deleted (the shape the rules check). Counts
+// per group are left out: with a group of one or two they would say who answered what.
+export function reportDoc(email, name, sum) {
+  const counts = { invited: sum.counts.invited, done: sum.counts.done, declined: sum.counts.declined, waiting: sum.counts.waiting };
+  return {
+    email: lc(email).slice(0, 200), name: str(name, 120) || lc(email), formId: FORM_ID, counts, enough: !!sum.enough, minGroup: sum.minGroup,
+    overall: { mean: sum.overall?.mean ?? null, n: sum.overall?.n || 0 },
+    groups: sum.groups.map(g => ({ id: g.id, label: g.label, n: g.n })),
+    items: sum.items.map(it => ({ id: it.id, title: it.title, overall: it.overall, groups: it.groups })),
+    comments: sum.comments.map(c => ({ slot: c.slot, title: c.title, texts: c.texts })),
+    concerns: { yes: sum.concerns.yes, texts: sum.concerns.texts },
+  };
+}
+// a saved summary back in summarise()'s shape, so one screen draws both
+export function fromReport(d) {
+  const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const cell = c => ({ mean: typeof c?.mean === 'number' ? c.mean : null, n: num(c?.n), notObserved: num(c?.notObserved) });
+  const c = d?.counts || {};
+  return {
+    counts: { invited: num(c.invited), done: num(c.done), declined: num(c.declined), waiting: num(c.waiting) },
+    enough: !!d?.enough, minGroup: num(d?.minGroup) || 3, formId: String(d?.formId || ''), savedAt: num(d?.savedAt),
+    overall: { mean: typeof d?.overall?.mean === 'number' ? d.overall.mean : null, n: num(d?.overall?.n) },
+    groups: (Array.isArray(d?.groups) ? d.groups : []).map(g => ({ id: String(g.id), label: String(g.label), n: num(g.n) })),
+    items: (Array.isArray(d?.items) ? d.items : []).map(it => ({ id: String(it.id), title: String(it.title), overall: cell(it.overall), groups: Object.fromEntries(Object.entries(it.groups || {}).map(([k, v]) => [k, cell(v)])) })),
+    comments: (Array.isArray(d?.comments) ? d.comments : []).map(x => ({ slot: String(x.slot), title: String(x.title), texts: (Array.isArray(x.texts) ? x.texts : []).map(String) })),
+    concerns: { yes: num(d?.concerns?.yes), texts: (Array.isArray(d?.concerns?.texts) ? d.concerns.texts : []).map(String) },
+  };
+}
+// What the clean-up does to a round's rater data, per resident: save the summary, then delete the answers and links.
+// [{ email, report, inviteIds, responseIds }]. A response without an invite (should not happen) is deleted too.
+export function purgePlan(invites = {}, responses = {}, opts = {}) {
+  const plan = invitedResidents(invites).map(r => {
+    const iv = invitesOf(invites, r.email);
+    const rs = Object.fromEntries(Object.keys(iv).filter(id => responses?.[id]).map(id => [id, responses[id]]));
+    return { email: r.email, report: reportDoc(r.email, r.name, summarise(rs, iv, opts)), inviteIds: Object.keys(iv), responseIds: Object.keys(rs) };
+  });
+  const orphans = Object.keys(responses || {}).filter(id => !invites?.[id]);
+  if (orphans.length) plan.push({ email: '', report: null, inviteIds: [], responseIds: orphans });
+  return plan;
+}
+// the round overview: one row per resident with raters (live) or a saved summary
+export function overviewRows(summaries) {
+  return Object.entries(summaries || {}).map(([email, s]) => ({ email, name: s.name || email, saved: !!s.saved, ...s.summary.counts, mean: s.summary.overall?.mean ?? null, enough: s.summary.enough, concerns: s.summary.concerns.yes }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+// a 1-4 mean as text: "3.25", or a dash when there is none
+export const meanText = m => (typeof m === 'number' ? m.toFixed(2) : '–');
+export const SCALE_TEXT = SCALE.map(s => `${s.value} ${s.label}`).join(' · ');
+// one rater's answers as label lines, for the raw answers view (PDs and PCs)
+export function answerLines(response, items = ITEMS) {
+  const r = cleanAnswers(response, items), out = [];
+  for (const it of items) {
+    const v = r.answers[it.id];
+    if (it.kind === 'scale') out.push({ title: it.title, value: v === 'na' ? NOT_OBSERVED.label : v ? `${v} ${SCALE.find(s => s.value === v)?.label || ''}`.trim() : '–' });
+    if (it.kind === 'yesno') out.push({ title: it.title, value: v === 'yes' ? 'Yes' : v === 'no' ? 'No' : '–' });
+    const slot = it.kind === 'comment' ? it.id : it.comment;
+    if (slot && r.comments[slot]) out.push({ title: it.kind === 'comment' ? it.title : 'Comment', value: r.comments[slot], text: true });
+  }
+  return out;
 }
 
 // ---- the coordinators' invite flow (the app makes the link; the coordinator sends it from their own mail) ----

@@ -2,7 +2,7 @@
 // Rules: logbook/firestore.rules. Run from the repo root:  tools/test-rules.sh   (or, with the emulator on port 8085,
 //   npx firebase emulators:exec --only firestore --project demo-logbook "node 360/test/rules.emulator.mjs")
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, query, where, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, query, where, serverTimestamp, writeBatch } from 'firebase/firestore';
 import fs from 'node:fs';
 
 const env = await initializeTestEnvironment({
@@ -165,6 +165,44 @@ for (const [who, db] of [['resident', res2], ['faculty', fac], ['admin staff', a
   await t(`${who} cannot list responses`, assertFails(getDocs(collection(db, 'ccc', 'r1', 'responses'))));
 }
 await t('signed out cannot delete a response', assertFails(deleteDoc(doc(anon, 'ccc', 'r1', 'responses', INV))));
+
+// ---- the CCC report kept after the clean-up (PDs and PCs only) and the clean-up's deletes ----
+const report = (o = {}) => ({ email: RES2, name: 'Bob', formId: 'draft-2026-10', counts: { invited: 4, done: 3, declined: 1, waiting: 0 }, enough: true, minGroup: 3,
+  overall: { mean: 3.2, n: 12 }, groups: [{ id: 'senior', label: 'Senior doctors', n: 3 }], items: [{ id: 'q1', title: 'Clinical care', overall: { mean: 3, n: 3, notObserved: 0 }, groups: {} }],
+  comments: [{ slot: 'c1', title: 'One thing to keep doing', texts: ['Calm.'] }], concerns: { yes: 0, texts: [] }, savedAt: serverTimestamp(), ...o });
+for (const [who, db] of [['pc', pc], ['pd', pd]]) await t(`${who} saves a report`, assertSucceeds(setDoc(doc(db, 'ccc', 'old', 'report', RES2), report())));
+await t('pc reads a report', assertSucceeds(getDoc(doc(pc, 'ccc', 'old', 'report', RES2))));
+await t('pd lists reports', assertSucceeds(getDocs(collection(pd, 'ccc', 'old', 'report'))));
+for (const [who, db] of [['admin staff', adm], ['resident', res2], ['faculty', fac], ['stranger', str], ['signed out', anon]]) {
+  await t(`${who} cannot read a report`, assertFails(getDoc(doc(db, 'ccc', 'old', 'report', RES2))));
+  await t(`${who} cannot list reports`, assertFails(getDocs(collection(db, 'ccc', 'old', 'report'))));
+  await t(`${who} cannot save a report`, assertFails(setDoc(doc(db, 'ccc', 'old', 'report', RES), report({ email: RES }))));
+  await t(`${who} cannot delete a report`, assertFails(deleteDoc(doc(db, 'ccc', 'old', 'report', RES2))));
+}
+await t('report email must match its id', assertFails(setDoc(doc(pc, 'ccc', 'old', 'report', RES), report())));
+await t('report id is lower case', assertFails(setDoc(doc(pc, 'ccc', 'old', 'report', 'Bob@example.com'), report({ email: 'Bob@example.com' }))));
+await t('report takes no extra fields', assertFails(setDoc(doc(pc, 'ccc', 'old', 'report', RES2), report({ raters: ['Dr X'] }))));
+await t('report counts take no names', assertFails(setDoc(doc(pc, 'ccc', 'old', 'report', RES2), report({ counts: { invited: 1, done: 1, declined: 0, waiting: 0, who: 'Dr X' } }))));
+await t('report savedAt must be the server time', assertFails(setDoc(doc(pc, 'ccc', 'old', 'report', RES2), report({ savedAt: 5 }))));
+await t('report lists are capped', assertFails(setDoc(doc(pc, 'ccc', 'old', 'report', RES2), report({ groups: Array(6).fill({ id: 'x', label: 'x', n: 3 }) }))));
+await t('pd deletes a report', assertSucceeds(deleteDoc(doc(pd, 'ccc', 'old', 'report', RES2))));
+for (const [who, db] of [['admin staff', adm], ['resident', res2], ['faculty', fac]]) await t(`${who} cannot delete a response`, assertFails(deleteDoc(doc(db, 'ccc', 'r1', 'responses', INV))));
+await t('the clean-up batch: pc saves the report and deletes the answers and links together', assertSucceeds((async () => {
+  await env.withSecurityRulesDisabled(async ctx => { await setDoc(doc(ctx.firestore(), 'ccc', 'old', 'responses', INV_OLD), answer({ submittedAt: 1 })); });
+  const b = writeBatch(pc);
+  b.set(doc(pc, 'ccc', 'old', 'report', RES2), report());
+  b.delete(doc(pc, 'ccc', 'old', 'responses', INV_OLD));
+  b.delete(doc(pc, 'ccc', 'old', 'invites', INV_OLD));
+  await b.commit();
+})()));
+await t('the clean-up left only the report', assertSucceeds((async () => {
+  await env.withSecurityRulesDisabled(async ctx => {
+    const db = ctx.firestore();
+    if ((await getDoc(doc(db, 'ccc', 'old', 'responses', INV_OLD))).exists() || (await getDoc(doc(db, 'ccc', 'old', 'invites', INV_OLD))).exists()) throw new Error('answers or link left');
+    if (!(await getDoc(doc(db, 'ccc', 'old', 'report', RES2))).exists()) throw new Error('no report');
+  });
+})()));
+await t('pc deletes a response', assertSucceeds(deleteDoc(doc(pc, 'ccc', 'r1', 'responses', INV))));
 
 // ---- residents can see each other (owner, 17 Oct 2026) ----
 const active = c => query(collection(c, 'residents'), where('status', '==', 'ACTIVE'));
