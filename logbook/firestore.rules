@@ -70,6 +70,7 @@ service cloud.firestore {
       return d.keys().hasOnly(['email', 'name', 'roles', 'updatedAt', 'updatedBy'])
         && d.email == email
         && optString(d, 'name', 200)
+        // 'selection' (the applicants app's set-up role) stays allowed so older records still save; the app moved out (Oct 2026)
         && d.roles is list && d.roles.size() <= 5 && d.roles.hasOnly(['owner', 'admin', 'pc', 'pd', 'selection'])
         && d.updatedAt == request.time && d.updatedBy == me();
     }
@@ -715,106 +716,6 @@ service cloud.firestore {
     match /evalForms/{formId} {
       allow read: if signedIn();
       allow write: if isAdmin();
-    }
-
-    // Selection 360 (selection/): confidential feedback on residency applicants, by residents and faculty.
-    // A round is selection/{cycle} (title, applicants, open or closed): admins and PDs write it; anyone who may answer
-    // (an admin, a PD, listed faculty, a resident) reads it. Each respondent writes only their own response,
-    // selection/{cycle}/responses/{email}, while the round is open, and reads only that. PDs and the committee
-    // (selectionCommittee/{email}, kept by admins and PDs) read every response. Admins do not read responses unless
-    // they are PDs or on the committee (owner, 17 Oct 2026: "committee and PDs").
-    // a guest: signed in by the applicants app's passcode (worker/guest.js), a custom token with claim guest and no email. It can read a
-    // round and its photos and write its own response (document guest-<uid>), nothing else: signedIn() needs a verified email, so every
-    // other rule in this file turns a guest away.
-    function isPasscode() {
-      return request.auth != null && request.auth.token.guest == true && !('email' in request.auth.token);
-    }
-    // role claim: guest (sends feedback), setup (sets a round up), committee (reads the responses). Tokens issued before roles existed have none: guests.
-    function isGuest() {
-      return isPasscode() && (!('role' in request.auth.token) || request.auth.token.role == 'guest');
-    }
-    function isSetupCode() {
-      return isPasscode() && request.auth.token.get('role', '') == 'setup';
-    }
-    function isCommitteeCode() {
-      return isPasscode() && request.auth.token.get('role', '') == 'committee';
-    }
-    // who sets a round up: Admin staff, PDs, and people given the Applicants set-up role (access/, edited on the app's Set up page or in People)
-    function selStaff() {
-      return isAdmin() || isPD() || isSetupCode() || (signedIn() && hasAccess(['selection']));
-    }
-    function selMayAnswer() {
-      return isGuest() || isCommitteeCode() || selStaff()
-        || (signedIn() && exists(/databases/$(database)/documents/faculty/$(me())))
-        || (signedIn() && exists(/databases/$(database)/documents/members/$(me()))
-            && isResident(get(/databases/$(database)/documents/members/$(me())).data.rid));
-    }
-    function selCommittee() {
-      return signedIn() && exists(/databases/$(database)/documents/selectionCommittee/$(me()));
-    }
-    match /selectionCommittee/{email} {
-      allow get: if isOwner(email);
-      allow list: if isAdmin() || isPD();
-      allow create, update: if (isAdmin() || isPD()) && email == email.lower()
-        && request.resource.data.keys().hasOnly(['name'])
-        && optString(request.resource.data, 'name', 200);
-      allow delete: if isAdmin() || isPD();
-    }
-    // the three passcodes (guest, setup, committee), changed on the app's Set up page: selectionCodes/{role} { code, updatedAt }.
-    // Admin staff and PDs read, set and clear them (a cleared one falls back to the Worker secret of the same name). The Worker
-    // (worker/guest.js) reads them with a service sign-in that carries claim codesReader and no email; nobody else, guests included.
-    function isCodesReader() {
-      return request.auth != null && request.auth.token.get('codesReader', false) == true && !('email' in request.auth.token);
-    }
-    match /selectionCodes/{role} {
-      allow read: if isAdmin() || isPD() || isCodesReader();
-      allow create, update: if (isAdmin() || isPD()) && role in ['guest', 'setup', 'committee']
-        && request.resource.data.keys().hasOnly(['code', 'updatedAt'])
-        && request.resource.data.code is string && request.resource.data.code.size() >= 6 && request.resource.data.code.size() <= 100
-        && optNumber(request.resource.data, 'updatedAt');
-      allow delete: if isAdmin() || isPD();
-    }
-    match /selection/{cycle} {
-      allow read: if selMayAnswer();
-      allow create, update: if selStaff() && cycle.size() <= 20 && validSelRound(cycle, request.resource.data);
-      allow delete: if isAdmin() || isPD();
-      // applicants' passport photos (a few KB of base64 JPEG each): everyone who may answer reads; admins and PDs keep them
-      match /photos/{aid} {
-        allow read: if selMayAnswer();
-        allow create, update: if selStaff() && aid.size() <= 20 && validSelPhoto(request.resource.data);
-        allow delete: if selStaff();
-      }
-      match /responses/{email} {
-        allow get: if isOwner(email) || (isGuest() && email == 'guest-' + request.auth.uid);
-        allow read: if isPD() || selCommittee() || isCommitteeCode();
-        allow create, update: if ((isOwner(email) && email == email.lower()) || (isGuest() && email == 'guest-' + request.auth.uid)) && selMayAnswer()
-          && get(/databases/$(database)/documents/selection/$(cycle)).data.status == 'open'
-          && validSelResponse(email, request.resource.data);
-        allow delete: if isPD();
-      }
-    }
-    function validSelRound(cycle, d) {
-      return d.keys().hasOnly(['cycle', 'title', 'status', 'applicants', 'questions', 'form', 'mirror', 'updatedAt'])
-        && d.cycle == cycle
-        && d.title is string && d.title.size() > 0 && d.title.size() <= 200
-        && d.status in ['open', 'closed']
-        && d.applicants is list && d.applicants.size() >= 1 && d.applicants.size() <= 200
-        && (!('questions' in d) || (d.questions is list && d.questions.size() >= 1 && d.questions.size() <= 10))
-        && (!('mirror' in d) || d.mirror is bool)
-        && (!('form' in d) || (d.form is map && d.form.keys().hasOnly(['id', 'nameEntry']) && d.form.id is string && d.form.id.size() <= 80 && d.form.nameEntry is int))
-        && optNumber(d, 'updatedAt');
-    }
-    function validSelPhoto(d) {
-      return d.keys().hasOnly(['jpeg', 'updatedAt'])
-        && d.jpeg is string && d.jpeg.size() > 0 && d.jpeg.size() <= 80000
-        && optNumber(d, 'updatedAt');
-    }
-    function validSelResponse(email, d) {
-      return d.keys().hasOnly(['email', 'name', 'answers', 'updatedAt'])
-        && d.email == email
-        && d.name is string && d.name.size() > 0 && d.name.size() <= 120
-        && d.answers is map && d.answers.size() <= 200
-        && d.updatedAt == request.time;
     }
 
     // CCC 360 (ccc/): what the programme coordinators (PCs) collect before a CCC meeting. A round is ccc/{round} (title,

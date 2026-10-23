@@ -7,13 +7,16 @@
 // host -> { prefixes: { '/app/': 'app/' } }  (several apps share the host, one path each)
 //      or { root: 'app/' }                   (one app at the root; its own folder name works too; prefixes beside
 //                                             root add a few extra folders)
-//      or { moved: { '/old/': 'https://example.org/new/' } }  (apps now on another site: each path forwards there)
+//      or { moved: { '/old/': 'https://example.org/new/' } }  (apps now on another site: each path forwards there;
+//                                             beside prefixes, only those paths forward and the rest is served)
 // A host with prefixes may also list renamed: { '/old/': '/new/' } (an app moved to another path on the same host: the
 // old path and everything below it forwards, so links already sent keep working; the browser keeps the #hash).
 // A host may also list pages: { '/exact/path': 'folder/file.html' } (exact addresses only, checked first; nothing
 // below them changes), e.g. the home page at "/".
 // /360/ is the CCC app's address until 23 Oct 2026 (raters' links and bookmarks).
 const RENAMED = { '/360/': '/ccc/' };
+// the applicants feedback app moved to its own site (Oct 2026): old links, query and all, forward there
+const MOVED = { '/applicants/': 'https://residencyapps.anawj.com/' };
 const HOME = { '/': 'home/index.html', '/index.html': 'home/index.html' };
 
 export const SITES = {
@@ -23,11 +26,11 @@ export const SITES = {
   // /guide/ is the guidebook as readable pages (home/guide/, built from apmes/guidebook/ by tools/build-guide.mjs).
   // /__/auth/ and /__/firebase/ are Firebase's sign-in helper pages (the auth domain of logbook and evals): the helper
   // scripts are in __/; init.json is this host's own copy (authDomain apmes.anawj.com).
-  'apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/guide/': 'home/guide/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/ccc/': 'ccc/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth/firebase/' }, renamed: RENAMED },
+  'apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/guide/': 'home/guide/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/ccc/': 'ccc/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth/firebase/' }, renamed: RENAMED, moved: MOVED },
   // The beta copy (NOTES.md, "Beta"): the same folders from the beta branch, served by the apmes-beta Worker. The apps
   // pick the test Firebase project on beta- hosts (firebase-config.js), so nothing here touches live data. Its sign-in
   // helper pages use their own init.json (apmes-auth-beta/: the test project apmes-logbook-beta).
-  'beta-apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/guide/': 'home/guide/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/applicants/': 'applicants/', '/ccc/': 'ccc/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth-beta/firebase/' }, renamed: RENAMED },
+  'beta-apmes.anawj.com': { pages: HOME, prefixes: { '/home/': 'home/', '/guide/': 'home/guide/', '/logbook/': 'logbook/', '/evals/': 'evals/', '/people/': 'people/', '/ccc/': 'ccc/', '/apmes/guidebook/': 'apmes/guidebook/', '/__/auth/': '__/auth/', '/__/firebase/': 'apmes-auth-beta/firebase/' }, renamed: RENAMED, moved: MOVED },
 };
 
 // Folders every host serves as they are (shared files, no data), e.g. ['/shared/']
@@ -56,7 +59,7 @@ function route(host, pathname) {
     for (const [prefix, to] of Object.entries(site.moved)) {
       if (p === prefix.slice(0, -1) || p.startsWith(prefix)) return { redirect: to + p.slice(prefix.length) };
     }
-    return { notFound: true };
+    if (!site.prefixes && !site.root) return { notFound: true };
   }
   for (const [prefix, folder] of Object.entries(site.root ? site.prefixes || {} : {})) {
     if (p.startsWith(prefix)) return { file: folder + p.slice(prefix.length) };   // a root host's extra folders

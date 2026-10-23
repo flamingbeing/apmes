@@ -33,7 +33,15 @@ test('sign-in helper pages (handler is handler.html)', async () => {
   assert.equal((await get('https://apmes.anawj.com/__/auth/nope')).status, 404);
 });
 
-test('only GET and HEAD (the guest sign-in aside)', async () => {
+test('only GET and HEAD (the guest sign-in moved away with the applicants app)', async () => {
   assert.equal((await get('https://apmes.anawj.com/logbook/', 'POST')).status, 405);
-  assert.equal((await get('https://beta-apmes.anawj.com/api/guest', 'POST')).status, 405);
+  for (const h of ['apmes', 'beta-apmes']) assert.equal((await get(`https://${h}.anawj.com/api/guest`, 'POST')).status, 405, h);
+});
+
+test('old applicants links forward to the new site, query kept', async () => {
+  for (const h of ['apmes', 'beta-apmes']) {
+    const r = await get(`https://${h}.anawj.com/applicants/?demo=guest`);
+    assert.equal(r.status, 301, h);
+    assert.equal(r.headers.get('Location'), 'https://residencyapps.anawj.com/?demo=guest', h);
+  }
 });

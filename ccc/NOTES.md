@@ -3,7 +3,7 @@
 What the programme coordinators (PCs) collect from residents before a CCC (a residency meeting): the **scholar projects**
 each resident is doing, and the people who should give each resident **multisource feedback (MSF)**. It replaces the
 department's Google Form "CCC Projects & MSF" (owner, 17 Oct 2026). At `apmes.anawj.com/ccc/` (folder `ccc/`, at `/360/` until 23 Oct 2026; `?demo` for
-made-up residents). Same people and sign-in as logbook, evals and People. Not the same as `applicants/`.
+made-up residents). Same people and sign-in as logbook, evals and People. Not the same as the applicants feedback app (now in the `residencyapps` repo).
 
 - **Demo landing page** `ccc/demo/` (`/ccc/demo/`, linked from the sign-in screen): what residents, coordinators, nominees
   and the CCC each see, a screenshot each (`ccc/demo/shots/`, phone size, from the demo) and a button into `?demo` as that
