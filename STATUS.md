@@ -26,8 +26,8 @@
 ## Decisions (dated, one line each)
 - 23 Oct 2026: guidebook pages are built HTML committed with the repo (no Markdown library on the phone); the raw
   `.md` at `/apmes/guidebook/` stays for evals.
-- 23 Oct 2026: home page at `/` lists live apps only (Logbook for now); MedHub links go to MedHub's home (its deep links
-  need its sign-in first); the counts card is off unless turned on per device.
+- 23 Oct 2026: home page at `/` lists live apps only (Logbook for now); MedHub links go to MedHub's home and its mobile
+  Duty Hours and Evaluations pages (each shows its own sign-in first); the counts card is off unless turned on per device.
 - 21 Oct 2026: beta moves first (Worker `apmes-beta`); the live Worker `apmes` gets no address until the cut-over.
 - 21 Oct 2026: People always opens NUH Junior Monthly at its own address (it lives in the rosters repo).
 - 21 Oct 2026: the logbook's QR generator loads from the design kit (`/v1/feedback/qr.js`).

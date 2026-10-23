@@ -4,7 +4,7 @@
 
 export const SECTIONS = [
   { id: 'apps', title: 'Apps' },
-  { id: 'medhub', title: 'MedHub', note: 'MedHub opens on its sign-in page; sign in there, then pick Duty Hours or Evaluations from its home page.' },
+  { id: 'medhub', title: 'MedHub', note: 'Each MedHub link opens on its sign-in page first.' },
   { id: 'guide', title: 'Guidebook' },
 ];
 
@@ -14,10 +14,10 @@ export const LINKS = [
   { section: 'apps', label: 'People', url: '/people/', live: false },
   { section: 'apps', label: 'CCC 360', url: '/360/', live: false },
   { section: 'apps', label: 'Applicants feedback', url: '/applicants/', live: false },
-  // MedHub's own pages need its sign-in first (a deep link lands on its sign-in page), so both go to its home page
+  // MedHub's mobile Duty Hours and Evaluations pages show their own sign-in, then open straight on that page
   { section: 'medhub', label: 'MedHub', url: 'https://nuhs.medhub.com/', note: 'EPA forms, MSF and evaluations', live: true, external: true },
-  { section: 'medhub', label: 'Duty hours', url: 'https://nuhs.medhub.com/', note: 'MedHub, then Duty Hours', live: true, external: true },
-  { section: 'medhub', label: 'Evaluations', url: 'https://nuhs.medhub.com/', note: 'MedHub, then Evaluations', live: true, external: true },
+  { section: 'medhub', label: 'Duty hours', url: 'https://nuhs.medhub.com/functions/apps/mobile/dutyhours.mh', note: 'Log your work hours', live: true, external: true },
+  { section: 'medhub', label: 'Evaluations', url: 'https://nuhs.medhub.com/functions/apps/mobile/evaluations.mh', note: 'Your MedHub evaluations', live: true, external: true },
   { section: 'guide', label: 'Programme guidebook', url: '/guide/', note: 'EPAs, DOPS expectations, MSF', live: true },
 ];
 
