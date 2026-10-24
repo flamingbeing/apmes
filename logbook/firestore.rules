@@ -48,6 +48,14 @@ service cloud.firestore {
     function optNumber(d, k) {
       return !(k in d) || d[k] == null || d[k] is number;
     }
+    // the server's stamp on synced records and bin entries (app-sync 0.3.0 server stamps): set by serverTimestamp(), so
+    // it is the time of this write, or left as it was (an older app version's partial update keeps the stored one).
+    // Still optional while app versions without it are in use and older records lack it
+    // (tools/backfill-server-at.mjs); a later rules change requires it on every write.
+    function serverStamp(d) {
+      return !('serverAt' in d) || d.serverAt == request.time
+        || (resource != null && resource.data.get('serverAt', null) == d.serverAt);
+    }
 
     // access/{email} { name, roles, updatedAt, updatedBy }: who holds which role (owner, admin, pc, pd). Owners grant and
     // remove anything; Admin staff and PCs grant admin, pc and pd but never owner, and never change their own record.
@@ -219,7 +227,7 @@ service cloud.firestore {
         && (!('profile' in d) || (d.profile is map && d.profile.size() <= 30));
     }
     function validBinEntry(id, d) {
-      return d.keys().hasOnly(['id', 'kind', 'data', 'deletedAt'])
+      return d.keys().hasOnly(['id', 'kind', 'data', 'deletedAt', 'serverAt']) && serverStamp(d)
         && d.keys().hasAll(['id', 'kind', 'data', 'deletedAt'])
         && d.id == id && id.size() <= 120
         && d.kind in ['reflection', 'case', 'note']
@@ -230,7 +238,7 @@ service cloud.firestore {
     function sec(m, k) { return !(k in m) || (m[k] is string && m[k].size() <= 20000); }
     // lists can't be looped in rules: their sizes are capped here and their contents by reflections.js
     function validReflection(id, d) {
-      return d.keys().hasOnly(['id', 'headingId', 'subId', 'initials', 'date', 'jr', 'diagnosis', 'title', 'summary', 'points', 'figures', 'references', 'sections', 'caseId', 'source', 'status', 'export', 'createdAt', 'updatedAt'])
+      return d.keys().hasOnly(['id', 'headingId', 'subId', 'initials', 'date', 'jr', 'diagnosis', 'title', 'summary', 'points', 'figures', 'references', 'sections', 'caseId', 'source', 'status', 'export', 'createdAt', 'updatedAt', 'serverAt']) && serverStamp(d)
         && d.id == id
         && (!('export' in d) || d.export is bool)   // false: left out of the portfolio export
         && (!('source' in d) || d.source in ['app', 'word'])
@@ -274,7 +282,7 @@ service cloud.firestore {
         && optNumber(d, 'updatedAt');
     }
     function validNote(id, d) {
-      return d.keys().hasOnly(['id', 'date', 'title', 'body', 'caseId', 'createdAt', 'updatedAt'])
+      return d.keys().hasOnly(['id', 'date', 'title', 'body', 'caseId', 'createdAt', 'updatedAt', 'serverAt']) && serverStamp(d)
         && d.keys().hasAll(['id', 'body'])
         && d.id == id && id.size() <= 100
         && d.body is string && d.body.size() <= 20000
@@ -284,7 +292,7 @@ service cloud.firestore {
         && optNumber(d, 'createdAt') && optNumber(d, 'updatedAt');
     }
     function validCase(caseId, d) {
-      return d.keys().hasOnly(['id', 'date', 'dateText', 'initials', 'details', 'cats', 'createdAt', 'updatedAt', 'source', 'importKey', 'reflectionId', 'reflectTag', 'tags'])
+      return d.keys().hasOnly(['id', 'date', 'dateText', 'initials', 'details', 'cats', 'createdAt', 'updatedAt', 'source', 'importKey', 'reflectionId', 'reflectTag', 'tags', 'serverAt']) && serverStamp(d)
         && d.id == caseId
         && d.details is string && d.details.size() <= 2000
         && d.cats is list && d.cats.size() <= 40

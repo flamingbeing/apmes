@@ -27,6 +27,9 @@ export async function getDocs(col) {
   if (net.fail.has(col.path)) throw new Error('Missing or insufficient permissions (fake)');
   return { docs: [], size: 0 };
 }
+// the server's own time (app-sync server stamps): kept as a marker, so a test can tell a write was stamped
+export const SERVER_TIME = { serverTime: true };
+export const serverTimestamp = () => ({ ...SERVER_TIME });
 export async function setDoc(ref, d) { server.set(ref.path, copy(d)); }
 export function writeBatch() {
   const ops = [];

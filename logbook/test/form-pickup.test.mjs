@@ -140,5 +140,24 @@ for (const coll of ['bin', 'formGone']) {
   assert.deepEqual(steps, ['Deleting deleted Form cases…']);
 }
 
+// Server stamps (app-sync 0.3.0): the writes to cases, reflections and the bin made outside the write queue carry
+// serverAt (the server's time), beside their own updatedAt or deletedAt; the bin as the app reads it leaves it out
+{
+  reset();
+  await cloud.saveCases(E, [{ id: 'st1', date: '2026-01-01', details: 'Fake case', cats: [] }, { id: 'st2', date: null, details: 'Fake case 2', cats: [] }]);
+  await cloud.saveCase(E, { id: 'st3', date: '2026-01-02', details: 'Fake case 3', cats: [] });
+  for (const id of ['st1', 'st2', 'st3']) {
+    assert.deepEqual(cases().get(id).serverAt, F.SERVER_TIME, id + ' stamped by the server');
+    assert.equal(typeof cases().get(id).updatedAt, 'number', id + ' keeps its own stamp');
+  }
+  await cloud.saveReflection(E, { id: 'rs1', title: 'Fake reflection' });
+  assert.deepEqual(F.server.get(`logbooks/${E}/reflections/rs1`).serverAt, F.SERVER_TIME);
+  await cloud.saveBinEntry(E, { id: 'c_st1_1', kind: 'case', data: { id: 'st1', details: 'Fake case' }, deletedAt: 5 });
+  const bin = F.server.get(`logbooks/${E}/bin/c_st1_1`);
+  assert.deepEqual(bin.serverAt, F.SERVER_TIME);
+  assert.equal(bin.deletedAt, 5);
+  assert.deepEqual(await cloud.listBin(E, { server: true }), [{ id: 'c_st1_1', kind: 'case', data: { id: 'st1', details: 'Fake case' }, deletedAt: 5 }]);
+}
+
 Date.now = realNow;
 console.log('form-pickup tests passed');
