@@ -27,8 +27,8 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - **Two Workers, one repo** (`wrangler.jsonc`): `apmes` (main branch, apmes.anawj.com) and `apmes-beta` (`env.beta`, the `beta` branch, beta-apmes.anawj.com, test Firebase project).
   Each host serves only the folders listed in `worker/routes.js` `SITES`. The applicants feedback app moved
   to its own repo and site in Oct 2026 (`residencyapps`, residencyapps.anawj.com): `/applicants/` forwards there.
-- **Beta** (NOTES.md, "Beta") is opt-in: only when the owner asks, or for sign-in or Firestore-rules changes, point
-  `beta` at the branch, send him the beta link and merge on his "ship it". Otherwise PRs merge once Checks pass.
+- **Beta** (NOTES.md, "Beta") is opt-in: use it only when the owner explicitly says so (never automatically, not even for sign-in or
+  rules changes). Then point `beta` at the branch, send him the beta link and merge on his "ship it". Otherwise PRs merge once Checks pass.
 - **Firestore rules:** `logbook/firestore.rules` covers all four apps. Test with `tools/test-rules.sh` (local emulator,
   never the live projects). Never loosen rules on real-data collections to pass a test. They **deploy live on merge**
   (`deploy-firestore-rules.yml`, keyless sign-in to `apmes-logbook`): merge only when Checks are green, confirm the
