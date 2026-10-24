@@ -13,6 +13,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 const require = createRequire(import.meta.url);
 const LB = new URL('../../', import.meta.url).href;   // logbook/
+await import('../app-sync-hook.mjs');   // js/portfolio.js (loaded below in Node) reaches app-sync through cloud.js
 const ExcelJS = require(fileURLToPath(new URL('vendor/exceljs.min.js', LB)));
 const JSZip = require(fileURLToPath(new URL('vendor/jszip.min.js', LB)));
 import zlib from 'node:zlib';

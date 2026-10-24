@@ -11,6 +11,7 @@ import { getPhoto, putPhoto, deletePhoto } from './wallpaper.js';
 import { gripDrag, moveIn } from './drag-list.js';
 import { tabIconPath, cleanTabIcons, pageMotion } from './theme-engine.js';
 import { createNavigation } from './navigation.js';
+import { syncStatus } from './app-sync.js';
 import { renderNotes, leaveNotes, openDayNote, renderNoteSettings } from './ui-notepad.js';
 import { fromQuery, keepShared, readInbox } from './share-in.js';
 import { purgeExpired } from './bin.js';
@@ -1072,11 +1073,17 @@ function paintWho() {
   // the demo is a small badge in the header (tap for Reset / Leave), so the app looks as it does for real
   const flag = cloud.demo ? h('button', { type: 'button', class: 'demo-flag', title: 'Demo: tap to reset or leave', onclick: demoMenu }, h('span', { class: 'who-flag' }, navigator.onLine ? 'demo ▾' : 'demo · offline ▾'))
     : flags ? h('span', { class: 'who-flag' }, flags) : null;
-  // sync: cases saved on this phone but not yet on the server (no signal), or all synced
-  const sync = !S.user ? null : writes.pending()
-    ? h('a', { href: '#recovery', class: 'sync wait' }, writes.attention() ? 'Save needs attention' : 'Saved locally · pending sync')
-    : cloud.demo ? null : S.pending
+  // sync (app-sync's status rules): a save needing the resident, saves waiting while the browser may clear this site's
+  // storage, saved on this phone but not yet on the server (no signal), the server not heard (stale), or all synced
+  const health = cloud.syncHealth ? cloud.syncHealth() : { stale: false, unsent: 0, persisted: true };
+  // (at-risk only offline: online, a save waits seconds; Chromium in a tab often refuses persistence)
+  const st = syncStatus({ online: navigator.onLine, pending: writes.pending(), attention: writes.attention() ? 1 : 0, persisted: health.persisted || navigator.onLine, stale: health.stale }).state;
+  const sync = !S.user ? null : st === 'attention' ? h('a', { href: '#recovery', class: 'sync wait' }, 'Save needs attention')
+    : st === 'at-risk' ? h('a', { href: '#recovery', class: 'sync wait', title: 'This browser may clear its storage: get signal soon, or add the app to your home screen' }, '⚠ On this device only · pending sync')
+    : writes.pending() ? h('a', { href: '#recovery', class: 'sync wait' }, 'Saved locally · pending sync')
+    : cloud.demo ? null : S.pending || health.unsent
     ? h('span', { class: 'sync wait', title: navigator.onLine ? 'Saving to the server…' : 'Saved on this phone; will sync when there is signal' }, navigator.onLine ? '⟳ Saving' : '⏳ Will sync')
+    : st === 'stale' ? h('span', { class: 'sync wait stale', title: 'Not hearing from the server: what shows may be out of date. Reconnecting…' }, '⚠ Not up to date')
     : S.casesSynced ? h('span', { class: 'sync ok', title: 'All your cases are saved to the server' }, '✓ Synced') : null;
   subEl.textContent = flags;   // kept (hidden) for tests
   // a hidden header (Settings → Themes) shows again while there is something to say: not synced, offline, demo, signed out
@@ -1091,7 +1098,12 @@ window.addEventListener('offline', paintWho);
 // the save queue changes on its own (a save landing, failing or meeting a conflict after the phone is back online):
 // the header follows it, so it never says "Synced" while a change needs attention (14 Oct 2026)
 let whoQueued = false;
-writes.onChange(() => { if (whoQueued) return; whoQueued = true; queueMicrotask(() => { whoQueued = false; paintWho(); }); });
+const paintSoon = () => { if (whoQueued) return; whoQueued = true; queueMicrotask(() => { whoQueued = false; paintWho(); }); };
+writes.onChange(paintSoon);
+// and writes still on Firestore's own queue, and the listener watchdog (stale: the server not heard)
+if (cloud.onUnsent) cloud.onUnsent(paintSoon);
+let wasStale = false;
+setInterval(() => { const now = !!cloud.syncHealth?.().stale; if (now !== wasStale) { wasStale = now; paintSoon(); } }, 3000);
 
 // ---------- signed out ----------
 
@@ -1219,6 +1231,8 @@ async function onUser(user) {
     return;
   }
   signedInOnce = true;
+  // keep this site's storage (the outbox and the copy on this device); the header warns while saves wait if not
+  cloud.guardStorage?.().then(paintSoon, () => {});
   await writes.activate(user.email);
   if (S.user !== user) return;
   paintWho();

@@ -3,8 +3,11 @@
 // memory in node). The same engine runs on Firestore in the app and on the demo backend in the browser tests; the
 // emulator test (test/e2e/reads.emulator.mjs) counts real Firestore reads.
 import assert from 'node:assert/strict';
-import { plan, applyChanges, replaceAll, applyTombs, pruneGone, binTombs, eachSettled, createCollectionSync, createSyncHub, SKEW, FULL_EVERY, GONE_KEEP } from '../js/sync.js';
+import { plan, applyChanges, replaceAll, applyTombs, pruneGone, binTombs, eachSettled, createCollectionSync, createSyncHub, SKEW, FULL_EVERY, GONE_KEEP } from '../js/app-sync.js';
 import { openStore, wipeStores, storeName } from '../js/store.js';
+
+// the logbook's bin entry kinds (cloud.js passes the same to the hub)
+const KINDS = { case: 'cases', reflection: 'reflections', note: 'notes' };
 
 const settle = () => new Promise(r => setTimeout(r, 5));
 const DAY = 864e5, T0 = Date.parse('2026-10-13T08:00:00Z');
@@ -46,17 +49,17 @@ const DAY = 864e5, T0 = Date.parse('2026-10-13T08:00:00Z');
   assert.ok(td.has('y'), 'restored (changed after it was binned) stays');
   assert.deepEqual(g, { x: 20, y: 20, q: 5 });
   assert.deepEqual(pruneGone({ old: T0 - GONE_KEEP - 1, new: T0 - 1 }, T0), { new: T0 - 1 });
-  assert.deepEqual(binTombs([{ kind: 'case', data: { id: 'c1' }, deletedAt: 7 }, { kind: 'note', data: { id: 'n1' }, deletedAt: 8 }, { kind: 'summary', data: { id: 's' } }, { kind: 'reflection', data: {} }]),
+  assert.deepEqual(binTombs([{ kind: 'case', data: { id: 'c1' }, deletedAt: 7 }, { kind: 'note', data: { id: 'n1' }, deletedAt: 8 }, { kind: 'summary', data: { id: 's' } }, { kind: 'reflection', data: {} }], KINDS),
     { cases: [{ id: 'c1', deletedAt: 7 }], notes: [{ id: 'n1', deletedAt: 8 }] });
   // the binned version's updatedAt decides, not when it was binned; even one stamped after deletedAt by a clock
   // running ahead: the copies of that version must go (bug: they stayed on every other device)
-  assert.deepEqual(binTombs([{ kind: 'case', data: { id: 'v', updatedAt: 3 }, deletedAt: 9 }, { kind: 'case', data: { id: 'w', updatedAt: 12 }, deletedAt: 9 }]).cases,
+  assert.deepEqual(binTombs([{ kind: 'case', data: { id: 'v', updatedAt: 3 }, deletedAt: 9 }, { kind: 'case', data: { id: 'w', updatedAt: 12 }, deletedAt: 9 }], KINDS).cases,
     [{ id: 'v', deletedAt: 3 }, { id: 'w', deletedAt: 12 }]);
   const fast = new Map([['x', { id: 'x', updatedAt: 1000 + 20 * 60e3 }]]);
-  assert.deepEqual(applyTombs(fast, {}, binTombs([{ kind: 'case', deletedAt: 1000, data: { id: 'x', updatedAt: 1000 + 20 * 60e3 } }]).cases), ['x']);
+  assert.deepEqual(applyTombs(fast, {}, binTombs([{ kind: 'case', deletedAt: 1000, data: { id: 'x', updatedAt: 1000 + 20 * 60e3 } }], KINDS).cases), ['x']);
   // binned on a phone with an old copy (version 3), but the delete was refused: the record changed elsewhere at 5
   const refused = new Map([['x', { id: 'x', updatedAt: 5 }]]), g2 = {};
-  assert.deepEqual(applyTombs(refused, g2, binTombs([{ kind: 'case', data: { id: 'x', updatedAt: 3 }, deletedAt: 9 }]).cases), []);
+  assert.deepEqual(applyTombs(refused, g2, binTombs([{ kind: 'case', data: { id: 'x', updatedAt: 3 }, deletedAt: 9 }], KINDS).cases), []);
   assert.ok(refused.has('x'), 'a bin entry whose delete was refused removes nothing');
   assert.equal(applyChanges(refused, [{ type: 'modified', id: 'x', doc: { id: 'x', updatedAt: 6 } }], g2).put.length, 1, 'later edits still arrive');
 
@@ -104,7 +107,7 @@ const E = 'fake@example.com';
   srv.set('cases', { id: 'old', details: 'Fake case without updatedAt' });   // only a full read finds it
   let now = T0;
   const store = await openStore(E);
-  const open = () => createCollectionSync({ email: E, coll: 'cases', store, listen: srv.listen, fetchOne: srv.fetchOne, now: () => now });
+  const open = () => createCollectionSync({ scope: E, coll: 'cases', store, listen: srv.listen, fetchOne: srv.fetchOne, now: () => now });
 
   let got = [];
   let s = open(); s.subscribe((l, m) => got.push([l.length, m.fromCache]));
@@ -168,7 +171,7 @@ const E = 'fake@example.com';
   let last = null;
   // the removal arrives from the cache only (as after this device's own write), so it is checked: offline, it can't be
   const fromCache = (email, coll, opts, onSnap) => srv.listen(email, coll, opts, x => onSnap(x.full ? x : { ...x, fromCache: true }));
-  const s = createCollectionSync({ email: E, coll: 'notes', store, listen: fromCache, fetchOne: offline, now: () => T0 });
+  const s = createCollectionSync({ scope: E, coll: 'notes', store, listen: fromCache, fetchOne: offline, now: () => T0 });
   s.subscribe(l => { last = l; });
   await settle();
   srv.del('notes', 'n1');
@@ -186,7 +189,7 @@ const E = 'fake@example.com';
   const listen = (email, coll, opts, onSnap) => { snap = onSnap; onSnap({ full: true, docs: [{ id: 'p1', updatedAt: T0 }], changes: [], fromCache: false }); return () => {}; };
   const fetchOne = (email, coll, id) => { fetched++; return id === 'p2' ? null : { id, updatedAt: T0 }; };
   let last = null;
-  const s = createCollectionSync({ email: E, coll: 'cases', store, listen, fetchOne, now: () => T0 });
+  const s = createCollectionSync({ scope: E, coll: 'cases', store, listen, fetchOne, now: () => T0 });
   s.subscribe(l => { last = l; });
   await settle();
   snap({ changes: [{ type: 'added', id: 'p2', pending: true, doc: { id: 'p2', updatedAt: T0 + 1 } }], fromCache: false, hasPendingWrites: true });
@@ -207,7 +210,7 @@ const E = 'fake@example.com';
   const srv = fakeServer();
   for (let i = 0; i < 50; i++) srv.set('cases', { id: 'w' + i, updatedAt: T0 - DAY });
   let now = T0;
-  const hub = createSyncHub({ openStore, listen: srv.listen, fetchOne: srv.fetchOne, now: () => now, grace: 0 });
+  const hub = createSyncHub({ binKinds: KINDS, openStore, listen: srv.listen, fetchOne: srv.fetchOne, now: () => now, grace: 0 });
   let last = null;
   const off = hub.watch(E, 'cases', l => { last = l; }); await settle(); await hub.flush();
   await wipeStores();               // as another tab would
@@ -220,7 +223,7 @@ const E = 'fake@example.com';
   assert.equal(stored.meta.fullAt, 0, 'and a full read next time');
   off(); await hub.stopAll();
   now += 3600e3; srv.reads = 0;
-  const hub2 = createSyncHub({ openStore, listen: srv.listen, fetchOne: srv.fetchOne, now: () => now, grace: 0 });
+  const hub2 = createSyncHub({ binKinds: KINDS, openStore, listen: srv.listen, fetchOne: srv.fetchOne, now: () => now, grace: 0 });
   const got = [];
   const off2 = hub2.watch(E, 'cases', (l, m) => got.push([l.length, m.fromCache])); await settle();
   assert.deepEqual(got.at(-1), [51, false]);
@@ -246,7 +249,7 @@ const E = 'fake@example.com';
   srv.set('cases', { id: 'k1', details: 'Fake', updatedAt: T0 - DAY });
   srv.set('notes', { id: 'n1', body: 'Fake note', updatedAt: T0 - DAY });
   srv.set('notes', { id: 'n2', body: 'Fake note 2', updatedAt: T0 - DAY });
-  const hub = createSyncHub({ openStore, listen: srv.listen, fetchOne: srv.fetchOne, now: () => now, grace: 0 });
+  const hub = createSyncHub({ binKinds: KINDS, openStore, listen: srv.listen, fetchOne: srv.fetchOne, now: () => now, grace: 0 });
   const a = [], b = [];
   const offA = hub.watch(E, 'cases', l => a.push(l.length)), offB = hub.watch(E, 'cases', l => b.push(l.length));
   await settle();
@@ -272,7 +275,7 @@ const E = 'fake@example.com';
 {
   const srv = fakeServer();
   srv.set('cases', { id: 'g1', updatedAt: T0 });
-  const hub = createSyncHub({ openStore, listen: srv.listen, fetchOne: srv.fetchOne, now: () => T0, grace: 40 });
+  const hub = createSyncHub({ binKinds: KINDS, openStore, listen: srv.listen, fetchOne: srv.fetchOne, now: () => T0, grace: 40 });
   let off = hub.watch(E, 'cases', () => {}); await settle();
   const listens = srv.listens;
   off(); off = hub.watch(E, 'cases', () => {}); await new Promise(r => setTimeout(r, 60));
@@ -310,7 +313,7 @@ const E = 'fake@example.com';
   let now = T0, last = null, snap = null;
   const listen = (email, coll, opts, onSnap) => { snap = onSnap; return srv.listen(email, coll, opts, onSnap); };
   const warn = console.warn; console.warn = () => {};
-  let s = createCollectionSync({ email: E, coll: 'cases', store, listen, now: () => now });
+  let s = createCollectionSync({ scope: E, coll: 'cases', store, listen, now: () => now });
   s.subscribe(l => { last = l; });
   await settle(); await s.flush();
   assert.equal(last.length, 5, 'shown from memory');
@@ -322,7 +325,7 @@ const E = 'fake@example.com';
   await s.stop();
   // the next start reads everything (not just changes since), so the missing cases come back
   now += 3600e3; srv.reads = 0; full = false;
-  s = createCollectionSync({ email: E, coll: 'cases', store, listen, now: () => now });
+  s = createCollectionSync({ scope: E, coll: 'cases', store, listen, now: () => now });
   s.subscribe(l => { last = l; });
   await settle(); await s.flush();
   assert.equal(last.length, 5); assert.equal(srv.reads, 5, 'a full read');
@@ -332,7 +335,7 @@ const E = 'fake@example.com';
   let fails = 1;
   const failing = { load: c => mem.load(c), write: async (c, op) => { if (fails && op.put && op.put.some(d => d.id === 'q20')) { fails--; throw new Error('UnknownError'); } return mem.write(c, op); } };
   await s.stop();
-  s = createCollectionSync({ email: E, coll: 'cases', store: failing, listen, now: () => now });
+  s = createCollectionSync({ scope: E, coll: 'cases', store: failing, listen, now: () => now });
   s.subscribe(l => { last = l; }); await settle(); await s.flush();
   srv.set('cases', { id: 'q20', updatedAt: now + 1 }); await settle(); await s.flush();
   srv.set('cases', { id: 'q21', updatedAt: now + 2 }); await settle(); await s.flush();
@@ -348,7 +351,7 @@ const E = 'fake@example.com';
   const store = await openStore(E);
   const listen = (email, coll, opts, onSnap) => { snap = onSnap; onSnap({ full: true, docs: [], changes: [], fromCache: false }); return () => {}; };
   let last = null;
-  const s = createCollectionSync({ email: E, coll: 'cases', store, listen, now: () => T0 });
+  const s = createCollectionSync({ scope: E, coll: 'cases', store, listen, now: () => T0 });
   s.subscribe(l => { last = l; }); await settle();
   // edited on a PC whose clock is 20 min fast, then moved to the bin here and restored a minute later
   const v = { id: 'x', details: 'Fake', updatedAt: T0 + 20 * 60e3 };
@@ -385,7 +388,7 @@ const E = 'fake@example.com';
   try {
     const real = await openStore('fake-real@example.com');
     assert.equal(real.kind, 'idb');
-    const other = new BroadcastChannel('apmes-logbook-store');
+    const other = new BroadcastChannel('apmes-logbook-store:');   // app-sync: the stores' prefix
     other.postMessage({ wipe: true, realm: 'demo:', keep: [] });
     await new Promise(r => setTimeout(r, 30));
     assert.equal(real.closed, false, 'the demo’s wipe leaves it open');
@@ -397,3 +400,26 @@ const E = 'fake@example.com';
 }
 
 console.log('sync tests passed');
+
+// ---- B1 (app-sync 0.2.0): the bin feed is anchored to the newest deletedAt it has seen, so a case binned elsewhere
+// still leaves a device whose clock ran 2 h fast at its last sync (it stayed, counted in totals, until the weekly read)
+{
+  const H = 3600e3, B1 = 'fake-b1@example.com';
+  const srv = fakeServer(), seen = [];
+  for (const id of ['x0', 'x1']) srv.set('cases', { id, details: 'Fake case', updatedAt: T0 - DAY });
+  srv.set('bin', { id: 'b0', kind: 'case', data: { id: 'gone0', updatedAt: T0 - DAY }, deletedAt: T0 - 60e3 });
+  const run = async now => {
+    const hub = createSyncHub({ binKinds: KINDS, openStore, listen: srv.listen, fetchOne: srv.fetchOne, now: () => now, grace: 0 });
+    const off = hub.watch(B1, 'cases', list => seen.push(list.map(c => c.id).sort().join()));
+    await new Promise(r => setTimeout(r, 20)); await hub.flush(); off(); await hub.stopAll();
+  };
+  await run(T0 + 2 * H);   // this device's clock 2 h fast
+  assert.equal(seen.at(-1), 'x0,x1');
+  // another device (clock right) bins x1 at T0 + 1 h; this one opens again with its clock put right
+  srv.del('cases', 'x1');
+  srv.set('bin', { id: 'b1', kind: 'case', data: { id: 'x1', updatedAt: T0 - DAY }, deletedAt: T0 + H });
+  await run(T0 + 4 * H);
+  assert.equal(seen.at(-1), 'x0', 'the case binned elsewhere leaves this device');
+  await wipeStores();
+}
+console.log('sync B1 test passed');

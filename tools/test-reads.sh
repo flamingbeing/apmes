@@ -1,7 +1,8 @@
 #!/bin/bash
-# Firestore read counts for the logbook's sync engine (logbook/js/sync.js), in the local Firestore and Auth emulators
+# Firestore read counts for the logbook's sync engine (app-sync, pinned in logbook/js/app-sync.js), in the local Firestore and Auth emulators
 # with the real logbook/firestore.rules, fake accounts and the demo project "demo-logbook": nothing reaches the live
-# Firebase projects and no sign-in is needed. Runs logbook/test/e2e/reads.emulator.mjs (Playwright).
+# Firebase projects and no sign-in is needed. Runs logbook/test/e2e/reads.emulator.mjs (Playwright);
+# `tools/test-reads.sh watchdog` runs watchdog.emulator.mjs (the sync chip when the listener goes quiet) instead.
 #   PORT=8080 tools/test-reads.sh        static server port (started if nothing answers)
 #   READS_FS_PORT / READS_AUTH_PORT      emulator ports (default 8086 / 9098, apart from test-rules.sh's 8085)
 # Needs Java and the test tools test-rules.sh installs (~/.cache/anawj-rules).
@@ -26,7 +27,7 @@ cat > "$cfg" <<EOF
 EOF
 root="$PWD"
 ( cd "$dir" && "$TOOLS/node_modules/.bin/firebase" emulators:exec --config "$cfg" --only firestore,auth --project demo-logbook \
-  "PORT=$PORT READS_FS_PORT=$FS READS_AUTH_PORT=$AUTH SDK_DIR=$TOOLS/node_modules/firebase node $root/logbook/test/e2e/reads.emulator.mjs" ) 2>&1 \
-  | grep -E '^(open|PASS|FAIL|Error|  )|reads' ; rc=${PIPESTATUS[0]}
+  "PORT=$PORT READS_FS_PORT=$FS READS_AUTH_PORT=$AUTH SDK_DIR=$TOOLS/node_modules/firebase node $root/logbook/test/e2e/${1:-reads}.emulator.mjs" ) 2>&1 \
+  | grep -E '^(open|step|PASS|FAIL|Error|  )|reads' ; rc=${PIPESTATUS[0]}
 rm -rf "$dir"
 exit $rc

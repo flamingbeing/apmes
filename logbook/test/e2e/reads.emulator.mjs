@@ -1,4 +1,4 @@
-// Firestore reads per open with the sync engine (js/sync.js): the real app (?emulator) against the local Firestore
+// Firestore reads per open with the sync engine (app-sync, js/app-sync.js): the real app (?emulator) against the local Firestore
 // and Auth emulators, the real rules, a made-up account and fake cases. Run by tools/test-reads.sh (which starts the
 // emulators and a static server). Each open is a new page in the same browser profile, so this device's copy
 // (IndexedDB) and the sign-in persist between opens, as on a phone.
