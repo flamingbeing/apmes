@@ -2,6 +2,7 @@
 # Every check the logbook needs before merging, in one go (fake data only):
 #   tools/test-logbook.sh            everything (about 10 minutes)
 #   tools/test-logbook.sh quick      repo check, unit tests and the focused browser tests (no full e2e)
+# Each step is timed: $OUT/timings.txt, slowest first; the last lines name the total and the three slowest.
 # It starts a static server on port 8080 if none is running (and stops it after). The portfolio template steps
 # use apmes/templates/portfolio-template-blank.docx.
 # Accessibility (logbook/test/e2e/a11y.mjs), the rules emulator (tools/test-rules.sh) and the read counts
@@ -10,7 +11,10 @@ set -u
 cd "$(dirname "$0")/.."
 OUT="${E2E_OUT:-${TMPDIR:-/tmp}/logbook-tests}"; mkdir -p "$OUT"
 fail=0
-step() { printf '\n== %s\n' "$1"; }
+# each step's seconds go to $OUT/timings.txt (slowest first); the end prints only the total and the three slowest
+last=''; lastAt=$(date +%s%N); start=$lastAt; : >"$OUT/timings.txt"
+lap() { local now; now=$(date +%s%N); [ -n "$last" ] && printf '%6.1f  %s\n' "$(( (now - lastAt) / 1000000 ))e-3" "$last" >>"$OUT/timings.txt"; lastAt=$now; }
+step() { lap; last=$1; printf '\n== %s\n' "$1"; }
 if ! curl -s -o /dev/null http://localhost:${PORT:-8080}/logbook/; then
   python3 -m http.server ${PORT:-8080} >/dev/null 2>&1 & SERVER=$!; trap 'kill $SERVER 2>/dev/null' EXIT; sleep 1
 fi
@@ -38,5 +42,8 @@ done
 step 'notepad (webkit)'
 BROWSER=webkit timeout 300 node logbook/test/e2e/notepad.mjs >"$OUT/notepad-webkit.txt" 2>&1 && grep -E '^(PASS|SKIP)' "$OUT/notepad-webkit.txt" || { echo "FAIL notepad (webkit)"; tail -15 "$OUT/notepad-webkit.txt"; fail=1; }
 
+lap; sort -rn -o "$OUT/timings.txt" "$OUT/timings.txt"
+printf '\nTime: %ss; slowest: %s (all: %s)\n' "$(( ($(date +%s%N) - start) / 1000000000 ))" \
+  "$(head -3 "$OUT/timings.txt" | awk '{t=$1; $1=""; printf "%s%s %ss", (NR>1?", ":""), substr($0,2), int(t+.5)}')" "$OUT/timings.txt"
 printf '\n%s\n' "$([ $fail = 0 ] && echo 'ALL PASSED' || echo "SOMETHING FAILED (logs in $OUT)")"
 exit $fail

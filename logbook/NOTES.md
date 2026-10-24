@@ -26,6 +26,10 @@ portfolio content.
   unit tests: `for f in logbook/test/*.test.mjs; do node "$f"; done`.
 - Everything in one go: `tools/test-logbook.sh` (`quick` skips the full e2e). Rules: `tools/test-rules.sh`. Accessibility
   after UI changes: `node logbook/test/e2e/a11y.mjs`. Details: [docs/working.md](docs/working.md).
+- Timing: the runner writes each step's seconds to `$OUT/timings.txt` (slowest first) and ends with the total and the
+  three slowest; `e2e.mjs` prints its own slowest sections. Baseline (cloud session, 23 Oct 2026): full e2e 218 s, slowest
+  sections logging initials/autodetect 15 s, clean looks 12 s, settings week start/parts 11 s, compact per device 9 s,
+  ⋯ menu and swipe 8 s; focused files mostly 5 to 10 s each. Speed-up ideas start from the biggest steps there.
 - Don't bump `sw.js` `VERSION` by hand (the deploy stamps it); new JS files go in `sw.js` SHELL.
 - Only the Add tab's modules load with the app: they must not import a page module statically (`docs/working.md`, "Start-up speed").
 - New options: per device unless they belong to the account, off by default, defaults pixel-identical.
