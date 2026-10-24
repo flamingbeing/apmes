@@ -189,7 +189,7 @@ async function residentScreen(round, email, ctx) {
   const marks = { ...(review?.marks || {}) };
   const setMark = async (id, mark, rerender) => {
     if (mark) marks[id] = mark; else delete marks[id];
-    try { await store.saveMarks(round.round, email, marks); rerender?.(); } catch (err) { toast('Couldn’t save the mark. ' + errText(err)); }
+    try { await store.saveMarks(round.round, email, marks, review?.marks); rerender?.(); } catch (err) { toast('Couldn’t save the mark. ' + errText(err)); }
   };
   // links point at this host (beta's at beta); the demo's stay in the demo
   const urlOf = inv => (cloud.demo ? `${location.origin}/ccc/rate/?demo#${round.round}/${inv.id}` : rateLink(round.round, inv.id, location.origin));
@@ -201,8 +201,10 @@ async function residentScreen(round, email, ctx) {
       const inv = await store.createInvite(round.round, { email, name }, n, S.user?.email);
       invites[inv.id] = { ...inv, createdAt: Date.now() };
       marks[n.id] = 'sent';
-      await store.saveMarks(round.round, email, marks);
+      await store.saveMarks(round.round, email, marks, review?.marks);
       drawNominees();
+      // the link only works once the server has it: offline, it is kept on this device and the mail waits
+      if (!inv.sent) { toast(`Link saved on this device for ${n.name || n.email}. Don’t email it yet: it works once the chip says Synced.`); return; }
       openMail(inviteMailto(n, name, round, urlOf(inv)));
       toast(`Link made for ${n.name || n.email}. Your mail app opens with it; send it from there.`);
     } catch (err) { toast('Couldn’t make the link. ' + errText(err)); }
