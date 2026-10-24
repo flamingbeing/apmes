@@ -12,6 +12,7 @@
 //   logbooks/{email}/reflections/{id} reflection object (see reflections.js), owner only
 //   logbooks/{email}/images/{id}      { id, data (base64 JPEG), mime, w, h, createdAt }  reflection figures, owner only
 //   logbooks/{email}/notes/{id}       { id, date, title, body, caseId?, createdAt, updatedAt }  personal notes (notepad.js), owner only
+//   logbooks/{email}/guide/entrustment { items: { key: { d, n, t } }, updatedAt }  Guidebook notes and ticks (home/guide/notes.js), owner only
 //   logbooks/{email}/bin/{id}         { id, kind: case | reflection | note, data, deletedAt }  recycle bin (30 days), owner only
 //   logbooks/{email}/formGone/{caseId} { id, deletedAt }  Google Form cases deleted (kept for good, form-inbox.js), owner only
 //   summaries/{rid}                       counts only, readable by everyone signed in
@@ -258,7 +259,7 @@ export async function deleteAccount(email, onStep = () => {}) {
   onStep('Deleting deleted Form cases…');
   await wipe(['logbooks', email, 'formGone']);
   try {
-    for (const [sub, label] of [['cases', 'cases'], ['reflections', 'reflections'], ['images', 'photos'], ['notes', 'notes'], ['meta', 'notes index'], ['bin', 'recycle bin']]) {
+    for (const [sub, label] of [['cases', 'cases'], ['reflections', 'reflections'], ['images', 'photos'], ['notes', 'notes'], ['meta', 'notes index'], ['guide', 'Guidebook notes'], ['bin', 'recycle bin']]) {
       onStep(`Deleting ${label}…`);
       await wipe(['logbooks', email, sub]);
     }

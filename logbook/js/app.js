@@ -1151,7 +1151,9 @@ const WHO_KEY = 'apmes-logbook-who:';
 const whoKey = email => WHO_KEY + (cloud.demo ? 'demo:' : '') + String(email || '').toLowerCase();
 function readWho(email) { try { return JSON.parse(localStorage.getItem(whoKey(email)) || 'null'); } catch { return null; } }
 function saveWho(email, w) { try { localStorage.setItem(whoKey(email), JSON.stringify(w)); } catch { /* storage blocked */ } }
-function forgetWho() { try { for (const k of Object.keys(localStorage)) if (k.startsWith(WHO_KEY)) localStorage.removeItem(k); } catch { /* ignore */ } }
+// with the Guidebook's copy of the account's notes (home/guide/notes.js): a shared device keeps nothing of the last person
+const GUIDE_KEY = 'apmes-guide-notes:';
+function forgetWho() { try { for (const k of Object.keys(localStorage)) if (k.startsWith(WHO_KEY) || k.startsWith(GUIDE_KEY)) localStorage.removeItem(k); } catch { /* ignore */ } }
 // A programme resident's logbook remembers their rid (admins and the rules use it, and new cases reach the response sheet
 // only once it is there: ui-core.js toSheet). Set here at once, in place (refreshWho checks S.logbook is still the copy it
 // started from), and saved: also when someone is put on the programme list after this device last asked.

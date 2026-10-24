@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import { merge, counts, picked, toMarkdown, toText, toDocx, zip, mailto, MAIL_MAX, hasSignIn, NOTE_MAX } from '../guide/notes-core.js';
+import { merge, counts, picked, toMarkdown, toText, toDocx, zip, mailto, MAIL_MAX, hasSignIn, signedIn, tooBig, DOC_MAX, NOTE_MAX } from '../guide/notes-core.js';
 
 const JSZip = createRequire(import.meta.url)('../../logbook/vendor/jszip.min.js');
 const when = new Date(2026, 9, 23, 9, 5);
@@ -65,8 +65,18 @@ test('mailto: subject and body encoded, long text cut with a pointer', () => {
   assert.ok(long.length < MAIL_MAX + 100 && /cut short/.test(long));
 });
 
+const mem = o => ({ key: i => Object.keys(o)[i] ?? null, get length() { return Object.keys(o).length; } });
 test('hasSignIn: a Logbook account, not the demo', () => {
-  const mem = o => ({ key: i => Object.keys(o)[i] ?? null, get length() { return Object.keys(o).length; } });
   assert.equal(hasSignIn(mem({ 'apmes-logbook-who:fake@example.com': '1' })), true);
   assert.equal(hasSignIn(mem({ 'apmes-logbook-who:demo:x': '1', other: '1' })), false);
+});
+
+test('signedIn: the Logbook accounts on this browser, lower case, not the demo', () => {
+  assert.deepEqual(signedIn(mem({ 'apmes-logbook-who:Fake@Example.com': '1', 'apmes-logbook-who:demo:x': '1', other: '1' })), ['fake@example.com']);
+  assert.deepEqual(signedIn(mem({})), []);
+});
+
+test('tooBig: stops short of the 1 MB doc limit', () => {
+  assert.equal(tooBig({ a: { d: true, n: 'short', t: 1 } }), false);
+  assert.equal(tooBig({ a: { d: false, n: 'x'.repeat(DOC_MAX), t: 1 } }), true);
 });

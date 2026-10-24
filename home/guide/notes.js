@@ -1,8 +1,9 @@
 // Notes and "Done" ticks on the entrustment questions (entrustment.html; loaded by guide.js). Pure parts: notes-core.js.
 // Signed out: kept on this device (DEVICE). Signed in to the Logbook (same address, so its sign-in is seen here): kept
 // in the resident's own Firestore doc logbooks/{email}/guide/entrustment (owner only, logbook/firestore.rules) and a
-// copy on the device (ACCOUNT + email) for offline use; the first time, notes kept while signed out move into the
-// account. Changes merge per question, newest wins, so two phones never overwrite each other's other answers.
+// copy on the device (ACCOUNT + email) for offline use, also used when the sign-in can't be checked (no signal); notes
+// kept while signed out move into the account only when the resident taps "Add them" (a shared device's notes may be
+// someone else's). Changes merge per question, newest wins, so two phones never overwrite each other's other answers.
 // The Firebase SDK loads only when this browser has signed in to the Logbook before, so the page stays instant.
 import * as core from './notes-core.js';
 
@@ -23,7 +24,7 @@ const read = key => { try { return JSON.parse(localStorage.getItem(key) || 'null
 const write = (key, v) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* storage full or blocked */ } };
 const within = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('offline')), ms))]);
 
-let state = {}, mode = 'device', email = null, dirty = false, status = '', cloud = null, timer = 0, movedIn = false;
+let state = {}, mode = 'device', email = null, dirty = false, status = '', cloud = null, timer = 0, movedIn = false, offer = 0, why = '';
 const qs = new Map();   // key -> { box, check, note, btn, item }
 
 // ---- the questions on the page ----
@@ -118,6 +119,7 @@ async function push() {
     const { fs, ref, db } = cloud, mine = state;
     const merged = await within(fs.runTransaction(db, async tx => {
       const s = await tx.get(ref), m = core.merge(s.exists() ? s.data().items : {}, mine);
+      if (core.tooBig(m)) throw Object.assign(new Error('too big'), { code: 'too-big' });
       tx.set(ref, { items: m, updatedAt: Date.now() });
       return m;
     }), WAIT * 2);
@@ -125,12 +127,61 @@ async function push() {
     dirty = Object.keys(state).some(k => (state[k].t || 0) > (merged[k]?.t || 0));
     status = 'synced';
     if (dirty) { clearTimeout(timer); timer = setTimeout(push, SAVE_AFTER); }
-  } catch { status = 'offline'; }
+  } catch (e) {
+    // no signal (or slow) waits for the connection; a refusal (rules, size) says so, so it isn't taken for a signal problem
+    why = String(e?.code || '');
+    status = core.REFUSED.includes(why) ? 'refused' : 'offline';
+  }
   keep(); paint();
 }
 
+// other devices' changes arrive as they happen; a listener that errors (token refresh, rules landing, network) is
+// ended by Firestore, so listen again, waiting longer each time (up to a minute)
+let listening = false, retry = 2000;
+function listen() {
+  if (!cloud || listening) return;
+  listening = true;
+  cloud.fs.onSnapshot(cloud.ref, s => {
+    retry = 2000;
+    if (status === 'offline' && !dirty) status = 'synced';
+    const theirs = s.exists() ? s.data().items || {} : {};
+    state = core.merge(state, theirs);
+    keep(); paint();
+  }, () => {
+    listening = false;
+    if (status !== 'refused') status = 'offline';
+    paintBar();
+    setTimeout(listen, retry); retry = Math.min(retry * 2, 60000);
+  });
+}
+
+// signed in, or the sign-in can't be checked: the account's copy on this device
+function useAccount(who) {
+  if (email !== who) {
+    email = who;
+    const own = read(ACCOUNT + email);
+    state = own.items || {};
+    dirty = !!own.dirty;
+  }
+  mode = 'account';
+  offer = Object.values(read(DEVICE).items || {}).filter(core.touched).length;
+}
+// "Add them": this device's signed-out notes join the account
+function addDevice() {
+  state = core.merge(state, read(DEVICE).items || {});
+  try { localStorage.removeItem(DEVICE); } catch { /* blocked */ }
+  dirty = true; offer = 0; movedIn = true;
+  keep(); paint();
+  push();
+}
+
+let checking = false;
 async function signIn() {
-  if (!core.hasSignIn(localStorage)) return;
+  if (cloud || checking || !core.hasSignIn(localStorage)) return;
+  checking = true;
+  try { await check(); } finally { checking = false; }
+}
+async function check() {
   status = 'checking'; paintBar();
   let user, a, fs;
   try {
@@ -140,28 +191,24 @@ async function signIn() {
     fs = f;
     a = app.getApps().length ? app.getApp() : app.initializeApp(FIREBASE_CONFIG);
     user = await within(new Promise(done => { const off = auth.onAuthStateChanged(auth.getAuth(a), u => { off(); done(u); }); }), WAIT);
-  } catch { status = 'offline-signin'; paintBar(); return; }
-  if (!user || !user.email || user.emailVerified === false) { status = ''; paintBar(); return; }
-  email = String(user.email).trim().toLowerCase();
-  const own = read(ACCOUNT + email), device = read(DEVICE).items || {};
-  const moved = Object.values(device).some(core.touched);
-  state = core.merge(own.items || {}, device);
-  dirty = !!own.dirty || moved;
-  mode = 'account';
-  try { localStorage.removeItem(DEVICE); } catch { /* blocked */ }
+  } catch {
+    // no signal: the one account signed in on this device keeps its notes here until the check works
+    const who = core.signedIn(localStorage);
+    if (who.length === 1) useAccount(who[0]);
+    status = 'offline-signin'; paint(); return;
+  }
+  if (!user || !user.email || user.emailVerified === false) {
+    if (mode === 'account') { mode = 'device'; email = null; state = read(DEVICE).items || {}; dirty = false; offer = 0; }
+    status = ''; paint(); return;
+  }
+  useAccount(String(user.email).trim().toLowerCase());
   keep();
   const db = fs.getFirestore(a), ref = fs.doc(db, 'logbooks', email, 'guide', 'entrustment');
   cloud = { fs, db, ref };
-  status = 'synced'; movedIn = moved;   // said until the next edit
+  status = 'synced';
   paint();
-  // other devices' changes arrive as they happen
-  fs.onSnapshot(ref, s => {
-    const theirs = s.exists() ? s.data().items || {} : {};
-    state = core.merge(state, theirs);
-    keep(); paint();
-  }, () => { status = 'offline'; paintBar(); });
+  listen();
   if (dirty) push();
-  addEventListener('online', () => { if (dirty) push(); });
 }
 
 // ---- the "My notes" bar: what's saved where, and export ----
@@ -171,12 +218,18 @@ function paintBar() {
   const c = core.counts(state);
   const sum = c.done || c.notes ? `${c.done} done · ${c.notes} note${c.notes === 1 ? '' : 's'}. ` : 'Tick questions as you cover them and add notes. ';
   const where = mode === 'account'
-    ? { saving: 'Saving…', offline: 'Saved on this device; syncs with your Logbook when back online.' }[status]
+    ? { checking: 'Checking your Logbook sign-in…', saving: 'Saving…', offline: 'Saved on this device; syncs with your Logbook when back online.',
+        'offline-signin': `Saved on this device; syncs with your Logbook (${email}) when back online.`,
+        refused: why === 'too-big' ? 'Saved on this device, but your notes are too long to sync (1 MB in all): shorten some, or export them.'
+          : `Saved on this device, but your Logbook didn't accept the change (${why || 'error'}). Export your notes to keep a copy.` }[status]
       || (movedIn ? `Your notes on this device were added to your Logbook account (${email}).` : `Synced with your Logbook (${email}).`)
     : status === 'checking' ? 'Checking your Logbook sign-in…'
       : status === 'offline-signin' ? 'Saved on this device. Your Logbook sign-in needs a connection to sync.'
         : null;
   line.replaceChildren(sum, where || 'Saved on this device only. ', where ? '' : h('a', { href: '/logbook/' }, 'Sign in to the Logbook'), where ? '' : ' to keep them in sync.');
+  // notes kept on this device while signed out: maybe someone else's (a shared PC), so only on a tap
+  if (mode === 'account' && offer) line.append(' ', `This device also has ${offer} note${offer === 1 ? '' : 's'} or tick${offer === 1 ? '' : 's'} from before you signed in. `,
+    h('button', { type: 'button', class: 'g-mine-btn', onclick: addDevice }, 'Add them to my account'));
 }
 
 const FILE = 'entrustment-notes';
@@ -212,4 +265,5 @@ export function start() {
   ($('.g-tabs') || $('[data-search]')).before(bar);
   paint();
   signIn();
+  addEventListener('online', () => { if (!cloud) signIn(); else { listen(); if (dirty) push(); } });
 }
