@@ -5,7 +5,11 @@
 // the hash covers, then a hash of every file the app can serve: its whole folder (the service worker serves any
 // same-origin file cache-first and keeps it until VERSION changes, so SHELL alone isn't enough) plus SHELL files
 // outside it. Tests, tools and notes are left out. Without git history the date is today's.
-// Run: node tools/stamp-versions.mjs [--check]   (--check prints the versions without writing)
+// The same run fills each sw.js's `const MANIFEST = {};` line (app-update, core.anawj.com/update/): a hash per SHELL
+// file, so a phone downloads only the files that changed. An exact-pin address (a version like 0.2.0 in its path) is
+// 'pinned' (never changes); another site's file (the design kit's /v1/) gets this deploy's hash, so it is fetched again.
+// Run: node tools/stamp-versions.mjs [--check]   (--check prints the versions without writing, and fails when a SHELL
+// file doesn't exist: the install is all or nothing, so one missing file would stop every update on the phones)
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -15,6 +19,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const write = !process.argv.includes('--check');
 const RE = /const VERSION = '([^']+)'/;
+const MRE = /^const MANIFEST = .*;$/m;
+const sha = buf => crypto.createHash('sha256').update(buf).digest('hex');
 const lastChanged = files => {
   const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
   try {
@@ -33,7 +39,7 @@ const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(d => {
 // each top-level folder with sw.js, plus the guidebook (home/guide/, served at /guide/; its VERSION starts with guide-)
 for (const app of [...fs.readdirSync(ROOT), 'home/guide'].filter(d => fs.existsSync(path.join(ROOT, d, 'sw.js')))) {
   const swPath = path.join(ROOT, app, 'sw.js');
-  const sw = fs.readFileSync(swPath, 'utf8');
+  const sw = fs.readFileSync(swPath, 'utf8').replace(MRE, 'const MANIFEST = {};');   // a stamped manifest goes back to {} first
   const m = sw.match(RE);
   if (!m) { console.error(`stamp: ${app}/sw.js has no VERSION`); process.exitCode = 1; continue; }
   const base = m[1].replace(/-\d{4}-\d{2}-\d{2}-[0-9a-f]{8}$/, '').replace(/-[0-9a-f]{8}$/, '');   // already stamped: stamp again from the base
@@ -45,6 +51,15 @@ for (const app of [...fs.readdirSync(ROOT), 'home/guide'].filter(d => fs.existsS
   for (const f of files) { hash.update('\0' + path.relative(ROOT, f) + '\0'); if (fs.existsSync(f)) hash.update(fs.readFileSync(f)); }
   const h8 = hash.digest('hex').slice(0, 8);
   const version = `${base.replace(/-v\d+$/, '')}-${lastChanged(files)}-${h8}`;
-  if (write) fs.writeFileSync(swPath, sw.replace(RE, `const VERSION = '${version}'`));
+  const manifest = {};
+  for (const u of [...shellSrc.matchAll(/'([^']+)'/g)].map(x => x[1])) {
+    if (/^https?:/.test(u)) { manifest[u] = /\/\d+\.\d+\.\d+\//.test(new URL(u).pathname) ? 'pinned' : `deploy-${h8}`; continue; }
+    const f = path.join(ROOT, app, u === './' ? 'index.html' : u.split(/[?#]/)[0]);
+    if (!fs.existsSync(f) || !fs.statSync(f).isFile()) { console.error(`stamp: ${app}/sw.js SHELL lists ${u}, which doesn't exist`); process.exitCode = 1; continue; }
+    manifest[u] = sha(fs.readFileSync(f)).slice(0, 12);
+  }
+  let out = sw.replace(RE, `const VERSION = '${version}'`);
+  if (MRE.test(out)) out = out.replace(MRE, () => `const MANIFEST = ${JSON.stringify(manifest)};`);
+  if (write) fs.writeFileSync(swPath, out);
   console.log(`${app}: ${version}`);
 }

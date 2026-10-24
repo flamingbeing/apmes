@@ -1,7 +1,8 @@
 // Repo checks for mistakes tests don't catch. Run before merging: node tools/check.mjs
 // 1. Each app's sw.js has a plain VERSION starting with its folder name (no deploy stamp) and deletes only caches with
 //    its own prefix (apps can share an origin).
-// 2. Every file in an app's SHELL list exists.
+// 2. Every file in an app's SHELL list exists; no 'index.html' in it (navigations use './'); each sw.js loads the
+//    shared update core (app-update) at an exact pin and the guidebook's SHELL lists every one of its pages.
 // 3. wrangler.jsonc keeps preview links and the workers.dev address off.
 // 4. The Worker's tests pass (node --test 'worker/test/*.test.mjs').
 // 5. evals/js/catalogue.js and forms.js match a fresh build from apmes/.
@@ -39,6 +40,12 @@ for (const app of apps) {
   const shell = [...shellSrc.matchAll(/'([^']+)'/g)].map(m => m[1]).filter(f => f !== './' && !/^https?:/.test(f))   // the kit's files are on design.anawj.com
     .map(f => path.posix.normalize(`${app}/${f}`));
   for (const f of shell) if (!fs.existsSync(path.join(ROOT, f))) fail(`${swPath}: SHELL lists ${f}, which doesn't exist`);
+  const listed = [...shellSrc.matchAll(/'([^']+)'/g)].map(m => m[1]);
+  if (listed.includes('index.html')) fail(`${swPath}: SHELL lists 'index.html'; the page is './' (a redirected file stops the whole install)`);
+  if (!/^importScripts\('https:\/\/core\.anawj\.com\/update\/\d+\.\d+\.\d+\/sw-core\.js'\);$/m.test(sw)) fail(`${swPath}: should load the update core at an exact pin (importScripts('https://core.anawj.com/update/x.y.z/sw-core.js'))`);
+  if (!sw.includes(`app: '${prefix.slice(0, -1)}'`)) fail(`${swPath}: AppUpdate.init should have app: '${prefix.slice(0, -1)}'`);
+  if (app === 'home/guide') for (const page of fs.readdirSync(path.join(ROOT, app)).filter(f => f.endsWith('.html') && f !== 'index.html'))
+    if (!listed.includes(page)) fail(`${swPath}: SHELL doesn't list ${page} (offline it would open as the contents page)`);
 }
 
 const wrangler = path.join(ROOT, 'wrangler.jsonc');

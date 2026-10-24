@@ -12,7 +12,7 @@ try {
   p.on('pageerror', e => errors.push(e.message)); p.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await p.goto(base + '?demo#log'); await p.waitForFunction(() => Number(document.body.dataset.cases) > 0);
   await p.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 20000 });
-  const sw = await p.evaluate(async () => (await caches.keys()).find(k => k.startsWith('logbook-')));
+  const sw = await p.evaluate(async () => (await caches.keys()).find(k => k.startsWith('logbook-') && !k.startsWith('logbook-rt-')));
   await p.evaluate(() => { location.hash = '#more'; });
   const line = p.locator('.app-ver');
   await p.waitForFunction(() => /App version [^…]/.test(document.querySelector('.app-ver')?.textContent || ''));

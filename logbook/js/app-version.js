@@ -1,6 +1,18 @@
 // Which app version this device runs, and a forced fresh copy (Settings, bottom; owner, 14 Oct 2026, as in the
 // prewarming app). The version is the service worker's cache name, stamped at deploy ('logbook-2026-10-14-3f9a2c1d'
-// or the older 'logbook-v41-3f9a2c1d'; tools/stamp-versions.mjs).
+// or the older 'logbook-v41-3f9a2c1d'; tools/stamp-versions.mjs). startUpdates() registers sw.js through the shared
+// update core (app-update): a new version takes over at once and the page reloads once; checked on every return to
+// the app and every 3 h.
+
+// the page module of the update core, the exact version sw.js loads (and keeps offline in SHELL)
+export const UPDATE_CORE = 'https://core.anawj.com/update/0.1.0/register.js';
+
+// loaded with import() so the app still runs when the core's site can't be reached (the worker then stays as it is)
+export async function startUpdates() {
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:' || new URLSearchParams(location.search).has('nosw')) return null;
+  try { return await (await import(UPDATE_CORE)).register({ app: 'logbook', sw: 'sw.js' }); }
+  catch (err) { console.warn('Service worker not registered', err); return null; }
+}
 
 // '2026-10-14 (3f9a2c1d)' for a stamped name; anything else (a local copy, no service worker) as it is
 export function versionLabel(name) {
@@ -12,7 +24,7 @@ export function versionLabel(name) {
 // the saved copy's name ('no-sw' without one): the dated names first, so a leftover older-style copy doesn't win
 export async function appVersion() {
   try {
-    const ks = (await caches.keys()).filter(k => k.startsWith('logbook-'));
+    const ks = (await caches.keys()).filter(k => k.startsWith('logbook-') && !k.startsWith('logbook-rt-'));   // not the files kept on first use
     return ks.filter(k => /^logbook-\d{4}-/.test(k)).sort().pop() || ks.sort().pop() || 'no-sw';
   } catch { return 'no-sw'; }
 }

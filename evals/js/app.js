@@ -435,29 +435,14 @@ document.addEventListener('focusout', () => setTimeout(keyboardCheck, 0));
 (window.visualViewport || window).addEventListener('resize', keyboardCheck);
 if (window.visualViewport) window.visualViewport.addEventListener('scroll', keyboardCheck);
 
-// ---------- offline: service worker and "update available" ----------
-
-function registerSW() {
-  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
-  let reloading = false;
-  // the first install also takes control (clients.claim): no reload then, only after an update
-  const hadController = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading || !hadController) return; reloading = true; location.reload(); });
-  navigator.serviceWorker.register('sw.js').then(reg => {
-    const offer = w => {
-      const b = h('div', { class: 'a-banner e-banner e-banner--info' }, h('span', {}, 'Update available'),
-        h('button', { class: 'a-btn a-btn--sm e-btn-small', onclick: () => { b.remove(); w.postMessage('skipWaiting'); } }, 'Reload'));
-      banner.append(b);
-      banner.hidden = false;
-    };
-    if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
-    reg.addEventListener('updatefound', () => {
-      const w = reg.installing;
-      w && w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); });
-    });
-    // check for a new version when the app comes back to the foreground
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
-  }).catch(err => console.warn('Service worker not registered', err));
+// ---------- offline: service worker and updates ----------
+// Through the shared update core (app-update, the exact version sw.js loads): a new version takes over at once and the
+// page reloads once; checked on every return to the app and every 3 h. Loaded with import() so the app still runs when
+// the core's site can't be reached.
+async function registerSW() {
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:' || new URLSearchParams(location.search).has('nosw')) return;
+  try { await (await import('https://core.anawj.com/update/0.1.0/register.js')).register({ app: 'evals', sw: 'sw.js' }); }
+  catch (err) { console.warn('Service worker not registered', err); }
 }
 
 // Demo only: wipe the demo store (and any half-filled demo forms) and reload in the same role.

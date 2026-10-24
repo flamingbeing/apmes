@@ -38,13 +38,16 @@
     return marks;
   };
   // ---- the installable app: keep every page offline (sw.js, scope /guide/) ----
-  if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
+  // through the shared update core (app-update, the exact version sw.js loads): a new version takes over at once and the
+  // page reloads once; import() so the pages still work when the core's site can't be reached
+  if ('serviceWorker' in navigator && isSecureContext)
+    import('https://core.anawj.com/update/0.1.0/register.js').then(m => m.register({ app: 'guide', sw: 'sw.js' })).catch(() => {});
   // contents page: "App version <date> (<hash>)" (the saved copy's name, sw.js VERSION stamped at deploy) and
   // "Get the latest version", which clears only this app's worker and saved copy, never the Logbook's or Evals'
   const ver = $('[data-appver]');
   if (ver) {
     (window.caches ? caches.keys() : Promise.resolve([])).then(ks => {
-      const k = ks.find(x => x.startsWith('guide-'));
+      const k = ks.find(x => x.startsWith('guide-') && !x.startsWith('guide-rt-'));   // not the files kept on first use
       ver.textContent = k ? 'App version ' + k.replace(/^guide-/, '').replace(/-([0-9a-f]{8})$/, ' ($1)') : 'App version: not saved on this device';
     }).catch(() => { ver.textContent = 'App version: unknown'; });
     $('[data-latest]').addEventListener('click', async () => {
