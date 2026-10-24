@@ -1,7 +1,7 @@
 // Firestore rules checks against the local emulator (fake accounts only). Not run by plain node:
 // needs firebase-tools, @firebase/rules-unit-testing and firebase; see logbook/README.md, "Tests".
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, query, where, writeBatch, FieldPath, serverTimestamp, updateDoc, addDoc, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, query, where, writeBatch, FieldPath, serverTimestamp, updateDoc, addDoc, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { mergePaths } from '../js/profiles.js';
 import fs from 'node:fs';
 const env = await initializeTestEnvironment({ projectId: 'demo-logbook', firestore: { rules: fs.readFileSync('firestore.rules', 'utf8'), host: '127.0.0.1', port: 8085 } });
@@ -213,6 +213,7 @@ await t('bin data not map', assertFails(setDoc(doc(a, 'logbooks', A, 'bin', 'c_c
 await t('bin deletedAt not number', assertFails(setDoc(doc(a, 'logbooks', A, 'bin', 'c_c2_x'), { ...binE('c_c2_x'), deletedAt: 'today' })));
 await t('bin missing deletedAt', assertFails(setDoc(doc(a, 'logbooks', A, 'bin', 'c_c2_x'), { id: 'c_c2_x', kind: 'case', data: c('c2') })));
 await t('bin data too many keys', assertFails(setDoc(doc(a, 'logbooks', A, 'bin', 'c_c2_x'), binE('c_c2_x', 'case', Object.fromEntries(Array.from({ length: 41 }, (_, i) => ['k' + i, i]))))));
+
 await t('admin deletes bin entry', assertFails(deleteDoc(doc(adm, 'logbooks', A, 'bin', 'c_c1_x'))));
 await t('owner deletes bin entry', assertSucceeds(deleteDoc(doc(a, 'logbooks', A, 'bin', 'c_c1_x'))));
 // ---- notes (More → Notes): owner only; nobody else, not even admins or the app owner ----
@@ -449,6 +450,22 @@ await t('template part admin delete', assertSucceeds(deleteDoc(doc(adm, 'config'
   await t('outbox: bot deletes', assertSucceeds(deleteDoc(doc(bot, 'sheetOutbox', 'k1'))));
   await t('outbox: unlisted account lists', assertFails(getDocs(collection(unv, 'sheetOutbox'))));
 }
+// ---- server stamps (app-sync 0.3.0): serverAt optional for now, but only ever the server's time of the write ----
+const sa = () => ({ serverAt: serverTimestamp() });
+await t('case with server stamp', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'cases', 's1'), { ...c('s1'), ...sa() })));
+await t('case with a made-up serverAt', assertFails(setDoc(doc(a, 'logbooks', A, 'cases', 's2'), { ...c('s2'), serverAt: Timestamp.fromMillis(Date.now()) })));
+await t('case serverAt as a number', assertFails(setDoc(doc(a, 'logbooks', A, 'cases', 's2'), { ...c('s2'), serverAt: Date.now() })));
+await t('stamped case: older version restamps updatedAt only', assertSucceeds(updateDoc(doc(a, 'logbooks', A, 'cases', 's1'), { updatedAt: 9 })));
+await t('stamped case: older version saves it whole without serverAt', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'cases', 's1'), c('s1'))));
+await t('stamped case: stamped again', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'cases', 's1'), { ...c('s1'), ...sa() })));
+await t('stamped case: serverAt moved back by hand', assertFails(updateDoc(doc(a, 'logbooks', A, 'cases', 's1'), { serverAt: Timestamp.fromMillis(1) })));
+await t('reflection with server stamp', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'reflections', 's1'), { ...refl('s1'), ...sa() })));
+await t('reflection with a made-up serverAt', assertFails(setDoc(doc(a, 'logbooks', A, 'reflections', 's2'), { ...refl('s2'), serverAt: Timestamp.fromMillis(1) })));
+await t('note with server stamp', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'notes', 's1'), { ...note('s1'), ...sa() })));
+await t('note with a made-up serverAt', assertFails(setDoc(doc(a, 'logbooks', A, 'notes', 's2'), { ...note('s2'), serverAt: Timestamp.fromMillis(1) })));
+await t('bin entry with server stamp', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'bin', 'c_s1_x'), { ...binE('c_s1_x'), ...sa() })));
+await t('bin entry with a made-up serverAt', assertFails(setDoc(doc(a, 'logbooks', A, 'bin', 'c_s2_x'), { ...binE('c_s2_x'), serverAt: Timestamp.fromMillis(1) })));
+await t('other writes a stamped case', assertFails(setDoc(doc(b, 'logbooks', A, 'cases', 's3'), { ...c('s3'), ...sa() })));
 console.log(`${n - fail}/${n} rule checks passed`);
 await env.cleanup();
 process.exit(fail ? 1 : 0);

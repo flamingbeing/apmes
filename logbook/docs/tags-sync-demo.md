@@ -32,8 +32,8 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md).
 
 ## Sync: this device's copy and cheap reopening (app-sync, `store.js`; 13 Oct 2026)
 
-- Since 24 Oct 2026 the engine, write queue, outbox and stores are app-sync `0.2.0` (another repo, served at
-  core.anawj.com/sync/0.2.0/, pinned in `js/app-sync.js` and cached by `sw.js`); the logbook keeps its schemas, paths,
+- Since 24 Oct 2026 the engine, write queue, outbox and stores are app-sync `0.3.0` (another repo, served at
+  core.anawj.com/sync/0.3.0/, pinned in `js/app-sync.js` and cached by `sw.js`); the logbook keeps its schemas, paths,
   rules, bin, Recover and chip. Same IndexedDB names, so copies and waiting saves on a device carry on. Saves through the
   queue commit with app-sync's Firestore adapter (stamped then, never earlier than the edit). Also from app-sync: the
   bin feed anchored to the newest deletedAt (a fast clock no longer misses bin entries), a re-plan when a page left open
@@ -74,6 +74,17 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md).
   stamps them after the next start), so other devices' "changed since" queries still see them. Queue writes (`writes.js`) are stamped when they commit, so they need nothing. Direct writes still on Firestore's own
   queue count in the header ("⟳ Saving") until the server has them. Routing them through the queue too is a follow-up.
 - Firestore's persistent cache stays (offline direct writes depend on its pending-writes queue).
+- **Server stamps** (app-sync `0.3.0`, 24 Oct 2026; step 1 of 3): every write to cases, reflections, notes and the bin
+  also sets `serverAt` to the server's own time (`serverTimestamp()`): the adapter's `stampMode: 'server'` for queue
+  commits, `serverStamp()` in `cloud.js` for direct writes, batches, bin entries and late-write restamps. `updatedAt`
+  and `deletedAt` stay and the hub still reads by them, so nothing changes for devices yet. The rules accept
+  `serverAt` only as the time of the write (or left unchanged by an older version's partial update) and still allow it
+  missing. Step 2: `tools/backfill-server-at.mjs` stamps older records (dry run by default, counts only). Step 3, once
+  no older app version or the MCP extension (`mcp/`, which writes whole documents without it) can write: rules
+  require `serverAt == request.time`, the hub reads `serverAt >` the newest confirmed server stamp (no 10-minute
+  margin, no device clock), and `restampIfLate` goes. The bin listener and `listBin` leave `serverAt` out of entries.
+- A page left open and shown checks hourly whether its weekly full read is due (app-sync `replanOnWake`, B4;
+  `test/sync.test.mjs`).
 - Sign-out, account switch and Delete account delete every store on the device (`cloud.forgetLocal`; other tabs close
   theirs on `versionchange` and a BroadcastChannel message). A shared ward PC keeps nothing. The account signed in
   now keeps its store (account switch, or a tab catching up on another tab's sign-out and sign-in). If a store is

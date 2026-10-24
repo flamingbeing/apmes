@@ -3,7 +3,7 @@
 // memory in node). The same engine runs on Firestore in the app and on the demo backend in the browser tests; the
 // emulator test (test/e2e/reads.emulator.mjs) counts real Firestore reads.
 import assert from 'node:assert/strict';
-import { plan, applyChanges, replaceAll, applyTombs, pruneGone, binTombs, eachSettled, createCollectionSync, createSyncHub, SKEW, FULL_EVERY, GONE_KEEP } from '../js/app-sync.js';
+import { plan, applyChanges, replaceAll, applyTombs, pruneGone, binTombs, eachSettled, createCollectionSync, createSyncHub, replanOnWake, SKEW, FULL_EVERY, GONE_KEEP, REPLAN_EVERY } from '../js/app-sync.js';
 import { openStore, wipeStores, storeName } from '../js/store.js';
 
 // the logbook's bin entry kinds (cloud.js passes the same to the hub)
@@ -423,3 +423,36 @@ console.log('sync tests passed');
   await wipeStores();
 }
 console.log('sync B1 test passed');
+
+// ---- B4 (app-sync 0.3.0): a page left open and shown for days still starts its weekly full read. cloud.js only calls
+// replanOnWake(hub); the engine now also checks hourly while the page is shown, not just when it wakes ----
+{
+  const B4 = 'fake-b4@example.com';
+  const srv = fakeServer(), since = [];
+  const listen = (email, coll, opts, onSnap) => { if (coll === 'cases') since.push(opts.since ?? null); return srv.listen(email, coll, opts, onSnap); };
+  srv.set('cases', { id: 'k0', details: 'Fake case', updatedAt: T0 - DAY });
+  let now = T0;
+  const first = createSyncHub({ binKinds: KINDS, openStore, listen, fetchOne: srv.fetchOne, now: () => now, grace: 0 });
+  const off0 = first.watch(B4, 'cases', () => {});
+  await new Promise(r => setTimeout(r, 20)); await first.flush(); off0(); await first.stopAll();
+  // opened again an hour later (a delta listener), then left shown
+  now = T0 + 3600e3;
+  const hub = createSyncHub({ binKinds: KINDS, openStore, listen, fetchOne: srv.fetchOne, now: () => now, grace: 0 });
+  // a page that stays shown: no online, pageshow or visibilitychange event ever fires
+  const quiet = { addEventListener() {}, removeEventListener() {} };
+  const stop = replanOnWake(hub, { ...quiet, document: { visibilityState: 'visible', ...quiet } }, { every: 10 });
+  const off = hub.watch(B4, 'cases', () => {});
+  await new Promise(r => setTimeout(r, 40)); await hub.flush();
+  assert.equal(since.length, 2); assert.equal(since[0], null, 'first open: a full read');
+  assert.notEqual(since[1], null, 'reopened: changes only');
+  now = T0 + DAY;
+  await new Promise(r => setTimeout(r, 40)); await hub.flush();
+  assert.equal(since.length, 2, 'not due yet: the hourly check leaves the delta listener alone');
+  now = T0 + FULL_EVERY + 60e3;
+  await new Promise(r => setTimeout(r, 40)); await hub.flush();
+  assert.equal(since.length, 3, 'a week later the open page listens again');
+  assert.equal(since[2], null, 'from scratch: the weekly full read');
+  assert.equal(REPLAN_EVERY, 3600e3, 'the app relies on the default: hourly');
+  stop(); off(); await hub.stopAll(); await wipeStores();
+}
+console.log('sync B4 test passed');

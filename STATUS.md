@@ -7,6 +7,8 @@
 
 ## Waiting on the owner
 - Nothing: deploys run from GitHub Actions (Workers Builds is disconnected).
+- Logbook server stamps (app-sync 0.3.0, branch `logbook-server-stamps`): PR green, not merged; merge (rules deploy
+  live with it) and the backfill (`tools/backfill-server-at.mjs`, dry run first) on his go, no live case.
 
 ## Next (in order)
 1. Sign-in check on apmes.anawj.com (Google) after the move.

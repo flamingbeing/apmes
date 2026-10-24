@@ -136,7 +136,8 @@ async function restampIfLate(w, listed) {
   if (listed) forgetLate(w);
   if (Date.now() - w.at <= SKEW / 2) return;
   const now = Date.now(), { db, F } = await sdk();
-  const done = await eachSettled(w.ids, id => F.updateDoc(F.doc(db, 'logbooks', w.email, w.coll, id), { [w.field]: now }));
+  const st = await serverStamp();
+  const done = await eachSettled(w.ids, id => F.updateDoc(F.doc(db, 'logbooks', w.email, w.coll, id), { [w.field]: now, ...st }));
   if (done.length < w.ids.length) console.warn(`${w.ids.length - done.length} late write(s) not stamped again (deleted since?)`);
 }
 const settled = new Set();
@@ -407,15 +408,22 @@ const reads = emulator && typeof window !== 'undefined' ? (window.__reads = {}) 
 const count = (coll, k, n) => { const r = (reads[coll] ||= { billed: 0, served: 0, listens: 0 }); r[k] += n; };
 // Firestore through app-sync's adapter. Every case, reflection and note it commits is stamped (updatedAt) when the
 // server takes it, never earlier than the edit's own stamp; canonical: the form compared for conflicts (no stamps).
+// stampMode 'server' (app-sync 0.3.0): each commit also sets serverAt to the server's own time (serverTimestamp()), so
+// a later delta read can go by the server's clock instead of the writers'. Only the writers use it for now: the hub
+// stays on updatedAt until every record has serverAt (tools/backfill-server-at.mjs) and the rules require it (NOTES.md,
+// "Sync", Server stamps).
 const KIND_OF = { cases: 'case', reflections: 'reflection', notes: 'note' };
 const fs = createFirestoreBackend({
   sdk,
   path: (email, coll) => ['logbooks', lc(email), coll],
   stamp: doc => ({ ...doc, updatedAt: Math.max(Date.now(), Number(doc.updatedAt) || 0) }),
   canonical: (coll, value) => KIND_OF[coll] ? CLEAN[KIND_OF[coll]](value, 0) : value,
+  stampMode: 'server',
   onSnapshotMeta: (_coll, meta) => watchdog.heard(meta),
   onRead: reads ? (coll, k, n) => count(coll, k, n) : () => {},
 });
+// serverAt for the writes to synced collections made outside the write queue (saveCase, batches, bin entries, restamps)
+const serverStamp = async () => ({ serverAt: (await fs.stampFields()).serverAt });
 // The listener watchdog (app-sync): a Firestore stream can go quiet with no error, leaving old data under "Synced".
 // Each live listener is kept here so the watchdog can start it again (only changes are read: a resume), and when
 // that is not enough, restart Firestore's connection (only once every write is confirmed: unsent).
@@ -476,7 +484,7 @@ export async function saveCase(email, c) {
   if (demo) return D.saveCase(email, c);
   const { db, F } = await sdk();
   const doc = cleanCase(c);
-  await queued(F.setDoc(F.doc(db, 'logbooks', lc(email), 'cases', doc.id), doc), late(email, 'cases', [doc.id]));
+  await queued(F.setDoc(F.doc(db, 'logbooks', lc(email), 'cases', doc.id), { ...doc, ...await serverStamp() }), late(email, 'cases', [doc.id]));
   return doc;
 }
 
@@ -572,7 +580,7 @@ export async function saveReflection(email, r) {
   if (demo) return D.saveReflection(email, r);
   const { db, F } = await sdk();
   const doc = cleanReflection(r);
-  await queued(F.setDoc(F.doc(db, 'logbooks', lc(email), 'reflections', doc.id), doc), late(email, 'reflections', [doc.id]));
+  await queued(F.setDoc(F.doc(db, 'logbooks', lc(email), 'reflections', doc.id), { ...doc, ...await serverStamp() }), late(email, 'reflections', [doc.id]));
   return doc;
 }
 
@@ -597,7 +605,8 @@ export async function saveCases(email, cases) {
   if (demo) return D.saveCases(email, cases);
   email = lc(email);
   const docs = cases.map(c => cleanCase(c));
-  await inBatches(docs, (b, d, F, db) => b.set(F.doc(db, 'logbooks', email, 'cases', d.id), d),
+  const st = await serverStamp();
+  await inBatches(docs, (b, d, F, db) => b.set(F.doc(db, 'logbooks', email, 'cases', d.id), { ...d, ...st }),
     (b, part) => queued(b.commit(), late(email, 'cases', part.map(d => d.id))));
   return docs;
 }
@@ -631,7 +640,8 @@ export async function addMissing(email, kind, records) {
       await Promise.all([0, 1, 2, 3].map(k => docs.slice(i + 30 * k, i + 30 * (k + 1)).map(d => d.id)).filter(ids => ids.length).map(lookup));
   } catch (e) { throw e && e.code === 'unavailable' ? new Error('no signal (a restore first checks what your logbook already has). Try again with signal.') : e; }
   const out = docs.filter(d => !have.has(d.id));
-  await inBatches(out, (b, d, F, db) => b.set(F.doc(db, 'logbooks', email, coll, d.id), d),
+  const st = await serverStamp();
+  await inBatches(out, (b, d, F, db) => b.set(F.doc(db, 'logbooks', email, coll, d.id), { ...d, ...st }),
     (b, part) => queued(b.commit(), late(email, coll, part.map(d => d.id))));
   return out;
 }
@@ -946,13 +956,15 @@ export async function loadTemplate() {
 // Deleted cases and reflections are kept here for 30 days (js/bin.js purges older entries after sign-in).
 const cleanBinEntry = e => plain({ id: String(e.id), kind: e.kind, data: e.data, deletedAt: Number(e.deletedAt) || Date.now() });
 export { cleanBinEntry };
+// a bin entry as the app uses it: the server stamp (a Firestore Timestamp) is only for the sync engine
+const binOf = d => { const { serverAt: _s, ...e } = d.data(); return { ...e, id: d.id }; };
 export function watchBin(email, cb) {
   if (demo) return D.watchBin(email, cb);
   let stop = null, stopped = false;
   sdk().then(({ db, F }) => {
     if (stopped) return;
     stop = F.onSnapshot(F.collection(db, 'logbooks', lc(email), 'bin'), snap => {
-      cb(snap.docs.map(d => ({ ...d.data(), id: d.id })).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0)), { fromCache: snap.metadata.fromCache });
+      cb(snap.docs.map(binOf).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0)), { fromCache: snap.metadata.fromCache });
     }, e => { console.error('Bin listener failed', e); for (const l of syncErrorListeners) l(e); });
   });
   return () => { stopped = true; if (stop) stop(); };
@@ -962,13 +974,13 @@ export async function listBin(email, { server = false } = {}) {
   if (demo) return D.listBin(email);
   const { db, F } = await sdk();
   const snap = await (server ? F.getDocsFromServer : F.getDocs)(F.collection(db, 'logbooks', lc(email), 'bin'));
-  return snap.docs.map(d => ({ ...d.data(), id: d.id })).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+  return snap.docs.map(binOf).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
 }
 export async function saveBinEntry(email, entry) {
   if (demo) return D.saveBinEntry(email, entry);
   const { db, F } = await sdk();
   const doc = cleanBinEntry(entry);
-  await queued(F.setDoc(F.doc(db, 'logbooks', lc(email), 'bin', doc.id), doc), late(email, 'bin', [doc.id], 'deletedAt'));
+  await queued(F.setDoc(F.doc(db, 'logbooks', lc(email), 'bin', doc.id), { ...doc, ...await serverStamp() }), late(email, 'bin', [doc.id], 'deletedAt'));
   return doc;
 }
 export async function deleteBinEntry(email, id) {
