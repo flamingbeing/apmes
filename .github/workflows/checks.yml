@@ -27,7 +27,7 @@ jobs:
       - name: Repo check
         run: node tools/check.mjs
       - name: Unit tests
-        run: for f in evals/test/*.test.mjs logbook/test/*.test.mjs people/test/*.test.mjs ccc/test/*.test.mjs home/test/*.test.mjs; do echo "== $f"; node "$f" || exit 1; done
+        run: for f in evals/test/*.test.mjs logbook/test/*.test.mjs people/test/*.test.mjs ccc/test/*.test.mjs home/test/*.test.mjs; do echo "== $f"; node --import ./logbook/test/app-sync-hook.mjs "$f" || exit 1; done
       - name: Proof-read (pages and documents)
         run: node tools/proofread.mjs
 

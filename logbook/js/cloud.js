@@ -1,7 +1,9 @@
 // Storage for the logbook: Google sign-in and Cloud Firestore (Firebase), with an offline cache
 // so logging works without signal and syncs later. With ?demo in the URL, everything goes to an
 // in-browser stand-in instead (demo-backend.js), signed in as a fake admin. Cases, reflections and
-// notes are read through the sync engine (sync.js): a copy on this device plus only what changed.
+// notes are read through the sync engine (app-sync, pinned in app-sync.js): a copy on this device plus only what
+// changed; their saves go through the write queue (writes.js) to commitRecord, which commits them with app-sync's
+// Firestore adapter (stamped when the server takes them, so a save made offline still reaches other devices' deltas).
 // Who may read or write what is enforced by firestore.rules on Google's side, not by this file.
 //
 // Data (see README.md):
@@ -23,11 +25,11 @@
 //   feedback/{id}                         { uid, text, doing?, screen, version, ua, status, createdAt }  private feedback, app owner reads
 
 import { FIREBASE_CONFIG } from './firebase-config.js';
-import { checkWrite } from './recovery-store.js';
+import { checkWrite, CONFLICT } from './recovery-store.js';
 import { cleanProfile } from './profile.js';
 import { mergePaths } from './profiles.js';
 import { cleanNote } from './notepad.js';
-import { createSyncHub, eachSettled, SKEW } from './sync.js';
+import { createSyncHub, createFirestoreBackend, createWatchdog, replanOnWake, persistGuard, eachSettled, SKEW } from './app-sync.js';
 import { openStore, wipeStores } from './store.js';
 import { plain, cleanCase, cleanSummary, cleanResident, cleanTemplate, importDocId, defaultLogbook, cleanReflection, cleanImage, cleanCategoryNames, cleanSubmission } from './clean.js';
 export { cleanSubmission };
@@ -104,8 +106,14 @@ const lc = e => String(e || '').trim().toLowerCase();
 // then return; a later failure (e.g. a rules rejection) is reported to onSyncError listeners.
 const syncErrorListeners = new Set();
 export function onSyncError(cb) { syncErrorListeners.add(cb); return () => syncErrorListeners.delete(cb); }
+// writes still on the SDK's own queue and not yet confirmed by the server (the sync chip counts them: syncHealth)
+let unsent = 0;
+const unsentListeners = new Set();
+export function onUnsent(cb) { unsentListeners.add(cb); return () => unsentListeners.delete(cb); }
+const unsentBy = n => { unsent += n; for (const cb of unsentListeners) cb(unsent); };
 function queued(p, lateWrite = null) {
   let late = false;
+  unsentBy(1); p.then(() => unsentBy(-1), () => unsentBy(-1));
   p.catch(e => { if (late) { console.error('Sync failed', e); for (const cb of syncErrorListeners) cb(e); } });
   // listed at once (a page closed within ACK_WAIT still stamps it after the next start), crossed off when the server has it
   if (lateWrite) { rememberLate(lateWrite); p.then(() => restampIfLate(lateWrite, true), () => forgetLate(lateWrite)); }
@@ -397,40 +405,61 @@ export async function saveLogbook(email, patch) {
 // one, as Firestore charges a listener started cold, plus every change after) and served (changes only).
 const reads = emulator && typeof window !== 'undefined' ? (window.__reads = {}) : null;
 const count = (coll, k, n) => { const r = (reads[coll] ||= { billed: 0, served: 0, listens: 0 }); r[k] += n; };
-function listenFirestore(email, coll, { since = null, field = 'updatedAt' } = {}, onSnap, onError) {
-  let stop = null, stopped = false, first = true;
-  sdk().then(({ db, F }) => {
-    if (stopped) return;
-    const col = F.collection(db, 'logbooks', lc(email), coll);
-    if (reads) count(coll, 'listens', 1);
-    // with metadata changes, so the engine learns when the server has confirmed an unchanged offline copy
-    stop = F.onSnapshot(since === null ? col : F.query(col, F.where(field, '>', since)), { includeMetadataChanges: true }, snap => {
-      const server = !snap.metadata.fromCache, full = since === null && first && server;
-      // pending: this device's write is not on the server yet (if it is refused, the record leaves again: checked)
-      const changes = snap.docChanges().map(c => ({ type: c.type, id: c.doc.id, pending: c.doc.metadata.hasPendingWrites, doc: c.type === 'removed' ? null : { ...c.doc.data(), id: c.doc.id } }));
-      if (reads && server) {
-        const n = changes.filter(c => c.type !== 'removed').length;
-        count(coll, 'served', n);
-        count(coll, 'billed', first ? Math.max(1, snap.size) : n);
-      }
-      if (server) first = false;
-      onSnap({ changes, fromCache: !server, hasPendingWrites: snap.metadata.hasPendingWrites, ...(full ? { full: true, docs: snap.docs.map(d => ({ ...d.data(), id: d.id })) } : {}) });
-    }, onError);
-  }).catch(onError);
-  return () => { stopped = true; if (stop) stop(); };
+// Firestore through app-sync's adapter. Every case, reflection and note it commits is stamped (updatedAt) when the
+// server takes it, never earlier than the edit's own stamp; canonical: the form compared for conflicts (no stamps).
+const KIND_OF = { cases: 'case', reflections: 'reflection', notes: 'note' };
+const fs = createFirestoreBackend({
+  sdk,
+  path: (email, coll) => ['logbooks', lc(email), coll],
+  stamp: doc => ({ ...doc, updatedAt: Math.max(Date.now(), Number(doc.updatedAt) || 0) }),
+  canonical: (coll, value) => KIND_OF[coll] ? CLEAN[KIND_OF[coll]](value, 0) : value,
+  onSnapshotMeta: (_coll, meta) => watchdog.heard(meta),
+  onRead: reads ? (coll, k, n) => count(coll, k, n) : () => {},
+});
+// The listener watchdog (app-sync): a Firestore stream can go quiet with no error, leaving old data under "Synced".
+// Each live listener is kept here so the watchdog can start it again (only changes are read: a resume), and when
+// that is not enough, restart Firestore's connection (only once every write is confirmed: unsent).
+const live = new Set();
+function listenFirestore(email, coll, opts, onSnap, onError) {
+  if (reads) count(coll, 'listens', 1);
+  const l = { stop: null };
+  l.start = () => { l.stop = fs.listen(email, coll, opts, onSnap, onError); };
+  l.start(); live.add(l); watchdog.opened();
+  return () => { live.delete(l); l.stop(); };
 }
-async function fetchFirestore(email, coll, id) {
-  const { db, F } = await sdk();
-  const snap = await F.getDocFromServer(F.doc(db, 'logbooks', lc(email), coll, String(id)));
-  if (reads) count(coll, 'billed', 1);
-  return snap.exists() ? { ...snap.data(), id: snap.id } : null;
+const watchdog = createWatchdog({
+  relisten: why => { console.warn('Sync listeners quiet (' + why + '): listening again'); for (const l of live) { l.stop(); l.start(); } },
+  cycle: async why => {
+    console.warn('Sync connection stuck (' + why + '): restarting it');
+    try { const { db, F } = await sdk(); await F.disableNetwork(db); await F.enableNetwork(db); } catch (e) { console.warn('Could not restart the connection', e); }
+  },
+  quiet: () => unsent === 0,
+});
+if (!demo && typeof window !== 'undefined') {
+  const wake = () => { if (document.visibilityState !== 'hidden') watchdog.event(); };
+  window.addEventListener('online', wake); window.addEventListener('pageshow', wake); document.addEventListener('visibilitychange', wake);
+  setInterval(() => { if (live.size) watchdog.check(); }, 2000);
 }
 const hub = createSyncHub({
   openStore,
   listen: demo ? D.listenSince : listenFirestore,
-  fetchOne: demo ? D.fetchOne : fetchFirestore,
+  fetchOne: demo ? D.fetchOne : fs.fetchOne,
+  binKinds: { case: 'cases', reflection: 'reflections', note: 'notes' },
   onError: e => { console.error('Sync listener failed', e); for (const l of syncErrorListeners) l(e); },
 });
+replanOnWake(hub);
+// Ask the browser to keep this site's storage (the outbox and the copy on this device) at sign-in. Without it Safari in
+// a browser tab may clear it after 7 days without a visit, and a save still waiting would go with it (the chip then
+// warns while anything waits).
+let persisted = true;
+export async function guardStorage() {
+  if (demo) return true;
+  ({ persisted } = await persistGuard().catch(() => ({ persisted: false })));
+  return persisted;
+}
+// what the sync chip needs beyond the write queue: stale (the watchdog hears nothing), SDK writes not yet confirmed,
+// whether storage is kept
+export const syncHealth = () => ({ stale: !demo && watchdog.stale(), unsent, persisted });
 const watchColl = (coll, sort) => (email, cb) => {
   settleLate(lc(email)).catch(e => console.warn('Late writes not stamped', e));
   return hub.watch(lc(email), coll, (list, meta) => cb(sort ? list.sort(sort) : list, meta));
@@ -473,13 +502,9 @@ export async function commitRecord(email, kind, input, base) {
     if (deleted) { await (kind === 'case' ? D.deleteCase(email, doc.id) : D.deleteReflection(email, doc.id)); return doc; }
     return kind === 'case' ? D.saveCase(email, doc) : D.saveReflection(email, doc);
   }
-  const { db, F } = await sdk();
-  const ref = F.doc(db, 'logbooks', lc(email), collection, doc.id);
-  const out = await F.runTransaction(db, async tx => {
-    const snap = await tx.get(ref);
-    const current = snap.exists() ? { ...snap.data(), id: snap.id } : null;
-    if (!compare(current)) return doc;
-    if (deleted) tx.delete(ref); else tx.set(ref, doc); return doc;
+  const out = await fs.commit(lc(email), collection, doc, base).catch(e => {
+    if (e && e.code === 'write-conflict') e.message = CONFLICT;
+    throw e;
   });
   // a delete for good: off this device's copy too (other devices: see sync.js, Limits)
   if (deleted) await hub.drop(lc(email), collection, [doc.id]);

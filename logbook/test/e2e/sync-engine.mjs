@@ -1,4 +1,4 @@
-// Fake data only. The sync engine (js/sync.js) on the demo backend: this device's copy (IndexedDB, one store per
+// Fake data only. The sync engine (app-sync, js/app-sync.js) on the demo backend: this device's copy (IndexedDB, one store per
 // account), reopening reads about nothing, two tabs stay in step (a case logged, a case binned), the demo reset
 // reads everything again, and signing out deletes the copy in every tab. Firestore's own read counts are checked
 // against the emulator by tools/test-reads.sh.

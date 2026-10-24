@@ -30,7 +30,17 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md).
   Import is forgiving (column names, title row, separators, codes or names, Under anywhere, IDs kept by
   name) and reports what didn't line up.
 
-## Sync: this device's copy and cheap reopening (`sync.js`, `store.js`; 13 Oct 2026)
+## Sync: this device's copy and cheap reopening (app-sync, `store.js`; 13 Oct 2026)
+
+- Since 24 Oct 2026 the engine, write queue, outbox and stores are app-sync `0.2.0` (another repo, served at
+  core.anawj.com/sync/0.2.0/, pinned in `js/app-sync.js` and cached by `sw.js`); the logbook keeps its schemas, paths,
+  rules, bin, Recover and chip. Same IndexedDB names, so copies and waiting saves on a device carry on. Saves through the
+  queue commit with app-sync's Firestore adapter (stamped then, never earlier than the edit). Also from app-sync: the
+  bin feed anchored to the newest deletedAt (a fast clock no longer misses bin entries), a re-plan when a page left open
+  wakes after a week, a stuck send timing out, sign-out refusing when the outbox can't be read, the listener watchdog
+  (header "⚠ Not up to date"; `test/e2e/watchdog.emulator.mjs`) and `persistGuard` at sign-in (header "⚠ On this device
+  only" while a save waits offline and the browser won't keep the site's storage). Upgrading: change the version in
+  `js/app-sync.js` and `sw.js` together, after the tests.
 
 - Goal: opening the app many times a day costs about one Firestore read per collection when nothing changed
   (Firestore's own cache only re-charges unchanged documents if a listener resumes within ~30 minutes).
@@ -61,7 +71,8 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md).
   server more than 5 minutes after they were made (offline) are stamped again once the server has them
   (`restampIfLate` in `cloud.js`, one small write per record so one deleted since doesn't block the rest; ids listed in
   `apmes-logbook-late:<email>` from the moment they're queued until the server has them, so a page closed first
-  stamps them after the next start), so other devices' "changed since" queries still see them. Queue writes (`writes.js`) are stamped when they commit, so they need nothing.
+  stamps them after the next start), so other devices' "changed since" queries still see them. Queue writes (`writes.js`) are stamped when they commit, so they need nothing. Direct writes still on Firestore's own
+  queue count in the header ("⟳ Saving") until the server has them. Routing them through the queue too is a follow-up.
 - Firestore's persistent cache stays (offline direct writes depend on its pending-writes queue).
 - Sign-out, account switch and Delete account delete every store on the device (`cloud.forgetLocal`; other tabs close
   theirs on `versionchange` and a BroadcastChannel message). A shared ward PC keeps nothing. The account signed in

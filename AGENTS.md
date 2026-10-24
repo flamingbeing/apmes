@@ -63,7 +63,7 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 
 ```
 node tools/check.mjs                          # repo checks, Worker tests, generated files
-for f in */test/*.test.mjs; do node "$f" || break; done   # unit tests
+for f in */test/*.test.mjs; do node --import ./logbook/test/app-sync-hook.mjs "$f" || break; done   # unit tests (the hook loads app-sync)
 node tools/proofread.mjs                      # page and doc mistakes
 bash tools/test-logbook.sh                    # logbook: full e2e (`quick` skips it); a11y: node logbook/test/e2e/a11y.mjs
 python3 -m http.server 8110 &                 # evals: node evals/test/e2e.spec.mjs, edge.e2e.mjs, a11y.mjs
