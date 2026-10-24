@@ -271,11 +271,11 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'home/guide', manifest), 'utf8')).id, '/guide/', 'manifest id is fixed');
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.waitForFunction(async () => {
-    const k = (await caches.keys()).find(x => x.startsWith('guide-'));
+    const k = (await caches.keys()).find(x => x.startsWith('guide-') && !x.startsWith('guide-rt-'));
     return k && (await (await caches.open(k)).keys()).some(r => r.url.endsWith('/epa-12.html'));
   }, null, { timeout: 15000 });
   await page.reload();
-  await page.getByText(/^App version v1$/).waitFor();
+  await page.getByText(/^App version v2$/).waitFor();
   await c2.setOffline(true);
   await page.goto(base + 'epa-05.html?q=airway#x');
   await page.locator('.g-doc h2').first().waitFor();
