@@ -7,6 +7,11 @@
 // clearing it on one device clears it on the others too.
 
 export const NOTE_MAX = 4000;   // characters per note (the whole doc must stay under Firestore's 1 MB)
+// the doc is refused past 1 MB: stop a little short and say so, rather than failing every save as if offline
+export const DOC_MAX = 900000;
+export const tooBig = items => new TextEncoder().encode(JSON.stringify(items || {})).length > DOC_MAX;
+// Firestore error codes that a retry won't fix (the rest, and timeouts, wait for the connection)
+export const REFUSED = ['too-big', 'permission-denied', 'invalid-argument', 'failed-precondition', 'resource-exhausted', 'unauthenticated'];
 
 // newest change per question wins; same time: a's
 export function merge(a = {}, b = {}) {
@@ -140,14 +145,18 @@ export function mailto(text, subject = TITLE) {
   return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-// true when this browser has a Logbook sign-in (not the demo's): the Logbook keeps one key per signed-in account
+// the accounts signed in to the Logbook on this browser (lower case, not the demo's): the Logbook keeps one key per
+// signed-in account
 export const SIGNED_IN_PREFIX = 'apmes-logbook-who:';
-export function hasSignIn(store) {
+export function signedIn(store) {
+  const out = [];
   try {
     for (let i = 0; i < store.length; i++) {
       const k = store.key(i);
-      if (k && k.startsWith(SIGNED_IN_PREFIX) && !k.startsWith(SIGNED_IN_PREFIX + 'demo:')) return true;
+      if (k && k.startsWith(SIGNED_IN_PREFIX) && !k.startsWith(SIGNED_IN_PREFIX + 'demo:')) out.push(k.slice(SIGNED_IN_PREFIX.length).toLowerCase());
     }
   } catch { /* storage blocked */ }
-  return false;
+  return out;
 }
+// true when this browser has a Logbook sign-in
+export const hasSignIn = store => signedIn(store).length > 0;

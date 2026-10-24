@@ -16,12 +16,13 @@ const MIME = { html: 'text/html', js: 'text/javascript', css: 'text/css', svg: '
 const SDK = `
 const u = globalThis.__USER ?? null, docs = globalThis.__DOCS || {};
 export const getApps = () => []; export const getApp = () => ({}); export const initializeApp = c => ({ c });
-export const getAuth = () => ({}); export const onAuthStateChanged = (a, cb) => { setTimeout(() => cb(u)); return () => {}; };
+export const getAuth = () => ({}); export const onAuthStateChanged = (a, cb) => { if (globalThis.__AUTHFAIL) throw new Error('offline'); setTimeout(() => cb(u)); return () => {}; };
 export const getFirestore = () => ({}); export const doc = (db, ...p) => p.join('/');
 export const getDoc = async p => { globalThis.__READS = [...(globalThis.__READS || []), p]; return { exists: () => p in docs, data: () => docs[p] }; };
 const snap = p => ({ exists: () => p in docs, data: () => JSON.parse(JSON.stringify(docs[p])) });
 export const runTransaction = async (db, fn) => fn({ get: async p => snap(p), set: (p, v) => { docs[p] = JSON.parse(JSON.stringify(v)); } });
-export const onSnapshot = (p, cb) => { setTimeout(() => cb(snap(p))); return () => {}; };`;
+// __SNAPFAIL: that many listeners error first (Firestore then ends them); __SNAPS counts the listeners started
+export const onSnapshot = (p, cb, err) => { globalThis.__SNAPS = (globalThis.__SNAPS || 0) + 1; setTimeout(() => (globalThis.__SNAPFAIL-- > 0 ? err(new Error('x')) : cb(snap(p)))); return () => {}; };`;
 
 const exe = process.env.CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers/chromium') && !fs.statSync('/opt/pw-browsers/chromium').isDirectory() ? '/opt/pw-browsers/chromium' : null);
 const b = await chromium.launch(exe ? { executablePath: exe, args: ['--no-sandbox'] } : {});
@@ -176,7 +177,8 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
 }
 
 // 5b. notes and Done ticks on the entrustment questions: signed out they stay on this device and export; signed in
-//     they merge with the resident's own doc (logbooks/{email}/guide/entrustment) and notes kept signed out move in
+//     they merge with the resident's own doc (logbooks/{email}/guide/entrustment) and notes kept signed out move in on a
+//     tap (a shared device's may be someone else's); no signal: the account's copy on this device
 {
   const page = await open();
   await page.goto('https://apmes.anawj.com/guide/entrustment.html');
@@ -211,8 +213,12 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   const p2 = await open({ 'apmes-guide-notes': device, [`apmes-logbook-who:${EMAIL}`]: '{}' },
     `globalThis.__USER = { email: '${EMAIL}', emailVerified: true }; globalThis.__DOCS = { '${path2}': { items: ${JSON.stringify(other)}, updatedAt: 5 } };`);
   await p2.goto('https://apmes.anawj.com/guide/entrustment.html');
-  await p2.getByText(`were added to your Logbook account (${EMAIL})`).waitFor();
+  await p2.getByText('from before you signed in').waitFor();
   await p2.locator(`[id="${id}"] summary`).click();
+  assert.ok(!(await p2.getByLabel('Done: question 1', { exact: true }).first().isChecked()), "this device's notes wait for the tap");
+  assert.ok(await p2.evaluate(() => localStorage.getItem('apmes-guide-notes')), 'still kept as device-only notes');
+  await p2.getByRole('button', { name: 'Add them to my account' }).click();
+  await p2.getByText(`were added to your Logbook account (${EMAIL})`).waitFor();
   assert.ok(await p2.getByLabel('Done: question 2', { exact: true }).first().isChecked(), "the other phone's tick shows");
   assert.equal(await p2.getByLabel('Notes: question 2', { exact: true }).first().inputValue(), 'from the other phone');
   assert.ok(await p2.getByLabel('Done: question 1', { exact: true }).first().isChecked(), "this device's tick moved in");
@@ -224,6 +230,23 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   await p2.getByLabel('Done: question 2', { exact: true }).first().uncheck();
   await p2.waitForFunction(([p, k]) => globalThis.__DOCS[p].items[k].d === false, [path2, `${id}~1`]);
   await p2.close();
+
+  // the sign-in can't be checked (no signal): the account's copy on this device, not the empty device-only one
+  const p3 = await open({ [`apmes-guide-notes:${EMAIL}`]: JSON.stringify({ items: { [`${id}~2`]: { d: true, n: 'kept offline', t: 9 } }, dirty: true }), [`apmes-logbook-who:${EMAIL}`]: '{}' },
+    'globalThis.__AUTHFAIL = true;');
+  await p3.goto('https://apmes.anawj.com/guide/entrustment.html');
+  await p3.getByText(`syncs with your Logbook (${EMAIL}) when back online`).waitFor();
+  await p3.locator(`[id="${id}"] summary`).click();
+  assert.ok(await p3.getByLabel('Done: question 3', { exact: true }).first().isChecked(), "the account's notes show offline");
+  await p3.close();
+
+  // a listener that errors is started again (Firestore ends it), so other phones' changes keep arriving
+  const p4 = await open({ [`apmes-logbook-who:${EMAIL}`]: '{}' },
+    `globalThis.__USER = { email: '${EMAIL}', emailVerified: true }; globalThis.__SNAPFAIL = 1; globalThis.__DOCS = { '${path2}': { items: ${JSON.stringify(other)}, updatedAt: 5 } };`);
+  await p4.goto('https://apmes.anawj.com/guide/entrustment.html');
+  await p4.waitForFunction(() => globalThis.__SNAPS >= 2, null, { timeout: 6000 });
+  await p4.getByText(`Synced with your Logbook (${EMAIL})`).waitFor();
+  await p4.close();
 }
 
 // 6. the guidebook as an installable app: a manifest, and its service worker saves every page, so the guidebook
