@@ -3,7 +3,7 @@
 // in-browser demo backend with ?demo).
 
 import { replaceShow, legacyShow, tabsAfter } from './profiles.js';
-import { appVersion, versionLabel, freshCopy } from './app-version.js';
+import { appVersion, versionLabel, freshCopy, startUpdates } from './app-version.js';
 import { S, hooks, h, toast, basicHides, basicMode, logbookOnly, facultyMode, facultyRole, clearToast, cloud, writes, transients, setCases, scheduleSummary, fill, resetCaches, patchLogbook, confirmBox, fileButton, modal, download, todayISO, settings, setCategoryNames, categoryNames as categoryNamesNow, watchMyReflections, resetters } from './ui-core.js';
 import { renderLog, focusLog, logCasesChanged, clearDrafts } from './ui-log.js';
 import { applyCompact, cachedCompact, applyTheme, cachedTheme, applyTextSize, cachedTextSize, applyZoom, cachedZoom, stepZoom, applyAccent, adoptDisplay, applyDisplay, applyCustomCss, display, setDisplay, resetDisplay, DISPLAY_KEYS, IPHONE_APP, setPageLabel, START_TABS, arrangeTabs, setTabOnBar, barTabs, MAX_BAR, photoChanged } from './display.js';
@@ -400,7 +400,7 @@ function renderSettingsMenu() {
 }
 
 // at the very bottom of More (owner, 15 Oct 2026; was Settings): which app version this device runs, and a way to fetch the latest when it seems stuck on an old
-// one (the "Update available" banner is the usual way)
+// one (updates normally arrive by themselves: the page reloads once when a new version takes over)
 function versionLine() {
   const ver = h('span', {}, 'App version …');
   appVersion().then(v => { ver.textContent = 'App version ' + versionLabel(v); });
@@ -1382,30 +1382,6 @@ document.addEventListener('focusout', () => setTimeout(keyboardCheck, 0));
 if (window.visualViewport) window.visualViewport.addEventListener('scroll', kbSoon);
 window.addEventListener('scroll', kbSoon, { passive: true });
 
-// ---------- offline: service worker and "update available" ----------
-
-function registerSW() {
-  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
-  let reloading = false;
-  // the first install also takes control (clients.claim): no reload then, only after an update
-  const hadController = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading || !hadController) return; reloading = true; location.reload(); });
-  navigator.serviceWorker.register('sw.js').then(reg => {
-    const offer = w => {
-      banner.className = 'banner';
-      fill(banner, h('span', {}, 'Update available'), h('button', { class: 'small primary', onclick: () => { banner.hidden = true; w.postMessage('skipWaiting'); } }, 'Reload'));
-      banner.hidden = false;
-    };
-    if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
-    reg.addEventListener('updatefound', () => {
-      const w = reg.installing;
-      w && w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); });
-    });
-    // check for a new version when the app comes back to the foreground
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
-  }).catch(err => console.warn('Service worker not registered', err));
-}
-
 // ---------- boot ----------
 
 if (cloud.onSyncError) cloud.onSyncError(err => toast('A change could not be synced: ' + (err.message || err)));
@@ -1470,4 +1446,4 @@ function demoMenu() {
 if (window.LOGBOOK_MOVED_TO) { tabsEl.hidden = true; import('./moved.js').then(m => fill(app, m.movedPage(window.LOGBOOK_MOVED_TO))); }   // the old address with this browser's choices saved: offer them, don't sign in here
 else if (!cloud.enabled) renderLanding();
 else cloud.watchUser(onUser).catch(err => renderLanding('Could not start sign-in: ' + err.message));
-registerSW();
+startUpdates();   // offline copy and updates (app-version.js)

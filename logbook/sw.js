@@ -1,19 +1,12 @@
-// Offline app shell for the APMES Logbook. Bump VERSION whenever any shell file changes:
-// the new worker installs alongside the old one and the app offers "Update available — reload".
-// Firebase traffic (auth, Firestore) always goes to the network; Firestore keeps its own offline
-// cache in IndexedDB. The Firebase SDK files themselves (versioned, never change) are cached here,
-// so the app still starts with no signal after the phone has cleared its HTTP cache.
+// Offline app shell for the APMES Logbook, on the shared update core (app-update, core.anawj.com/update/0.1.0/): every
+// SHELL file is saved at install or none is (the old copy keeps running), a new version takes over at once and the open
+// page reloads once (js/app-version.js registers it). The deploy stamps VERSION and MANIFEST (tools/stamp-versions.mjs);
+// change the base (logbook-v43) only when this file's own logic changes. Firebase traffic always goes to the network
+// (Firestore keeps its own offline cache); the versioned Firebase SDK is kept once fetched (the core's default rule).
 
-const VERSION = 'logbook-v42';
-const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
-// the NUHS design kit lives on another host; SHELL caches it at install, and this answers it from that cache offline
-const KIT = 'https://design.anawj.com/v1/';
-const SDK_FILES = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js'].map(f => SDK + f);
-// the sync engine (app-sync), one exact version that never changes (js/app-sync.js pins the same one): cached at install
-const SYNC = 'https://core.anawj.com/sync/0.2.0/';
-const SYNC_FILES = ['index.js', ...['sync', 'writes', 'conflict', 'store', 'outbox', 'watchdog', 'persist', 'status', 'firestore'].map(f => `src/${f}.js`)].map(f => SYNC + f);
+const VERSION = 'logbook-v43';
 const SHELL = [
-  './', 'index.html', 'style.css', 'manifest.webmanifest',
+  './', 'style.css', 'manifest.webmanifest',
   'js/app.js', 'js/navigation.js', 'js/transients.js', 'js/ui-core.js', 'js/ui-log.js', 'js/ui-logbook.js', 'js/ui-progress.js', 'js/ui-settings.js', 'js/ui-theme-link.js', 'js/display.js', 'js/settings-rows.js', 'js/more-cards.js', 'js/sync-forget.js', 'js/ui-admin.js', 'js/ui-reflect.js', 'js/reflections.js', 'js/portfolio.js',
   'js/categories.js', 'js/engine.js', 'js/suggest.js', 'js/keywords.js', 'js/importer.js', 'js/form-inbox.js', 'js/xlsxio.js',
   'js/recovery-store.js', 'js/writes.js', 'js/store.js', 'js/app-sync.js', 'js/drafts.js', 'js/ui-recovery.js', 'js/cloud.js', 'js/clean.js', 'js/demo-backend.js', 'js/demo-seed.js', 'js/firebase-config.js', 'js/bin.js', 'js/destinations.js', 'js/ui-send.js', 'js/reflect-import.js', 'js/ui-reflect-import.js', 'js/ui-account.js', 'js/profile.js', 'js/share.js', 'js/share-format.js', 'js/markdown.js', 'js/ui-notes.js', 'js/backup-targets.js', 'js/cloud-save.js', 'js/fonts.js', 'js/custom-css.js', 'js/css-settings.js', 'js/hide-mode.js', 'js/export-opts.js', 'js/search-ops.js', 'js/settings-file.js', 'js/profiles.js', 'js/moved.js', 'js/colors.js', 'js/glance.js', 'js/analytics.js', 'js/backup.js', 'js/tags.js', 'js/notepad.js', 'js/ui-notepad.js', 'js/backup-csv.js', 'js/ui-caselogs.js', 'js/logging.js', 'js/paste-clean.js', 'js/fmt-bar.js', 'js/share-in.js', 'js/ui-share-in.js', 'js/sync-md.js', 'js/merge3.js', 'js/sync-remote.js', 'js/ui-sync.js', 'js/parts.js', 'js/ui-parts.js',
@@ -21,27 +14,12 @@ const SHELL = [
   'js/drag-list.js', 'js/lb-group.js', 'js/list-format.js', 'js/my-themes.js', 'js/look-schema.js', 'js/colour-grid.js', 'js/ui-colour-sheet.js', 'js/sheet-outbox.js', 'js/themes.js', 'js/theme-engine.js', 'js/wallpaper.js', 'js/year-compare.js',
   'vendor/exceljs.min.js', 'vendor/jszip.min.js', 'https://design.anawj.com/v1/feedback/qr.js', 'https://design.anawj.com/v1/feedback/vendor/qrcode.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
+  // the sync engine (app-sync), one exact version (js/app-sync.js pins the same one)
+  'https://core.anawj.com/sync/0.2.0/index.js', 'https://core.anawj.com/sync/0.2.0/src/sync.js', 'https://core.anawj.com/sync/0.2.0/src/writes.js', 'https://core.anawj.com/sync/0.2.0/src/conflict.js', 'https://core.anawj.com/sync/0.2.0/src/store.js', 'https://core.anawj.com/sync/0.2.0/src/outbox.js', 'https://core.anawj.com/sync/0.2.0/src/watchdog.js', 'https://core.anawj.com/sync/0.2.0/src/persist.js', 'https://core.anawj.com/sync/0.2.0/src/status.js', 'https://core.anawj.com/sync/0.2.0/src/firestore.js',
+  'https://core.anawj.com/update/0.1.0/register.js',
 ];
-
-self.addEventListener('install', e => {
-  // one missing file must not stop the whole install, so cache each on its own
-  e.waitUntil(caches.open(VERSION).then(c => Promise.all([
-    ...SHELL.map(u => c.add(new Request(u, { cache: 'reload' })).catch(() => {})),
-    ...[...SDK_FILES, ...SYNC_FILES].map(u => c.add(new Request(u, { mode: 'cors' })).catch(() => {})),
-  ])));
-});
-
-// The page asks a waiting worker to take over when the user taps "reload".
-self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
-
-self.addEventListener('activate', e => {
-  e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k.startsWith('logbook-') && k !== VERSION) await caches.delete(k);   // other apps on this site keep their caches
-    await self.clients.claim();
-  })());
-});
-
-const NEVER = /(^|\.)(googleapis\.com|gstatic\.com|firebaseio\.com|firebaseapp\.com|google\.com)$/;
+const MANIFEST = {};
+importScripts('https://core.anawj.com/update/0.1.0/sw-core.js');
 
 // Shared to the installed app (manifest share_target, POST multipart): text, a title, a link and .md / .txt files.
 // Kept in Cache Storage for the page (share-in.js readInbox; the cache's name doesn't start with "logbook-", so a new
@@ -62,37 +40,13 @@ async function receiveShare(req) {
   return Response.redirect(new URL('./?shared=1#log', self.registration.scope).href, 303);
 }
 
-self.addEventListener('fetch', e => {
-  const req = e.request;
-  const url = new URL(req.url);
-  if (req.method === 'POST' && url.origin === self.location.origin && url.pathname.endsWith('/share-target')) { e.respondWith(receiveShare(req)); return; }
-  if (req.method !== 'GET') return;
-  if (req.url.startsWith(SDK) || req.url.startsWith(KIT) || req.url.startsWith(SYNC)) {
-    // cache first: the SDK's and app-sync's URLs carry the version; the kit's /v1/ only changes compatibly
-    e.respondWith(caches.open(VERSION).then(async c => (await c.match(req.url)) || fetch(req).then(res => {
-      if (res.ok) c.put(req.url, res.clone());
-      return res;
-    })));
-    return;
-  }
-  if (url.origin !== self.location.origin || NEVER.test(url.hostname)) return;
-  if (url.pathname.includes('/__/')) return; // Firebase auth helper pages
-  e.respondWith((async () => {
-    const cache = await caches.open(VERSION);
-    // navigations: the cached shell, whatever the query (?demo) or hash
-    // (keyed by the folder, './': Cloudflare previews answer 'index.html' with a redirect to the folder, and a cached
-    // redirect can't be served for a navigation, so reloading failed there; GitHub Pages serves both directly)
-    const key = req.mode === 'navigate' ? './' : req;
-    const hit = await cache.match(key, { ignoreSearch: req.mode === 'navigate' });
-    if (hit) return hit;
-    try {
-      const res = await fetch(req);
-      if (res.ok && res.type === 'basic') cache.put(key, res.clone());
-      return res;
-    } catch (err) {
-      const shell = req.mode === 'navigate' && await cache.match('./');
-      if (shell) return shell;
-      throw err;
-    }
-  })());
+AppUpdate.init({
+  app: 'logbook', version: VERSION, shell: SHELL, manifest: MANIFEST,
+  never: [/\/sw\.js$/],
+  runtime: [
+    { name: 'kit', match: 'https://design.anawj.com/v1/', strategy: 'stale-while-revalidate', max: 40 },
+    { name: 'pinned', match: /^https:\/\/core\.anawj\.com\/(sync|update)\/\d+\.\d+\.\d+\//, strategy: 'cache-first', max: 40 },
+    { name: 'files', match: url => url.origin === self.location.origin && /\.(m?js|css|json|md|png|svg|jpe?g|webp|gif|ico|woff2?|ttf|webmanifest|xlsx|docx|pdf|txt|wasm)$/i.test(url.pathname), strategy: 'stale-while-revalidate', max: 60 },
+  ],
+  handle: e => (e.request.method === 'POST' && new URL(e.request.url).origin === self.location.origin && new URL(e.request.url).pathname.endsWith('/share-target') ? receiveShare(e.request) : null),
 });

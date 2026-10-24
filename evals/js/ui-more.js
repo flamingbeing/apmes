@@ -157,7 +157,7 @@ function versionLine() {
   const line = [ver, h('p', { class: 'e-appver' },
     h('button', { class: 'e-linkbtn', type: 'button', onclick: getLatest }, 'Not updating? Get the latest version'))];
   (window.caches ? caches.keys() : Promise.resolve([])).then(ks => {
-    const k = ks.find(x => x.startsWith('evals-'));
+    const k = ks.find(x => x.startsWith('evals-') && !x.startsWith('evals-rt-'));   // not the files kept on first use
     ver.textContent = k ? 'App version ' + k.replace(/^evals-/, '').replace(/-([0-9a-f]{8})$/, ' ($1)') : 'App version: not saved on this device';
   }).catch(() => { ver.textContent = 'App version: unknown'; });
   return line;
