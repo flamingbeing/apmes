@@ -163,7 +163,7 @@ after any change to them: a first version broke the evals decline and reassign c
   the page as text only. Tested with hostile names.
 - **Not built:** a reminder to residents, the resident's view of the coordinators' marks (deliberately never shown), and a custom email text.
 
-## Saving, the chip and updates (staff, 25 Oct 2026; app-sync 0.4.0, update core 0.2.0)
+## Saving, the chip and updates (staff, 25 Oct 2026; app-sync 0.4.1, update core 0.2.0)
 
 - **Staff writes go through app-sync's write queue** (`js/writes.js`, outbox `ccc-outbox` in IndexedDB): opening or changing a round,
   the coordinators' marks, a rater's link, deleting a resident's nominees and the clean-up of old answers are kept on the device first,
@@ -180,7 +180,7 @@ after any change to them: a first version broke the evals decline and reassign c
   device's copy) answered. Lists show unsent changes over the server's (`js/overlay.js`).
 - **Sign-out** (`signOutSafely`): refuses while anything is unsent; then `forgetDevice` empties the outbox and the device's drafts, and
   evals' `cloud.signOut` clears the SDK cache. The resident's Send stays a plain await ("sent" means the server has it).
-- **Offline copy and updates:** `sw.js` (base `ccc-v1`, stamped at deploy) precaches every module the page loads, app-sync 0.4.0 and the
+- **Offline copy and updates:** `sw.js` (base `ccc-v1`, stamped at deploy) precaches every module the page loads, app-sync 0.4.1 and the
   update core 0.2.0, all exact pins. `rate/`, `demo/` and `status/` are never served by the worker (the rater has no sign-in and must
   always get the page and the invite from the server). A new version takes over at once, but the page reloads only when no sheet is
   open, nobody is typing, nothing is unsent and nothing typed is unsaved (`reloadAllowed`, `canReload`). The account sheet ends with the

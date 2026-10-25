@@ -5,7 +5,7 @@ notes, not in this public repo. Rules and lessons: [NOTES.md](NOTES.md).
 
 ## Recently done
 
-- 25 Oct 2026: staff writes (rounds, marks, rater links, deleted nominees, clean-up) through app-sync 0.4.0's write queue and outbox, a sync chip, safe sign-out (`forgetDevice`), and an offline copy with updates that wait for a quiet moment (update core 0.2.0). The rater page is unchanged.
+- 25 Oct 2026: staff writes (rounds, marks, rater links, deleted nominees, clean-up) through app-sync 0.4.1's write queue and outbox, a sync chip, safe sign-out (`forgetDevice`), and an offline copy with updates that wait for a quiet moment (update core 0.2.0). The rater page is unchanged.
 
 - #748 rules and emulator tests; #751 roles kept in the app (`access/`); #752 the resident app; #755 the coordinators' view.
 - #757 residents can see the active residents (rules), peer picker.
