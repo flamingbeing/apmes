@@ -99,8 +99,8 @@ Pickers are full-screen **Recent | All | Write-In** lists, with recents remember
   - Project `apmes-logbook`, **Blaze** (pay-as-you-go) plan, asia-southeast1. Usage is within the free quotas at this scale.
   - **Shared with the logbook.** Evals reuses the logbook's `residents` collection.
   - Google popup sign-in, with a redirect fallback.
-  - Firestore with a persistent offline cache for reads. Evaluation saves go through app-sync's `createApp` (pinned `0.6.3` in
-    `js/app-sync.js` and `sw.js`, since 25 Oct 2026; 0.6.3's held conflicts don't apply: `mergeEval` already holds a
+  - Firestore with a persistent offline cache for reads. Evaluation saves go through app-sync's `createApp` (pinned `0.7.1` in
+    `js/app-sync.js` and `sw.js`, since 25 Oct 2026; held stays off (not named in `held`): `mergeEval` already holds a
     clash on the fields below; `cloud.js` is its config): `js/eval-queue.js`'s commit puts each create, change and draft delete in a durable outbox
     (IndexedDB `apmes-evals-outbox`, name unchanged), then sends it in a transaction merged by field onto the server's copy
     (`mergeEval`). When `status`, `assessorEmail` or `residentEmail` moved on elsewhere since the edit started, the
