@@ -17,6 +17,8 @@
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 25 Oct 2026: CCC's staff writes on app-sync 0.6.0 `createApp` (was 0.4.1): queue, outbox (`ccc-outbox`, name kept)
+  and the origin outbox list from createApp; the per-kind transactions stay the app's own (`commit`). Next: the logbook (last).
 - 25 Oct 2026: evals (and People, CCC's sign-in) on app-sync 0.6.0 `createApp`: queue, outbox (name kept), origin
   outbox list and sign-out from createApp; the evaluation merge (held conflicts) and the scoped listeners stay in the app.
   Next: CCC's writes, then the logbook (last).

@@ -163,9 +163,9 @@ after any change to them: a first version broke the evals decline and reassign c
   the page as text only. Tested with hostile names.
 - **Not built:** a reminder to residents, the resident's view of the coordinators' marks (deliberately never shown), and a custom email text.
 
-## Saving, the chip and updates (staff, 25 Oct 2026; app-sync 0.4.1, update core 0.2.0)
+## Saving, the chip and updates (staff, 25 Oct 2026; app-sync 0.6.0 `createApp`, update core 0.2.0)
 
-- **Staff writes go through app-sync's write queue** (`js/writes.js`, outbox `ccc-outbox` in IndexedDB): opening or changing a round,
+- **Staff writes go through app-sync's write queue** (`js/writes.js`, outbox `ccc-outbox` in IndexedDB; since 25 Oct 2026 the queue comes from `createApp`, with `createBackend` as its `commit`; sign-in and sign-out stay evals' `cloud.js`): opening or changing a round,
   the coordinators' marks, a rater's link, deleting a resident's nominees and the clean-up of old answers are kept on the device first,
   sent in order, and sent again after a dropped connection or a reload. Each kind is one transaction, so a send repeated lands once
   (`createBackend`): rounds keep the newest change; marks are merged onto the server's marks, so two coordinators marking different
@@ -178,9 +178,9 @@ after any change to them: a first version broke the evals decline and reassign c
   Sending, Saved on this device (offline), Saved here only (offline and the browser may clear storage), N need you. Tapping it lists
   unsent changes; a refused one can be tried again or discarded. Reads (`listRounds`, `listEntries`…) tell it when the server (not the
   device's copy) answered. Lists show unsent changes over the server's (`js/overlay.js`).
-- **Sign-out** (`signOutSafely`): sign-in is shared by the whole origin, so it refuses while this app's queue or the logbook's or evals' outbox (`SIBLINGS`, names in step with theirs) holds an unsent change for this user, and forgets those outboxes too; then `forgetDevice` empties the outbox and the device's drafts, and
+- **Sign-out** (`signOutSafely`): sign-in is shared by the whole origin, so it refuses while this app's queue or the logbook's or evals' outbox (`SIBLINGS`, names in step with theirs, on the origin's outbox list: createApp's registry) holds an unsent change for this user, and forgets those outboxes too; then `forgetDevice` empties the outbox and the device's drafts, and
   evals' `cloud.signOut` clears the SDK cache. The resident's Send stays a plain await ("sent" means the server has it).
-- **Offline copy and updates:** `sw.js` (base `ccc-v1`, stamped at deploy) precaches every module the page loads, app-sync 0.4.1 and the
+- **Offline copy and updates:** `sw.js` (base `ccc-v1`, stamped at deploy) precaches every module the page loads, app-sync 0.6.0 and the
   update core 0.2.0, all exact pins. `rate/`, `demo/` and `status/` are never served by the worker (the rater has no sign-in and must
   always get the page and the invite from the server). A new version takes over at once, but the page reloads only when no sheet is
   open, nobody is typing, nothing is unsent and nothing typed is unsaved (`reloadAllowed`, `canReload`). The account sheet ends with the
