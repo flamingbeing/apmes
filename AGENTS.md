@@ -64,12 +64,15 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 ```
 node tools/check.mjs                          # repo checks, Worker tests, generated files
 for f in */test/*.test.mjs; do node --import ./logbook/test/app-sync-hook.mjs "$f" || break; done   # unit tests (the hook loads app-sync)
-node tools/proofread.mjs                      # page and doc mistakes
+node .devkit/tools/proofread.mjs                      # page and doc mistakes
 bash tools/test-logbook.sh                    # logbook: full e2e (`quick` skips it); a11y: node logbook/test/e2e/a11y.mjs
 python3 -m http.server 8110 &                 # evals: node evals/test/e2e.spec.mjs, edge.e2e.mjs, a11y.mjs
 node people/test/e2e.mjs                      # people, ccc, home: each test/e2e.mjs (no server needed)
 bash tools/test-rules.sh                      # when logbook/firestore.rules changes (needs Java)
 ```
+
+`.devkit/` (git-ignored) holds the kit's tools (`proofread`, `shots`); CI copies it with `app-devkit/setup-tools@v1.6.0`. Locally:
+`git clone --depth 1 --branch v1.6.0 https://github.com/flamingbeing/app-devkit /tmp/devkit && mkdir -p .devkit && cp -R /tmp/devkit/{tools,playwright,rules,worker} .devkit/`. `tools/check.mjs` stays local (longer than the kit's).
 
 In a cloud session set `PLAYWRIGHT_PATH=/opt/node22/lib/node_modules/playwright/index.mjs` and
 `CHROMIUM_PATH=/opt/pw-browsers/chromium` (evals: `CHROMIUM`). People's test also drives NUH Junior Monthly when a

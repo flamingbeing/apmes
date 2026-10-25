@@ -33,8 +33,11 @@ const HAS_JM = fs.existsSync(JM + 'index.html');
 await ctx.route(/^https:\/\/nuhjuniormonthly\.anawj\.com\//, async route => {
   let rel = decodeURIComponent(new URL(route.request().url()).pathname).replace(/^\//, '');
   if (rel === '' || rel.endsWith('/')) rel += 'index.html';
-  const f = path.join(JM, rel);
-  if (!f.startsWith(JM) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return route.fulfill({ status: 404, body: 'not found' });
+  // the rosters repo's /lib/ is the shared folder on every host (rosters worker/routes.js SHARED): the app imports ../../lib/roster-core/*
+  const LIB = path.join(path.dirname(JM.slice(0, -1)), 'lib') + '/';
+  const f = rel.startsWith('lib/') ? path.join(LIB, rel.slice(4)) : path.join(JM, rel);
+  const root_ = rel.startsWith('lib/') ? LIB : JM;
+  if (!f.startsWith(root_) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return route.fulfill({ status: 404, body: 'not found' });
   await route.fulfill({ status: 200, contentType: MIME[f.split('.').pop()] || 'application/octet-stream', body: fs.readFileSync(f) });
 });
 await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
