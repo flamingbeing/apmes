@@ -58,6 +58,7 @@ const ACK_WAIT = 3000;        // ms to wait for the server before treating a wri
 const CLEAR_WAIT = 3000;      // ms to wait for the offline cache to clear on sign-out
 
 let fb = null, dbReady = null;   // dbReady: set while signOut swaps in a fresh Firestore
+let authNow = null;   // the loaded SDK's auth, for who a save is by (the backend's editor)
 async function sdk() {
   const s = await loadSdk();
   if (dbReady) await dbReady;
@@ -73,6 +74,7 @@ function loadSdk() {
     ]);
     const a = app.initializeApp(emulator ? { projectId: 'demo-logbook', apiKey: 'fake-api-key', authDomain: 'localhost' } : FIREBASE_CONFIG);
     const s = { app: a, auth: auth.getAuth(a), db: openDb(a, fs), A: auth, F: fs };
+    authNow = s.auth;
     if (emulator) auth.connectAuthEmulator(s.auth, 'http://127.0.0.1:' + emulator.auth, { disableWarnings: true });
     return s;
   })();
@@ -422,12 +424,18 @@ const count = (coll, k, n) => { const r = (reads[coll] ||= { billed: 0, served: 
 // a later delta read can go by the server's clock instead of the writers'. Only the writers use it for now: the hub
 // stays on updatedAt until every record has serverAt (tools/backfill-server-at.mjs) and the rules require it (NOTES.md,
 // "Sync", Server stamps).
+// held (app-sync 0.6.3, the owner's conflict decision of 25 Oct 2026): a save merges by field onto the server's copy
+// (a field changed only here, or only elsewhere, goes in on its own; the same value on both sides is no clash); only a
+// field changed on both sides to different values stops it as a conflict for Recover, never overwritten. edits:
+// each write records who changed each top-level field and when (`_edits`, allowed by the rules), for that choice.
 const KIND_OF = { cases: 'case', reflections: 'reflection', notes: 'note' };
 const fs = createFirestoreBackend({
   sdk,
   path: (email, coll) => ['logbooks', lc(email), coll],
   canonical: (coll, value) => KIND_OF[coll] ? CLEAN[KIND_OF[coll]](value, 0) : value,
   stampMode: 'server',
+  held: true, edits: '_edits',
+  editor: () => { const u = authNow?.currentUser; return { by: u ? u.displayName || u.email || '' : '', device: '' }; },
   onSnapshotMeta: (_coll, meta) => { if (meta && meta.fromCache === false) heard = true; watchdog.heard(meta); },
   onRead: reads ? (coll, k, n) => count(coll, k, n) : () => {},
 });
