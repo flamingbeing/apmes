@@ -453,7 +453,9 @@ await t('template part admin delete', assertSucceeds(deleteDoc(doc(adm, 'config'
 // ---- server stamps (app-sync 0.3.0): serverAt optional for now, but only ever the server's time of the write ----
 const sa = () => ({ serverAt: serverTimestamp() });
 await t('case with server stamp', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'cases', 's1'), { ...c('s1'), ...sa() })));
-await t('case with a made-up serverAt', assertFails(setDoc(doc(a, 'logbooks', A, 'cases', 's2'), { ...c('s2'), serverAt: Timestamp.fromMillis(Date.now()) })));
+// made up but plausible: a minute behind (Date.now() itself can be the same millisecond as request.time, which the rule
+// rightly accepts as the server's own time)
+await t('case with a made-up serverAt', assertFails(setDoc(doc(a, 'logbooks', A, 'cases', 's2'), { ...c('s2'), serverAt: Timestamp.fromMillis(Date.now() - 60e3) })));
 await t('case serverAt as a number', assertFails(setDoc(doc(a, 'logbooks', A, 'cases', 's2'), { ...c('s2'), serverAt: Date.now() })));
 await t('stamped case: older version restamps updatedAt only', assertSucceeds(updateDoc(doc(a, 'logbooks', A, 'cases', 's1'), { updatedAt: 9 })));
 await t('stamped case: older version saves it whole without serverAt', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'cases', 's1'), c('s1'))));
