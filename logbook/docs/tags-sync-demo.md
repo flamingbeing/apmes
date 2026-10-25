@@ -33,14 +33,14 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md).
 ## Sync: this device's copy and cheap reopening (app-sync, `store.js`; 13 Oct 2026)
 
 - Since 24 Oct 2026 the engine, write queue, outbox and stores are app-sync (another repo, served at
-  core.anawj.com/sync/<version>/, pinned in `js/app-sync.js` and cached by `sw.js`; `0.6.3` since 25 Oct 2026, through createApp (`js/sync-app.js`)); the
+  core.anawj.com/sync/<version>/, pinned in `js/app-sync.js` and cached by `sw.js`; `0.7.3` since 25 Oct 2026, through createApp (`js/sync-app.js`)); the
   logbook keeps its schemas, paths, rules, bin, Recover and chip. Same IndexedDB names, so copies and waiting saves on a
   device carry on. Saves through the queue commit with app-sync's Firestore adapter, stamped inside the commit with its
   default: max(now, the server copy's updatedAt + 1), so a phone whose clock is behind still moves the stamp forward. Also from app-sync: the
   bin feed anchored to the newest deletedAt (a fast clock no longer misses bin entries), a re-plan when a page left open
   wakes after a week, a stuck send timing out, sign-out refusing when the outbox can't be read, the listener watchdog
   (header "⚠ Not up to date"; `test/e2e/watchdog.emulator.mjs`) and `persistGuard` at sign-in (header "⚠ On this device
-  only" while a save waits offline and the browser won't keep the site's storage). From `0.4.0` (now `0.6.3`): a transaction that lost
+  only" while a save waits offline and the browser won't keep the site's storage). From `0.4.0` (now `0.7.3`): a transaction that lost
   a race with another device (`aborted`) is retried, not sent to Recover; the chip says "⟳ Connecting" instead of
   "✓ Synced" until a server answer has come in since the page opened (`confirmed`), and "⚠ On this device only" only
   while offline (`atRiskOnlyOffline`); the sign-out check also waits for writes made outside the queue (photos,

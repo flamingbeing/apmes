@@ -2097,8 +2097,10 @@ async function run(label, ctxOpts) {
       if (mode === 'double') await shot('enter-suggestions');
       await ta.press('Enter');
       await until(async () => await nCases() === n + 1, `${mode}: extra Enter did not save`);
+      // (the list shows a save as soon as it is made, app-sync 0.7.2: wait for it to be stored too)
+      await until(async () => (await stored()).some(c => c.initials === initials), `${mode}: case not stored`);
       const c = (await stored()).find(c => c.initials === initials);
-      assert(c && expected.every(code => c.cats.includes(code)), `${mode}: suggested tags missing`);
+      assert(expected.every(code => c.cats.includes(code)), `${mode}: suggested tags missing`);
       await until(async () => (await ta.inputValue()) === '', `${mode}: box not cleared`);
     }
     await configure('single');
