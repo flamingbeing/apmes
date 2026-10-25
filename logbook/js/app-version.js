@@ -1,18 +1,21 @@
 // Which app version this device runs, and a forced fresh copy (Settings, bottom; owner, 14 Oct 2026, as in the
 // prewarming app). The version is the service worker's cache name, stamped at deploy ('logbook-2026-10-14-3f9a2c1d'
-// or the older 'logbook-v41-3f9a2c1d'; tools/stamp-versions.mjs). startUpdates() registers sw.js through the shared
-// update core (app-update): a new version takes over at once and the page reloads once; checked on every return to
-// the app and every 3 h.
+// or the older 'logbook-v41-3f9a2c1d'; tools/stamp-versions.mjs). startUpdates(canReload) registers sw.js through the
+// shared update core (app-update): a new version installs in the background and waits until canReload() says yes (no
+// one typing, nothing sending), then takes over and the page reloads once; checked on every return to the app, on
+// coming back online and every 3 h. retryUpdate(): try an update that is waiting now (the reason to wait has gone).
 
 // the page module of the update core, the exact version sw.js loads (and keeps offline in SHELL)
-export const UPDATE_CORE = 'https://core.anawj.com/update/0.1.0/register.js';
+export const UPDATE_CORE = 'https://core.anawj.com/update/0.2.0/register.js';
 
 // loaded with import() so the app still runs when the core's site can't be reached (the worker then stays as it is)
-export async function startUpdates() {
+let core = null;
+export async function startUpdates(canReload) {
   if (!('serviceWorker' in navigator) || location.protocol === 'file:' || new URLSearchParams(location.search).has('nosw')) return null;
-  try { return await (await import(UPDATE_CORE)).register({ app: 'logbook', sw: 'sw.js' }); }
+  try { core = await import(UPDATE_CORE); return await core.register({ app: 'logbook', sw: 'sw.js', canReload }); }
   catch (err) { console.warn('Service worker not registered', err); return null; }
 }
+export function retryUpdate() { return core ? core.retryUpdate().catch(() => {}) : Promise.resolve(); }
 
 // '2026-10-14 (3f9a2c1d)' for a stamped name; anything else (a local copy, no service worker) as it is
 export function versionLabel(name) {

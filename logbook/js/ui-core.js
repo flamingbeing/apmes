@@ -6,7 +6,7 @@ import { tagSetOf, tagTree, flatTree, userCatNames, tagName as tagNameIn, tagLin
 import { countCases, uid, todayISO, sortCodes, progress, rYearDefault, academicYear, splitInitials, cleanInitials, ID_RE, setDetection, detectionFrom } from './engine.js';
 import * as cloud from './cloud.js';
 import { reflectionCounts } from './reflections.js';
-import { writes } from './writes.js';
+import { writes, outside } from './writes.js';
 import { outboxOn, outboxEntries } from './sheet-outbox.js';
 import { transients } from './transients.js';
 import { shownIn, switchPatch, mergeSettings } from './profiles.js';
@@ -136,6 +136,7 @@ export function setCases(cases) {
   return true;
 }
 let rawCases = [];
+outside.pending = async () => !(await cloud.synced());
 writes.configure({ backend: cloud.commitRecord, normalize: cloud.cleanWrite, getOwner: () => S.user?.email || null, notice: msg => { toast(msg); toast.notice = { msg, at: Date.now() }; } });
 // a change to many cases (updateMany) holds these and repaints once a batch: one each time a save's state changed (three
 // a case) sorted, overlaid and counted the whole list again (300 cases: half a minute, 14 Oct 2026)

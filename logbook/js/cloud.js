@@ -29,7 +29,7 @@ import { checkWrite, CONFLICT } from './recovery-store.js';
 import { cleanProfile } from './profile.js';
 import { mergePaths } from './profiles.js';
 import { cleanNote } from './notepad.js';
-import { createSyncHub, createFirestoreBackend, createWatchdog, replanOnWake, persistGuard, eachSettled, SKEW } from './app-sync.js';
+import { createSyncHub, createFirestoreBackend, createWatchdog, replanOnWake, persistGuard, forgetDevice, eachSettled, SKEW } from './app-sync.js';
 import { openStore, wipeStores } from './store.js';
 import { plain, cleanCase, cleanSummary, cleanResident, cleanTemplate, importDocId, defaultLogbook, cleanReflection, cleanImage, cleanCategoryNames, cleanSubmission } from './clean.js';
 export { cleanSubmission };
@@ -152,15 +152,23 @@ async function settleLate(email) {
 // proceed() is asked again once syncing has stopped: a tab that has seen a new sign-in by then leaves the stores alone.
 // keep: the account signed in now (an account switch), whose store stays, here and in other tabs; so does the store
 // of whoever is signed in by the time the wipe runs (a tab catching up on another tab's sign-out and sign-in).
+// In app-sync's forgetDevice order (0.4.0): stop, ask again, wipe, then the app's own lists. The outbox (app.js,
+// writes.forget) and the SDK's offline cache (signOut) are cleared by their callers, as before.
 export async function forgetLocal(proceed = () => true, keep = null) {
-  await hub.stopAll();
-  if (!proceed()) return;
-  let now = null;
-  try { if (!demo && fb) now = (await fb).auth.currentUser?.email || null; } catch { /* not loaded */ }
-  await wipeStores([keep, now].filter(Boolean).map(lc));
-  // late-write ids and the bin's last purge time (bin.js) are per account too
-  try { for (const k of Object.keys(localStorage)) if (k.startsWith(LATE_KEY) || k.startsWith('apmes-logbook-purged:')) localStorage.removeItem(k); } catch { /* storage blocked */ }
-  settled.clear();
+  const { failed } = await forgetDevice({
+    hub, stores: { wipeStores }, proceed: async () => !!proceed(),
+    keep: async () => {
+      let now = null;
+      try { if (!demo && fb) now = (await fb).auth.currentUser?.email || null; } catch { /* not loaded */ }
+      return [keep, now].filter(Boolean).map(lc);
+    },
+    // late-write ids and the bin's last purge time (bin.js) are per account too
+    extra: async () => {
+      try { for (const k of Object.keys(localStorage)) if (k.startsWith(LATE_KEY) || k.startsWith('apmes-logbook-purged:')) localStorage.removeItem(k); } catch { /* storage blocked */ }
+      settled.clear();
+    },
+  });
+  if (failed.includes('wipeStores')) throw new Error('Could not clear this device’s copy');
 }
 
 // ---- sign-in ----
@@ -406,8 +414,10 @@ export async function saveLogbook(email, patch) {
 // one, as Firestore charges a listener started cold, plus every change after) and served (changes only).
 const reads = emulator && typeof window !== 'undefined' ? (window.__reads = {}) : null;
 const count = (coll, k, n) => { const r = (reads[coll] ||= { billed: 0, served: 0, listens: 0 }); r[k] += n; };
-// Firestore through app-sync's adapter. Every case, reflection and note it commits is stamped (updatedAt) when the
-// server takes it, never earlier than the edit's own stamp; canonical: the form compared for conflicts (no stamps).
+// Firestore through app-sync's adapter. Every case, reflection and note it commits is stamped (updatedAt) inside the
+// commit's transaction with app-sync's default (0.4.0): max(now, the server copy's updatedAt + 1), so a phone whose clock
+// is behind the last writer's still moves the stamp forward and other devices' delta reads see the change.
+// canonical: the form compared for conflicts (no stamps).
 // stampMode 'server' (app-sync 0.3.0): each commit also sets serverAt to the server's own time (serverTimestamp()), so
 // a later delta read can go by the server's clock instead of the writers'. Only the writers use it for now: the hub
 // stays on updatedAt until every record has serverAt (tools/backfill-server-at.mjs) and the rules require it (NOTES.md,
@@ -416,10 +426,9 @@ const KIND_OF = { cases: 'case', reflections: 'reflection', notes: 'note' };
 const fs = createFirestoreBackend({
   sdk,
   path: (email, coll) => ['logbooks', lc(email), coll],
-  stamp: doc => ({ ...doc, updatedAt: Math.max(Date.now(), Number(doc.updatedAt) || 0) }),
   canonical: (coll, value) => KIND_OF[coll] ? CLEAN[KIND_OF[coll]](value, 0) : value,
   stampMode: 'server',
-  onSnapshotMeta: (_coll, meta) => watchdog.heard(meta),
+  onSnapshotMeta: (_coll, meta) => { if (meta && meta.fromCache === false) heard = true; watchdog.heard(meta); },
   onRead: reads ? (coll, k, n) => count(coll, k, n) : () => {},
 });
 // serverAt for the writes to synced collections made outside the write queue (saveCase, batches, bin entries, restamps)
@@ -460,14 +469,17 @@ replanOnWake(hub);
 // a browser tab may clear it after 7 days without a visit, and a save still waiting would go with it (the chip then
 // warns while anything waits).
 let persisted = true;
+// heard: a snapshot came from the server (not the offline cache) since the page opened; until then the chip doesn't say
+// Synced on the strength of this device's copy alone (syncStatus confirmed, app-sync 0.4.0)
+let heard = false;
 export async function guardStorage() {
   if (demo) return true;
   ({ persisted } = await persistGuard().catch(() => ({ persisted: false })));
   return persisted;
 }
 // what the sync chip needs beyond the write queue: stale (the watchdog hears nothing), SDK writes not yet confirmed,
-// whether storage is kept
-export const syncHealth = () => ({ stale: !demo && watchdog.stale(), unsent, persisted });
+// whether storage is kept, whether the server has answered yet
+export const syncHealth = () => ({ stale: !demo && watchdog.stale(), unsent, persisted, confirmed: demo || heard });
 const watchColl = (coll, sort) => (email, cb) => {
   settleLate(lc(email)).catch(e => console.warn('Late writes not stamped', e));
   return hub.watch(lc(email), coll, (list, meta) => cb(sort ? list.sort(sort) : list, meta));

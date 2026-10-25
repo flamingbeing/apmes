@@ -1,6 +1,7 @@
-// Fake data only. The three service workers on the shared update core (app-update, core.anawj.com/update/0.1.0/):
+// Fake data only. The three service workers on the shared update core (app-update, core.anawj.com/update/: the logbook on 0.2.0, the others on 0.1.0):
 // each installs its whole SHELL, opens offline (the guidebook on the page asked for, not the contents page), and a new
-// deploy (another VERSION in sw.js) takes over by itself with one reload of the open page, keeping the share inbox
+// deploy (another VERSION in sw.js) takes over by itself with one reload of the open page (the logbook, on
+// update-v0.2.0: only once nobody is typing), keeping the share inbox
 // and the other apps' saved copies. Service workers on, as on a phone.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,7 +12,7 @@ if (!b) { console.log(`SKIP update core: ${engine} not installed`); process.exit
 
 const shellCache = (p, app) => p.evaluate(async app => (await caches.keys()).find(k => k.startsWith(app + '-') && !k.startsWith(app + '-rt-')), app);
 
-async function check({ app, path, ready, page }) {
+async function check({ app, path, ready, page, typing }) {
   const dir = path.split('?')[0].replace(/[^/]*$/, '');   // the app's folder in the repo, e.g. 'logbook/'
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.addInitScript(() => localStorage.setItem('apmes-logbook-demo-small', '1'));
@@ -40,8 +41,17 @@ async function check({ app, path, ready, page }) {
   fs.writeFileSync(swFile, original.replace(/const VERSION = '([^']+)'/, `const VERSION = '${app}-2099-01-01-0123abcd'`));
   try {
     loads.length = 0;   // (no navigation here: the browser's own check on a navigation could install it before the page listens)
+    if (typing) await typing(p);   // someone types: the new version installs but waits (update-v0.2.0 canReload, waitForGo)
     await p.evaluate(() => navigator.serviceWorker.getRegistration().then(r => r.update()));
     await p.waitForFunction(async app => (await caches.keys()).includes(app + '-2099-01-01-0123abcd'), app, { timeout: 30000 });
+    if (typing) {
+      await p.waitForTimeout(2500);
+      assert.equal(loads.length, 0, `${app}: no reload while someone is typing`);
+      assert.ok(await p.evaluate(() => navigator.serviceWorker.getRegistration().then(r => !!r.waiting)), `${app}: the new version waits`);
+      assert.equal(await p.evaluate(() => document.activeElement.value), 'Fake note being typed', `${app}: the typing is untouched`);
+      await p.evaluate(() => document.activeElement.blur());
+      await p.evaluate(async () => (await import('./js/app-version.js')).retryUpdate());
+    }
     for (let i = 0; i < 50 && !loads.length; i++) await p.waitForTimeout(200);
     await ready(p);
     await p.waitForTimeout(1500);
@@ -56,7 +66,8 @@ async function check({ app, path, ready, page }) {
 }
 
 try {
-  await check({ app: 'logbook', path: 'logbook/?demo#log', ready: p => p.waitForFunction(() => Number(document.body.dataset.cases) > 0, null, { timeout: 30000 }) });
+  await check({ app: 'logbook', path: 'logbook/?demo#log', ready: p => p.waitForFunction(() => Number(document.body.dataset.cases) > 0, null, { timeout: 30000 }),
+    typing: async p => { await p.evaluate(() => { const t = document.createElement('textarea'); document.body.append(t); t.value = 'Fake note being typed'; t.focus(); }); } });
   await check({ app: 'evals', path: 'evals/?demo', ready: p => p.locator('h1, h2').first().waitFor({ timeout: 30000 }) });
   await check({ app: 'guide', path: 'home/guide/', page: 'home/guide/epa-03.html', ready: p => p.locator('main').first().waitFor({ timeout: 30000 }) });
 } finally { await b.close(); }

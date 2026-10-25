@@ -3,7 +3,7 @@
 // in-browser demo backend with ?demo).
 
 import { replaceShow, legacyShow, tabsAfter } from './profiles.js';
-import { appVersion, versionLabel, freshCopy, startUpdates } from './app-version.js';
+import { appVersion, versionLabel, freshCopy, startUpdates, retryUpdate } from './app-version.js';
 import { S, hooks, h, toast, basicHides, basicMode, logbookOnly, facultyMode, facultyRole, clearToast, cloud, writes, transients, setCases, scheduleSummary, fill, resetCaches, patchLogbook, confirmBox, fileButton, modal, download, todayISO, settings, setCategoryNames, categoryNames as categoryNamesNow, watchMyReflections, resetters } from './ui-core.js';
 import { renderLog, focusLog, logCasesChanged, clearDrafts } from './ui-log.js';
 import { applyCompact, cachedCompact, applyTheme, cachedTheme, applyTextSize, cachedTextSize, applyZoom, cachedZoom, stepZoom, applyAccent, adoptDisplay, applyDisplay, applyCustomCss, display, setDisplay, resetDisplay, DISPLAY_KEYS, IPHONE_APP, setPageLabel, START_TABS, arrangeTabs, setTabOnBar, barTabs, MAX_BAR, photoChanged } from './display.js';
@@ -1075,15 +1075,17 @@ function paintWho() {
     : flags ? h('span', { class: 'who-flag' }, flags) : null;
   // sync (app-sync's status rules): a save needing the resident, saves waiting while the browser may clear this site's
   // storage, saved on this phone but not yet on the server (no signal), the server not heard (stale), or all synced
-  const health = cloud.syncHealth ? cloud.syncHealth() : { stale: false, unsent: 0, persisted: true };
-  // (at-risk only offline: online, a save waits seconds; Chromium in a tab often refuses persistence)
-  const st = syncStatus({ online: navigator.onLine, pending: writes.pending(), attention: writes.attention() ? 1 : 0, persisted: health.persisted || navigator.onLine, stale: health.stale }).state;
+  const health = cloud.syncHealth ? cloud.syncHealth() : { stale: false, unsent: 0, persisted: true, confirmed: true };
+  // (at-risk only offline: online, a save waits seconds; Chromium in a tab often refuses persistence. confirmed: Synced
+  // only once the server has answered since the page opened, else "Connecting")
+  const st = syncStatus({ online: navigator.onLine, pending: writes.pending(), attention: writes.attention() ? 1 : 0, persisted: health.persisted, atRiskOnlyOffline: true, stale: health.stale, confirmed: health.confirmed !== false }).state;
   const sync = !S.user ? null : st === 'attention' ? h('a', { href: '#recovery', class: 'sync wait' }, 'Save needs attention')
     : st === 'at-risk' ? h('a', { href: '#recovery', class: 'sync wait', title: 'This browser may clear its storage: get signal soon, or add the app to your home screen' }, '⚠ On this device only · pending sync')
     : writes.pending() ? h('a', { href: '#recovery', class: 'sync wait' }, 'Saved locally · pending sync')
     : cloud.demo ? null : S.pending || health.unsent
     ? h('span', { class: 'sync wait', title: navigator.onLine ? 'Saving to the server…' : 'Saved on this phone; will sync when there is signal' }, navigator.onLine ? '⟳ Saving' : '⏳ Will sync')
     : st === 'stale' ? h('span', { class: 'sync wait stale', title: 'Not hearing from the server: what shows may be out of date. Reconnecting…' }, '⚠ Not up to date')
+    : st === 'unknown' && S.casesSynced ? h('span', { class: 'sync wait', title: 'Showing this device’s copy; waiting for the server to answer' }, '⟳ Connecting')
     : S.casesSynced ? h('span', { class: 'sync ok', title: 'All your cases are saved to the server' }, '✓ Synced') : null;
   subEl.textContent = flags;   // kept (hidden) for tests
   // a hidden header (Settings → Themes) shows again while there is something to say: not synced, offline, demo, signed out
@@ -1092,7 +1094,7 @@ function paintWho() {
   document.body.dataset.cases = String(S.cases.length);   // not shown; read by tests
   fill(whoEl, sync, flag, searchBtn(), h('span', { class: 'email', title: S.user.email }, S.user.name || S.user.email));
 }
-hooks.writesChanged = () => { paintWho(); if (S.tab === 'recovery') render(); };
+hooks.writesChanged = () => { paintWho(); if (S.tab === 'recovery') render(); if (!writes.pending()) retryUpdate(); };
 window.addEventListener('online', paintWho);
 window.addEventListener('offline', paintWho);
 // the save queue changes on its own (a save landing, failing or meeting a conflict after the phone is back online):
@@ -1446,4 +1448,10 @@ function demoMenu() {
 if (window.LOGBOOK_MOVED_TO) { tabsEl.hidden = true; import('./moved.js').then(m => fill(app, m.movedPage(window.LOGBOOK_MOVED_TO))); }   // the old address with this browser's choices saved: offer them, don't sign in here
 else if (!cloud.enabled) renderLanding();
 else cloud.watchUser(onUser).catch(err => renderLanding('Could not start sign-in: ' + err.message));
-startUpdates();   // offline copy and updates (app-version.js)
+// offline copy and updates (app-version.js): a new version never reloads the page while someone types, a sheet or dialog
+// is open, or a change is still sending (update-v0.2.0 canReload)
+const typingNow = () => !!document.activeElement && (/^(TEXTAREA|INPUT|SELECT)$/.test(document.activeElement.tagName) || document.activeElement.isContentEditable);
+startUpdates(() => !typingNow() && !document.querySelector('dialog[open]') && !writes.pending() && !S.pending && !(cloud.syncHealth?.().unsent));
+// an update waiting for the typing or a dialog to finish is tried again then (retryUpdate does nothing when none waits)
+document.addEventListener('focusout', () => setTimeout(retryUpdate, 300));
+document.addEventListener('close', () => setTimeout(retryUpdate, 300), true);

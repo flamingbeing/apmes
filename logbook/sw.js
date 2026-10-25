@@ -1,10 +1,11 @@
-// Offline app shell for the APMES Logbook, on the shared update core (app-update, core.anawj.com/update/0.1.0/): every
-// SHELL file is saved at install or none is (the old copy keeps running), a new version takes over at once and the open
-// page reloads once (js/app-version.js registers it). The deploy stamps VERSION and MANIFEST (tools/stamp-versions.mjs);
-// change the base (logbook-v43) only when this file's own logic changes. Firebase traffic always goes to the network
+// Offline app shell for the APMES Logbook, on the shared update core (app-update, core.anawj.com/update/0.2.0/): every
+// SHELL file is saved at install or none is (the old copy keeps running); a new version waits (waitForGo) until the open
+// page says go, which it does only when nobody is typing and nothing is sending, then takes over and the page reloads
+// once (js/app-version.js registers it). The deploy stamps VERSION and MANIFEST (tools/stamp-versions.mjs);
+// change the base (logbook-v44) only when this file's own logic changes. Firebase traffic always goes to the network
 // (Firestore keeps its own offline cache); the versioned Firebase SDK is kept once fetched (the core's default rule).
 
-const VERSION = 'logbook-v43';
+const VERSION = 'logbook-v44';
 const SHELL = [
   './', 'style.css', 'manifest.webmanifest',
   'js/app.js', 'js/navigation.js', 'js/transients.js', 'js/ui-core.js', 'js/ui-log.js', 'js/ui-logbook.js', 'js/ui-progress.js', 'js/ui-settings.js', 'js/ui-theme-link.js', 'js/display.js', 'js/settings-rows.js', 'js/more-cards.js', 'js/sync-forget.js', 'js/ui-admin.js', 'js/ui-reflect.js', 'js/reflections.js', 'js/portfolio.js',
@@ -15,11 +16,11 @@ const SHELL = [
   'vendor/exceljs.min.js', 'vendor/jszip.min.js', 'https://design.anawj.com/v1/feedback/qr.js', 'https://design.anawj.com/v1/feedback/vendor/qrcode.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
   // the sync engine (app-sync), one exact version (js/app-sync.js pins the same one)
-  'https://core.anawj.com/sync/0.3.0/index.js', 'https://core.anawj.com/sync/0.3.0/src/sync.js', 'https://core.anawj.com/sync/0.3.0/src/writes.js', 'https://core.anawj.com/sync/0.3.0/src/conflict.js', 'https://core.anawj.com/sync/0.3.0/src/store.js', 'https://core.anawj.com/sync/0.3.0/src/outbox.js', 'https://core.anawj.com/sync/0.3.0/src/watchdog.js', 'https://core.anawj.com/sync/0.3.0/src/persist.js', 'https://core.anawj.com/sync/0.3.0/src/status.js', 'https://core.anawj.com/sync/0.3.0/src/firestore.js',
-  'https://core.anawj.com/update/0.1.0/register.js',
+  'https://core.anawj.com/sync/0.4.1/index.js', 'https://core.anawj.com/sync/0.4.1/src/sync.js', 'https://core.anawj.com/sync/0.4.1/src/writes.js', 'https://core.anawj.com/sync/0.4.1/src/conflict.js', 'https://core.anawj.com/sync/0.4.1/src/store.js', 'https://core.anawj.com/sync/0.4.1/src/outbox.js', 'https://core.anawj.com/sync/0.4.1/src/watchdog.js', 'https://core.anawj.com/sync/0.4.1/src/persist.js', 'https://core.anawj.com/sync/0.4.1/src/forget.js', 'https://core.anawj.com/sync/0.4.1/src/status.js', 'https://core.anawj.com/sync/0.4.1/src/firestore.js',
+  'https://core.anawj.com/update/0.2.0/register.js',
 ];
 const MANIFEST = {};
-importScripts('https://core.anawj.com/update/0.1.0/sw-core.js');
+importScripts('https://core.anawj.com/update/0.2.0/sw-core.js');
 
 // Shared to the installed app (manifest share_target, POST multipart): text, a title, a link and .md / .txt files.
 // Kept in Cache Storage for the page (share-in.js readInbox; the cache's name doesn't start with "logbook-", so a new
@@ -41,7 +42,7 @@ async function receiveShare(req) {
 }
 
 AppUpdate.init({
-  app: 'logbook', version: VERSION, shell: SHELL, manifest: MANIFEST,
+  app: 'logbook', version: VERSION, shell: SHELL, manifest: MANIFEST, waitForGo: true,
   never: [/\/sw\.js$/],
   runtime: [
     { name: 'kit', match: 'https://design.anawj.com/v1/', strategy: 'stale-while-revalidate', max: 40 },

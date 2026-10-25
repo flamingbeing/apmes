@@ -2,7 +2,8 @@
 // the local Firestore and Auth emulators. A stream that stops delivering (here: the listen channel blocked while the
 // browser still says online) must not leave "✓ Synced" up over old data: the header says "⚠ Not up to date" and the
 // app listens again; once the server is heard, a case written elsewhere meanwhile shows and the chip is back to
-// "✓ Synced". And when the browser won't keep the site's storage, a save waiting offline is flagged (B3). Run: tools/test-reads.sh watchdog (emulators, demo project, never the live one).
+// "✓ Synced". And when the browser won't keep the site's storage, a save waiting offline is flagged (B3). app-sync
+// 0.4.0: an edit after a clock-ahead writer is stamped forward, and the chip waits for the server before "✓ Synced". Run: tools/test-reads.sh watchdog (emulators, demo project, never the live one).
 import fs from 'node:fs';
 const { chromium } = await import(process.env.PLAYWRIGHT_PATH || '/opt/node22/lib/node_modules/playwright/index.mjs');
 const PORT = process.env.PORT || 8080, FS = process.env.READS_FS_PORT || 8086, AUTH = process.env.READS_AUTH_PORT || 9098;
@@ -74,6 +75,36 @@ try {
   await q.evaluate(() => window.dispatchEvent(new Event('online')));
   await q.locator('.sync.ok').first().waitFor({ timeout: 30000 });
   console.log('step 5: back online, sent: "' + await q.locator('#who .sync').textContent() + '"');
+
+  // app-sync 0.4.0 stamps forward: another device whose clock runs an hour ahead wrote w5 last; this device's edit is
+  // still stamped after it (max(now, the server copy's updatedAt + 1), in the commit), so delta readers see the edit
+  const ahead = Date.now() + 3600e3;
+  await put(`${lb}/cases/w5`, { ...fakeCase(5), updatedAt: ahead });
+  await q.waitForFunction(() => document.body.dataset.cases === '6', null, { timeout: 30000 });
+  await q.evaluate(async ([e, c]) => { const { writes } = await import('./js/writes.js'); await writes.save('case', e, { ...c, details: 'fake case 5, edited', updatedAt: Date.now() }, c); await writes.flush(8000); }, [E, { ...fakeCase(5), updatedAt: ahead }]);
+  const w5 = await (await fetch(`${DB}/${lb}/cases/w5`, { headers: { Authorization: 'Bearer owner' } })).json();
+  if (w5.fields.details.stringValue !== 'fake case 5, edited') throw new Error('edit not saved: ' + JSON.stringify(w5.fields.details));
+  if (!(Number(w5.fields.updatedAt.integerValue) > ahead)) throw new Error(`stamp went back: ${w5.fields.updatedAt.integerValue} after ${ahead}`);
+  console.log('step 6: edit after a clock-ahead writer stamped forward (+' + (Number(w5.fields.updatedAt.integerValue) - ahead) + ' ms)');
+
+  // confirmed (app-sync 0.4.0): a page that has only this device's copy (the server can't be heard from the start) never
+  // says "✓ Synced"; the same page says it once the server answers
+  await p.close(); await q.close();   // (an open tab would hold Firestore's connection for every tab: multi-tab cache)
+  const r = await ctx.newPage();
+  r.on('pageerror', e => errors.push(e.message));
+  await r.route(/Firestore\/Listen\/channel/, x => x.abort());
+  await r.goto(BASE + '#logbook');
+  await r.waitForFunction(() => Number(document.body.dataset.cases) > 0, null, { timeout: 30000 });
+  await r.waitForTimeout(4000);
+  if (await r.locator('.sync.ok').count()) throw new Error('"✓ Synced" before the server answered');
+  if (await r.evaluate(async () => (await import('./js/cloud.js')).syncHealth().confirmed) !== false) throw new Error('confirmed before the server answered');
+  console.log('step 7: server not heard yet: "' + ((await r.locator('#who .sync').count()) ? await r.locator('#who .sync').textContent() : '(no chip)') + '", not Synced');
+  await r.unroute(/Firestore\/Listen\/channel/);
+  for (const t2 = Date.now(); !(await r.locator('.sync.ok').count()); await r.waitForTimeout(500)) {
+    if (Date.now() - t2 > 60000) throw new Error('never Synced after the server answered');
+    await r.evaluate(() => window.dispatchEvent(new Event('online')));
+  }
+  console.log('step 8: server heard: "' + await r.locator('#who .sync').textContent() + '"');
   if (errors.length) throw new Error('page errors: ' + errors.join('; '));
   console.log('PASS watchdog (sync chip, emulator)');
 } catch (e) { failed = true; console.log('FAIL watchdog: ' + e.message); }
