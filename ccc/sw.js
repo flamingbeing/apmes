@@ -9,7 +9,7 @@ const VERSION = 'ccc-v1';
 const SHELL = [
   './', 'manifest.webmanifest', '../evals/style.css', 'https://design.anawj.com/v1/tokens.css', 'https://design.anawj.com/v1/app.css', 'https://design.anawj.com/v1/app.js',
   'js/app.js', 'js/staff.js', 'js/store.js', 'js/model.js', 'js/msf-form.js', 'js/overlay.js', 'js/writes.js', 'js/app-sync.js', 'js/update.js',
-  '../evals/js/ui-core.js', '../evals/js/cloud.js', '../evals/js/schema.js', '../evals/js/engine.js', '../evals/js/catalogue.js', '../evals/js/demo-backend.js', '../evals/js/firebase-config.js',
+  '../evals/js/ui-core.js', '../evals/js/cloud.js', '../evals/js/eval-queue.js', '../evals/js/app-sync.js', '../evals/js/schema.js', '../evals/js/engine.js', '../evals/js/catalogue.js', '../evals/js/demo-backend.js', '../evals/js/firebase-config.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
   // the sync engine (app-sync), one exact version (js/app-sync.js pins the same one)
   'https://core.anawj.com/sync/0.4.1/index.js', 'https://core.anawj.com/sync/0.4.1/src/sync.js', 'https://core.anawj.com/sync/0.4.1/src/writes.js', 'https://core.anawj.com/sync/0.4.1/src/conflict.js', 'https://core.anawj.com/sync/0.4.1/src/store.js', 'https://core.anawj.com/sync/0.4.1/src/outbox.js', 'https://core.anawj.com/sync/0.4.1/src/watchdog.js', 'https://core.anawj.com/sync/0.4.1/src/persist.js', 'https://core.anawj.com/sync/0.4.1/src/status.js', 'https://core.anawj.com/sync/0.4.1/src/firestore.js', 'https://core.anawj.com/sync/0.4.1/src/forget.js',
