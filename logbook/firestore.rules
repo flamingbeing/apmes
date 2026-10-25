@@ -57,6 +57,13 @@ service cloud.firestore {
         || (resource != null && resource.data.get('serverAt', null) == d.serverAt);
     }
 
+    // who changed each field and when (app-sync 0.6.3 held conflicts, `edits`): { <field>: { by, device, at } }, written
+    // by the logbook's own saves for the conflict popup; only the record's own fields may be listed (each entry's
+    // shape can't be checked in rules: maps can't be looped)
+    function editsOk(d, fields) {
+      return !('_edits' in d) || (d._edits is map && d._edits.keys().hasOnly(fields));
+    }
+
     // access/{email} { name, roles, updatedAt, updatedBy }: who holds which role (owner, admin, pc, pd). Owners grant and
     // remove anything; Admin staff and PCs grant admin, pc and pd but never owner, and never change their own record.
     // Nobody can remove their own owner role (so an owner always remains), and nobody removes an owner but an owner.
@@ -238,7 +245,7 @@ service cloud.firestore {
     function sec(m, k) { return !(k in m) || (m[k] is string && m[k].size() <= 20000); }
     // lists can't be looped in rules: their sizes are capped here and their contents by reflections.js
     function validReflection(id, d) {
-      return d.keys().hasOnly(['id', 'headingId', 'subId', 'initials', 'date', 'jr', 'diagnosis', 'title', 'summary', 'points', 'figures', 'references', 'sections', 'caseId', 'source', 'status', 'export', 'createdAt', 'updatedAt', 'serverAt']) && serverStamp(d)
+      return d.keys().hasOnly(['id', 'headingId', 'subId', 'initials', 'date', 'jr', 'diagnosis', 'title', 'summary', 'points', 'figures', 'references', 'sections', 'caseId', 'source', 'status', 'export', 'createdAt', 'updatedAt', 'serverAt', '_edits']) && serverStamp(d) && editsOk(d, ['id', 'headingId', 'subId', 'initials', 'date', 'jr', 'diagnosis', 'title', 'summary', 'points', 'figures', 'references', 'sections', 'caseId', 'source', 'status', 'export', 'createdAt', 'updatedAt', 'serverAt'])
         && d.id == id
         && (!('export' in d) || d.export is bool)   // false: left out of the portfolio export
         && (!('source' in d) || d.source in ['app', 'word'])
@@ -282,7 +289,7 @@ service cloud.firestore {
         && optNumber(d, 'updatedAt');
     }
     function validNote(id, d) {
-      return d.keys().hasOnly(['id', 'date', 'title', 'body', 'caseId', 'createdAt', 'updatedAt', 'serverAt']) && serverStamp(d)
+      return d.keys().hasOnly(['id', 'date', 'title', 'body', 'caseId', 'createdAt', 'updatedAt', 'serverAt', '_edits']) && serverStamp(d) && editsOk(d, ['id', 'date', 'title', 'body', 'caseId', 'createdAt', 'updatedAt', 'serverAt'])
         && d.keys().hasAll(['id', 'body'])
         && d.id == id && id.size() <= 100
         && d.body is string && d.body.size() <= 20000
@@ -292,7 +299,7 @@ service cloud.firestore {
         && optNumber(d, 'createdAt') && optNumber(d, 'updatedAt');
     }
     function validCase(caseId, d) {
-      return d.keys().hasOnly(['id', 'date', 'dateText', 'initials', 'details', 'cats', 'createdAt', 'updatedAt', 'source', 'importKey', 'reflectionId', 'reflectTag', 'tags', 'serverAt']) && serverStamp(d)
+      return d.keys().hasOnly(['id', 'date', 'dateText', 'initials', 'details', 'cats', 'createdAt', 'updatedAt', 'source', 'importKey', 'reflectionId', 'reflectTag', 'tags', 'serverAt', '_edits']) && serverStamp(d) && editsOk(d, ['id', 'date', 'dateText', 'initials', 'details', 'cats', 'createdAt', 'updatedAt', 'source', 'importKey', 'reflectionId', 'reflectTag', 'tags', 'serverAt'])
         && d.id == caseId
         && d.details is string && d.details.size() <= 2000
         && d.cats is list && d.cats.size() <= 40
