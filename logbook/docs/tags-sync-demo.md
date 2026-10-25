@@ -33,14 +33,14 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md).
 ## Sync: this device's copy and cheap reopening (app-sync, `store.js`; 13 Oct 2026)
 
 - Since 24 Oct 2026 the engine, write queue, outbox and stores are app-sync (another repo, served at
-  core.anawj.com/sync/<version>/, pinned in `js/app-sync.js` and cached by `sw.js`; `0.6.1` since 25 Oct 2026, through createApp (`js/sync-app.js`)); the
+  core.anawj.com/sync/<version>/, pinned in `js/app-sync.js` and cached by `sw.js`; `0.6.3` since 25 Oct 2026, through createApp (`js/sync-app.js`)); the
   logbook keeps its schemas, paths, rules, bin, Recover and chip. Same IndexedDB names, so copies and waiting saves on a
   device carry on. Saves through the queue commit with app-sync's Firestore adapter, stamped inside the commit with its
   default: max(now, the server copy's updatedAt + 1), so a phone whose clock is behind still moves the stamp forward. Also from app-sync: the
   bin feed anchored to the newest deletedAt (a fast clock no longer misses bin entries), a re-plan when a page left open
   wakes after a week, a stuck send timing out, sign-out refusing when the outbox can't be read, the listener watchdog
   (header "⚠ Not up to date"; `test/e2e/watchdog.emulator.mjs`) and `persistGuard` at sign-in (header "⚠ On this device
-  only" while a save waits offline and the browser won't keep the site's storage). From `0.4.0` (now `0.6.1`): a transaction that lost
+  only" while a save waits offline and the browser won't keep the site's storage). From `0.4.0` (now `0.6.3`): a transaction that lost
   a race with another device (`aborted`) is retried, not sent to Recover; the chip says "⟳ Connecting" instead of
   "✓ Synced" until a server answer has come in since the page opened (`confirmed`), and "⚠ On this device only" only
   while offline (`atRiskOnlyOffline`); the sign-out check also waits for writes made outside the queue (photos,
@@ -48,6 +48,12 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md).
   The update core is `0.2.0` with `canReload`: a new version installs but waits (`waitForGo` in `sw.js`) while someone
   types, a dialog is open or a change is sending, then takes over with one reload. Upgrading: change the version in
   `js/app-sync.js`, `sw.js` and `index.html` together, after the tests (`test/regressions.test.mjs` checks they match).
+  Held conflicts (`0.6.3`, the owner's conflict decision of 25 Oct 2026): `cloud.js`'s adapter saves cases, reflections
+  and notes by field (`held`), so a change made on two devices to different fields merges on its own, the same value on
+  both sides is no clash, and only a field changed on both sides to different values stops the save as a conflict in
+  Recover (Keep mine / Keep theirs), never overwritten. Each write records who changed each field and when (`_edits`,
+  allowed by the rules, field names only); createApp's `backend` carries the same options so the queue leaves those
+  engine fields out when it compares versions.
 
 - Goal: opening the app many times a day costs about one Firestore read per collection when nothing changed
   (Firestore's own cache only re-charges unchanged documents if a listener resumes within ~30 minutes).

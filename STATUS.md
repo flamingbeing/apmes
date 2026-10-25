@@ -17,6 +17,9 @@
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 25 Oct 2026: app-sync 0.6.3 in all apps. Logbook saves now merge by field (held conflicts): only the same field
+  changed on two devices to different values goes to Recover; each write records who changed each field (`_edits`,
+  rules first, #48). Evals and CCC: pin only (their own merge and transactions; held doesn't apply).
 - 25 Oct 2026: CCC's staff writes on app-sync 0.6.0 `createApp` (was 0.4.1): queue, outbox (`ccc-outbox`, name kept)
   and the origin outbox list from createApp; the per-kind transactions stay the app's own (`commit`). Next: the logbook (last).
 - 25 Oct 2026: evals (and People, CCC's sign-in) on app-sync 0.6.0 `createApp`: queue, outbox (name kept), origin

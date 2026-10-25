@@ -4,7 +4,7 @@
 // writes.forget forget this account in theirs (they share the sign-in on this site).
 // The logbook keeps its own sync hub, listeners, watchdog, chip and sign-out order (cloud.js): its demo listener,
 // read counter and late restamps are not createApp's. The commit and the SDK are set by ui-core.js once cloud.js loads
-// (cloud.commitRecord: the logbook's own transaction, conflicts held in Recover, never newest-wins).
+// (cloud.commitRecord: app-sync's held conflicts by field, a same-field clash held in Recover, never newest-wins).
 import { createApp } from './app-sync.js';
 import { recoveryStore } from './recovery-store.js';
 
@@ -25,6 +25,9 @@ export const app = createApp({
   name: 'apmes-logbook', colls: COLLS, kinds: { case: 'cases', reflection: 'reflections', note: 'notes' },
   path: (email, coll) => ['logbooks', email, coll], sdk: () => hooks.sdk(),
   outbox: recoveryStore, commit: (...a) => hooks.commit(...a), watchEvery: 0,
+  // held conflicts (0.6.3): the commit (cloud.js) saves by field; here the queue leaves the engine's own fields
+  // (`_edits`, serverAt) out when it compares versions
+  backend: { held: true, edits: '_edits' },
   stores: { prefix: 'apmes-logbook-store:', realm: demo ? 'demo:' : '' },
   queue: { labels: { recover: 'Recover' }, otherPending: () => outside.pending() },
   // the demo's saves stay out of the origin's list (another app's sign-out never waits for them)
