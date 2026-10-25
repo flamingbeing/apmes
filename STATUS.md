@@ -17,6 +17,8 @@
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 25 Oct 2026: app-sync 0.7.3 in all apps (was 0.6.3; #52-#55), pin only. Precaches the new `src/cache.js`;
+  held unchanged (logbook by field; evals and CCC inert). Since 0.7.2 a save shows in the lists as soon as it is made.
 - 25 Oct 2026: app-sync 0.6.3 in all apps. Logbook saves now merge by field (held conflicts): only the same field
   changed on two devices to different values goes to Recover; each write records who changed each field (`_edits`,
   rules first, #48). Evals and CCC: pin only (their own merge and transactions; held doesn't apply).
