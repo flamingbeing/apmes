@@ -10,9 +10,19 @@
 // With ?demo: the same calls against this browser's localStorage (made-up people), so the screens are the same.
 
 import { cloud } from '../../evals/js/ui-core.js';
+import { overlayRounds, overlayReviews, overlayNominees, overlayInvites } from './overlay.js';
 import { entryDoc, msfDoc, cleanEntry, cleanNominees, demoRound, purgeDue, inviteDoc, newInviteId, purgePlan } from './model.js';
 
 const lc = s => String(s || '').trim().toLowerCase();
+
+// The coordinators' writes go through the write queue (writes.js) once the staff screen has set it up (not in the demo,
+// which writes to localStorage, and never on the rater's page). Reads below put this device's unsent saves over what the
+// server gave, and tell the chip when the server (not the device's copy) answered.
+let writes = null;
+export const useWrites = w => { writes = w; };
+const need = () => { if (!writes) throw new Error('Saving is not ready. Reload the page and try again.'); return writes; };
+const unsent = () => writes ? writes.open() : [];
+const heard = snap => { if (writes && !snap.metadata?.fromCache) writes.hear(); return snap; };
 const KEY = 'ccc-demo-store';
 const demoRead = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
 const demoWrite = d => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch {} };
@@ -37,7 +47,8 @@ const byNewest = (a, b) => b.updatedAt - a.updatedAt || String(b.round).localeCo
 export async function listRounds() {
   if (cloud.demo) return Object.entries(demoDb().rounds).map(([id, d]) => toRound(id, d)).sort(byNewest);
   const { db, F } = await cloud.firestore();
-  return (await F.getDocs(F.collection(db, 'ccc'))).docs.map(d => toRound(d.id, d.data())).sort(byNewest);
+  const list = heard(await F.getDocs(F.collection(db, 'ccc'))).docs.map(d => toRound(d.id, d.data()));
+  return overlayRounds(list, unsent(), toRound).sort(byNewest);
 }
 
 // a resident's own entry and nominees for a round: { entry, nominees, sentAt } or null if nothing was sent
@@ -85,7 +96,7 @@ const byEmail = list => Object.fromEntries(list.map(d => [d.email, d]));
 const demoOf = (map, round) => byEmail(Object.entries(map).filter(([k]) => k.startsWith(round + '|')).map(([, v]) => ({ ...v, updatedAt: ms(v.updatedAt) })));
 const liveOf = async (round, col) => {
   const { db, F } = await cloud.firestore();
-  return byEmail((await F.getDocs(F.collection(db, 'ccc', round, col))).docs.map(d => stamp({ email: d.id, ...d.data() }, d.data().updatedAt)));
+  return byEmail(heard(await F.getDocs(F.collection(db, 'ccc', round, col))).docs.map(d => stamp({ email: d.id, ...d.data() }, d.data().updatedAt)));
 };
 
 // open (or change, close, reopen) a round. A round id is chosen once and never changes.
@@ -94,32 +105,27 @@ export async function saveRound({ round, title, deadline = '', status = 'open', 
   if (deadline) doc.deadline = deadline;
   if (status === 'closed' && closedAt) doc.closedAt = closedAt;
   if (cloud.demo) { const d = demoDb(); d.rounds[round] = doc; demoWrite(d); return toRound(round, doc); }
-  const { db, F } = await cloud.firestore();
-  await F.setDoc(F.doc(db, 'ccc', round), doc);
+  await need().saveRound(doc);
   return toRound(round, doc);
 }
 export const listEntries = round => cloud.demo ? Promise.resolve(demoOf(demoDb().entries, round)) : liveOf(round, 'entries');
-export const listNominees = round => cloud.demo ? Promise.resolve(demoOf(demoDb().msf, round)) : liveOf(round, 'msf');
-export const listReviews = round => cloud.demo ? Promise.resolve(demoOf(demoDb().review, round)) : liveOf(round, 'review');
+export const listNominees = async round => cloud.demo ? demoOf(demoDb().msf, round) : overlayNominees(round, await liveOf(round, 'msf'), unsent());
+export const listReviews = async round => cloud.demo ? demoOf(demoDb().review, round) : overlayReviews(round, await liveOf(round, 'review'), unsent());
 
 // the coordinators' marks on one resident's nominees: { [nomineeId]: 'ok' | 'swap' | 'sent' }
-export async function saveMarks(round, email, marks) {
+// base: the marks as the screen loaded them (the next save's base is the marks this device saved last)
+export async function saveMarks(round, email, marks, base = null) {
   email = lc(email);
   const doc = { email, marks: marks || {}, updatedAt: Date.now() };
   if (cloud.demo) { const d = demoDb(); d.review[round + '|' + email] = doc; demoWrite(d); return; }
-  const { db, F } = await cloud.firestore();
-  await F.setDoc(F.doc(db, 'ccc', round, 'review', email), doc);
+  await need().saveMarks(round, email, marks || {}, base);
 }
 
 // Delete a resident's nominees (and the marks on them): the contact details of people who are not in the programme.
 export async function deleteNominees(round, email) {
   email = lc(email);
   if (cloud.demo) { const d = demoDb(); delete d.msf[round + '|' + email]; delete d.review[round + '|' + email]; demoWrite(d); return; }
-  const { db, F } = await cloud.firestore();
-  const b = F.writeBatch(db);
-  b.delete(F.doc(db, 'ccc', round, 'msf', email));
-  b.delete(F.doc(db, 'ccc', round, 'review', email));
-  await b.commit();
+  await need().deleteNominees(round, email);
 }
 
 // Every round that closed more than three years ago (PURGE_DAYS): delete the nominees, and the raters' links and answers after saving each
@@ -134,7 +140,8 @@ export async function purgeExpired(rounds, now = Date.now()) {
     for (const email of left) { await deleteNominees(r.round, email); done.lists++; }
     const [invites, responses] = await Promise.all([listInvites(r.round), listResponses(r.round)]);
     if (!responses || !Object.keys(invites).length && !Object.keys(responses).length) continue;
-    for (const step of purgePlan(invites, responses)) { await purgeRaters(r.round, step); if (step.report) done.reports++; }
+    const queued = new Set(unsent().filter(x => x.kind === 'purge').map(x => x.record.id));
+    for (const step of purgePlan(invites, responses)) { if (queued.has(r.round + '|' + step.email)) continue; await purgeRaters(r.round, step); if (step.report) done.reports++; }
   }
   return done;
 }
@@ -147,12 +154,7 @@ async function purgeRaters(round, { email, report, inviteIds, responseIds }) {
     for (const id of inviteIds) delete d.invites[round + '|' + id];
     demoWrite(d); return;
   }
-  const { db, F } = await cloud.firestore();
-  const b = F.writeBatch(db);
-  if (report) b.set(F.doc(db, 'ccc', round, 'report', email), { ...report, savedAt: F.serverTimestamp() });
-  for (const id of responseIds) b.delete(F.doc(db, 'ccc', round, 'responses', id));
-  for (const id of inviteIds) b.delete(F.doc(db, 'ccc', round, 'invites', id));
-  await b.commit();
+  await need().purgeRaters(round, { email, report, inviteIds, responseIds });
 }
 // the saved summaries of a round, by resident email; null when this reader may not see them (PDs and PCs only)
 export async function listReports(round) {
@@ -171,19 +173,23 @@ const liveById = async (round, col) => {
   return Object.fromEntries((await F.getDocs(F.collection(db, 'ccc', round, col))).docs.map(d => { const x = d.data(); return [d.id, { ...x, createdAt: ms(x.createdAt), submittedAt: ms(x.submittedAt) }]; }));
 };
 // every invite of a round, by id (staff)
-export const listInvites = round => cloud.demo ? Promise.resolve(byId(demoDb().invites, round)) : liveById(round, 'invites');
+export const listInvites = async round => {
+  if (cloud.demo) return byId(demoDb().invites, round);
+  const list = await liveById(round, 'invites');
+  return overlayInvites(round, list, unsent());
+};
 // every answer of a round, by invite id; null when this reader may not see them (only PDs and PCs do; Admin staff do not)
 export async function listResponses(round) {
   if (cloud.demo) return byId(demoDb().responses, round);
   try { return await liveById(round, 'responses'); } catch (e) { if (e?.code === 'permission-denied') return null; throw e; }
 }
 // Make a rater's link for one Checked nominee: { id, ...invite }. The rules check the mark and stamp the time and writer.
+// Live, the link is only good once the server has the invite (a rater who opens it sooner finds nothing): `sent` says so.
 export async function createInvite(round, resident, nominee, by) {
   const id = newInviteId(), doc = inviteDoc(resident, nominee);
-  if (cloud.demo) { const d = demoDb(); d.invites[round + '|' + id] = { ...doc, createdAt: Date.now(), createdBy: lc(by) }; demoWrite(d); return { id, ...doc }; }
-  const { db, F } = await cloud.firestore();
-  await F.setDoc(F.doc(db, 'ccc', round, 'invites', id), { ...doc, createdAt: F.serverTimestamp(), createdBy: lc(by) });
-  return { id, ...doc };
+  if (cloud.demo) { const d = demoDb(); d.invites[round + '|' + id] = { ...doc, createdAt: Date.now(), createdBy: lc(by) }; demoWrite(d); return { id, ...doc, sent: true }; }
+  await need().saveInvite(round, id, doc, lc(by));
+  return { id, ...doc, sent: await need().sent('invite', id) };
 }
 
 // ---- the rater's page (no sign-in) ----

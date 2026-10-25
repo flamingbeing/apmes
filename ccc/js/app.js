@@ -11,6 +11,7 @@ import {
 } from './model.js';
 import * as store from './store.js';
 import { staffScreen } from './staff.js';
+import { startUpdates, retryUpdate, versionText, getLatest, reloadAllowed } from './update.js';
 
 applyTheme();
 
@@ -36,6 +37,8 @@ let carried = null;    // the earlier round whose projects were carried over, if
 let faculty = [];      // for the nominee picker
 let people = [];       // the other active residents, for the peer picker
 
+let writes = null;     // the coordinators' write queue (writes.js): staff, not in the demo
+const lc = s => String(s || '').trim().toLowerCase();
 const isResident = () => !!S.roles.resident;
 const isStaff = () => !!(S.roles.admin || S.roles.pd || S.roles.owner);   // PDs, Admin staff and PCs (getRoles reads access/ too)
 const isOpen = () => round?.status === 'open';
@@ -83,7 +86,76 @@ function header(title, { back = false, to = '#' } = {}) {
   subEl.textContent = 'Demo'; subEl.hidden = !cloud.demo;
   backEl.hidden = !back;
   backEl.onclick = () => go(to);
-  fill(meEl, S.user ? h('button', { type: 'button', class: 'a-bar-btn e-appbar__me', title: S.user.email, 'aria-label': 'Account', onclick: account }, h('span', { class: 'a-avatar', 'aria-hidden': 'true' }, initials(S.user.name || S.user.email))) : null);
+  fill(meEl, writes ? chipEl : null, S.user ? h('button', { type: 'button', class: 'a-bar-btn e-appbar__me', title: S.user.email, 'aria-label': 'Account', onclick: account }, h('span', { class: 'a-avatar', 'aria-hidden': 'true' }, initials(S.user.name || S.user.email))) : null);
+}
+
+// ---------- sync chip (staff): what happened to the changes made on this device ----------
+
+const chipEl = h('button', { type: 'button', class: 'a-pill e-chip', 'aria-live': 'polite', onclick: () => syncSheet() });
+const CHIP = { synced: ['ok', 'Synced'], unknown: ['draft', 'Checking…'], saving: ['warn', n => `Sending ${n}`], offline: ['warn', n => `Saved on this device (${n})`],
+  'at-risk': ['warn', n => `Saved here only (${n})`], attention: ['bad', n => `${n} need${n === 1 ? 's' : ''} you`], stale: ['warn', () => 'May be out of date'] };
+function drawChip() {
+  if (!writes) return;
+  const st = writes.status(), [kind, text] = CHIP[st.state] || CHIP.synced;
+  chipEl.className = `a-pill ${kind === 'ok' ? 'a-pill--ok' : kind === 'warn' ? 'a-pill--warn' : kind === 'bad' ? 'a-pill--danger' : ''} e-chip`;
+  chipEl.textContent = typeof text === 'function' ? text(st.count) : text;
+  chipEl.dataset.state = st.state;
+  chipEl.title = 'What happened to the changes made on this device';
+}
+const KIND_LABEL = { round: 'Round', review: 'Marks', invite: 'Rater link', nominees: 'Deleted nominees', purge: 'Clean-up of old answers' };
+function syncSheet() {
+  const open = writes?.queue.entries().filter(x => x.state !== 'synced' && x.state !== 'archived') || [];
+  const rows = open.map(x => h('li', {},
+    h('b', {}, KIND_LABEL[x.kind] || x.kind), ' ', h('span', { class: 'e-small' }, x.record.round || ''), ' ',
+    h('span', { class: 'e-small' }, x.state === 'failed' ? 'could not be saved: ' + (x.error || 'refused') : 'waiting to be sent'),
+    x.state === 'failed' ? h('span', { class: 'e-actions' },
+      h('button', { class: 'a-btn a-btn--sm a-btn--tinted', type: 'button', onclick: async () => { await writes.queue.retry(x.key); m.close(); syncSheet(); } }, 'Try again'),
+      h('button', { class: 'a-btn a-btn--sm a-btn--tinted', type: 'button', onclick: async () => { await writes.queue.archive(x.key); m.close(); syncSheet(); } }, 'Discard')) : null));
+  const m = modal('Changes on this device', [
+    open.length ? h('ul', { class: 'cc-list' }, rows) : h('p', {}, 'Everything you changed is on the server.'),
+    h('div', { class: 'e-actions' }, h('button', { class: 'a-btn a-btn--tinted e-btn-quiet', type: 'button', onclick: () => m.close() }, 'Close'))]);
+}
+
+async function startWrites() {
+  if (cloud.demo || writes || !S.user) return;
+  const { createStaffWrites } = await import('./writes.js');
+  const w = createStaffWrites({ sdk: () => cloud.firestore(), getOwner: () => lc(S.user?.email) });
+  store.useWrites(w);
+  await w.start();
+  writes = w;
+  w.onChange(() => { drawChip(); if (!w.queue.pending()) retryUpdate(); });
+  addEventListener('online', () => { w.queue.kick(); drawChip(); });
+  addEventListener('offline', drawChip);
+  drawChip();
+}
+
+// Sign out: refuses while changes are unsent (nothing is deleted); then forgets what this device kept (outbox, drafts).
+async function signOutSafely() {
+  if (writes) {
+    if (!await writes.canSignOut()) { toast('Some changes aren’t on the server yet. Stay signed in until the chip says Synced.'); syncSheet(); return; }
+    await writes.forget({ extra: async () => { try { for (const k of Object.keys(localStorage)) if (k.startsWith(NS + '-draft-')) localStorage.removeItem(k); } catch {} } });
+  }
+  await cloud.signOut();
+  location.reload();
+}
+
+// ---------- updates ----------
+// A new version takes over at once, but the page reloads only when nobody is typing, no sheet is open and nothing is
+// unsent or unsaved.
+const canReload = () => reloadAllowed({ sheetOpen: !!document.querySelector('dialog[open]'), typing: /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || ''),
+  unsent: writes ? writes.queue.pending() : 0, unsaved: !!(S.user && round && isResident() && dirty()) });
+const beforeReload = () => { if (S.user && round && isResident() && dirty()) saveDraft(); };
+const appVer = h('p', { class: 'e-appver' }, '');
+async function paintVersion() {
+  const v = await versionText();
+  appVer.textContent = v ? 'App version ' + v : 'App version: not saved on this device';
+}
+async function latest() {
+  try { await getLatest({ canReload }); } catch (e) { toast(errText(e)); }
+}
+function versionLines() {
+  paintVersion();
+  return [appVer, h('p', { class: 'e-appver' }, h('button', { class: 'e-linkbtn', type: 'button', onclick: latest }, 'Not updating? Get the latest version'))];
 }
 
 function account() {
@@ -99,7 +171,8 @@ function account() {
     h('p', { class: 'e-small' }, h('a', { href: '../logbook/' }, 'Logbook'), ' · ', h('a', { href: '../evals/' }, 'Evals')),
     h('div', { class: 'e-actions' },
       h('button', { class: 'a-btn a-btn--tinted e-btn-quiet', type: 'button', onclick: () => m.close() }, 'Close'),
-      h('button', { class: 'a-btn', type: 'button', onclick: async () => { m.close(); await cloud.signOut(); location.reload(); } }, 'Sign out')),
+      h('button', { class: 'a-btn', type: 'button', onclick: async () => { m.close(); await signOutSafely(); } }, 'Sign out')),
+    ...(cloud.demo ? [] : versionLines()),
   ]);
 }
 
@@ -316,7 +389,13 @@ cloud.watchUser(async u => {
   if (!u) { S.roles = {}; signInScreen(); return; }
   fill(app, h('p', { class: 'e-loading' }, 'Loading…'));
   try { S.roles = await cloud.getRoles(u.email); } catch (e) { S.roles = {}; toast('Couldn’t check your access. ' + errText(e)); }
+  try { if (isStaff()) await startWrites(); } catch (e) { toast('Couldn’t start saving on this device. ' + errText(e)); }
   try { await loadAll(); } catch (e) { fill(app, h('p', { class: 'e-alert' }, 'Couldn’t load the round: ' + errText(e)), h('button', { class: 'a-btn', type: 'button', onclick: () => location.reload() }, 'Try again')); return; }
   render();
 });
+document.addEventListener('close', () => retryUpdate(), true);   // a sheet closed: take over now if a new version is waiting
+if (!cloud.demo) {
+  const boot = () => startUpdates({ canReload, beforeReload }).then(() => paintVersion());
+  if (document.readyState === 'complete') boot(); else addEventListener('load', boot, { once: true });   // after the first screen, so the offline download doesn't compete
+}
 if (!cloud.enabled) fill(app, h('p', { class: 'e-alert' }, 'Sign-in isn’t set up.'));

@@ -144,7 +144,7 @@ after any change to them: a first version broke the evals decline and reassign c
   residents, others from both; anyone can still be typed in. `cloud.listActiveResidents` in evals' `cloud.js` is the call.
 - Staff (PD, Admin staff, PC; `S.roles.admin/pd/owner` from `getRoles`, which reads `access/`) who are not residents go straight to the coordinators' view; residents who are also staff get a "Coordinators' view" button.
 - Tests: `node ccc/test/model.test.mjs`, `node ccc/test/e2e.mjs` (demo at 390 px, axe on each screen, a send and a change, carry-over,
-  a closed round, nothing outside the site reached).
+  a closed round, nothing outside the site reached), and the two below (`writes.test.mjs`, `shell.test.mjs`).
 
 ## The coordinators' view (`js/staff.js`, 17 Oct 2026)
 
@@ -156,12 +156,39 @@ after any change to them: a first version broke the evals decline and reassign c
 - **One resident:** their projects and lists, and each nominee with Checked / Ask for a different person, kept in `review/`. "Email" is a
   `mailto:` link to the nominee with the text filled in (`mailto` in `model.js`; edit it in the mail app) and marks them Emailed. The app
   never sends mail.
-- **Retention:** nominees' contact details are deleted a year after a round closes (was 60 days; changed 17 Oct 2026 by the owner). The check (`purgeExpired`) runs whenever staff open
+- **Retention:** nominees' contact details are deleted three years after a round closes (`PURGE_DAYS`; was 60 days, then a year, three years since 23 Oct 2026). The check (`purgeExpired`) runs whenever staff open
   the app; a round with no close time is never purged by guesswork. Staff can also delete one resident's nominees, or a round's, at once.
   Projects stay. Deleting a whole round is not offered; if it ever is, delete its nominees first (rules do not cascade).
 - **CSV safety:** every cell that starts with `=`, `+`, `-`, `@` or a tab gets a leading apostrophe (`csvCell`); all resident text is put on
   the page as text only. Tested with hostile names.
 - **Not built:** a reminder to residents, the resident's view of the coordinators' marks (deliberately never shown), and a custom email text.
+
+## Saving, the chip and updates (staff, 25 Oct 2026; app-sync 0.4.1, update core 0.2.0)
+
+- **Staff writes go through app-sync's write queue** (`js/writes.js`, outbox `ccc-outbox` in IndexedDB): opening or changing a round,
+  the coordinators' marks, a rater's link, deleting a resident's nominees and the clean-up of old answers are kept on the device first,
+  sent in order, and sent again after a dropped connection or a reload. Each kind is one transaction, so a send repeated lands once
+  (`createBackend`): rounds keep the newest change; marks are merged onto the server's marks, so two coordinators marking different
+  nominees keep both; a link is made once (the rules stamp its time and writer); the clean-up saves a summary and deletes the
+  answers together. The server copies carry no `id` (the rules list their fields); ids ('round|email') live only in the outbox.
+  The rules were not changed.
+- **A rater link works only once the server has it.** `createInvite` waits for the send; offline, the link is kept on the device, the
+  mail app is not opened, and the toast says to wait for Synced. A link waits for its resident's mark to reach the server first.
+- **The chip** (staff, in the header, `syncStatus`): Synced, Checking (the server has not answered since the page opened: `confirmed`),
+  Sending, Saved on this device (offline), Saved here only (offline and the browser may clear storage), N need you. Tapping it lists
+  unsent changes; a refused one can be tried again or discarded. Reads (`listRounds`, `listEntries`…) tell it when the server (not the
+  device's copy) answered. Lists show unsent changes over the server's (`js/overlay.js`).
+- **Sign-out** (`signOutSafely`): sign-in is shared by the whole origin, so it refuses while this app's queue or the logbook's or evals' outbox (`SIBLINGS`, names in step with theirs) holds an unsent change for this user, and forgets those outboxes too; then `forgetDevice` empties the outbox and the device's drafts, and
+  evals' `cloud.signOut` clears the SDK cache. The resident's Send stays a plain await ("sent" means the server has it).
+- **Offline copy and updates:** `sw.js` (base `ccc-v1`, stamped at deploy) precaches every module the page loads, app-sync 0.4.1 and the
+  update core 0.2.0, all exact pins. `rate/`, `demo/` and `status/` are never served by the worker (the rater has no sign-in and must
+  always get the page and the invite from the server). A new version takes over at once, but the page reloads only when no sheet is
+  open, nobody is typing, nothing is unsent and nothing typed is unsaved (`reloadAllowed`, `canReload`). The account sheet ends with the
+  app version and "Not updating? Get the latest version". The demo registers no worker.
+- Tests: `node --import ./logbook/test/app-sync-hook.mjs ccc/test/writes.test.mjs` (fake Firestore: each kind, offline, refused, retry,
+  chip states, sign-out) and `node ccc/test/shell.test.mjs` (SHELL covers every imported module, pins agree, rater page left out,
+  when a reload may happen). The rater page never loads the sync engine (checked there).
+- Bumping app-sync: change the pin in `js/app-sync.js` and the SHELL list in `sw.js` together (`shell.test.mjs` fails when they differ).
 
 ## Lessons
 
