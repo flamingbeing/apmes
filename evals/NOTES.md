@@ -99,9 +99,9 @@ Pickers are full-screen **Recent | All | Write-In** lists, with recents remember
   - Project `apmes-logbook`, **Blaze** (pay-as-you-go) plan, asia-southeast1. Usage is within the free quotas at this scale.
   - **Shared with the logbook.** Evals reuses the logbook's `residents` collection.
   - Google popup sign-in, with a redirect fallback.
-  - Firestore with a persistent offline cache for reads. Evaluation saves go through app-sync (pinned `0.5.1` in
-    `js/app-sync.js` and `sw.js`): `js/eval-queue.js` puts each create, change and draft delete in a durable outbox
-    (IndexedDB `apmes-evals-outbox`), then sends it in a transaction merged by field onto the server's copy
+  - Firestore with a persistent offline cache for reads. Evaluation saves go through app-sync's `createApp` (pinned `0.6.0` in
+    `js/app-sync.js` and `sw.js`, since 25 Oct 2026; `cloud.js` is its config): `js/eval-queue.js`'s commit puts each create, change and draft delete in a durable outbox
+    (IndexedDB `apmes-evals-outbox`, name unchanged), then sends it in a transaction merged by field onto the server's copy
     (`mergeEval`). When `status`, `assessorEmail` or `residentEmail` moved on elsewhere since the edit started, the
     save is a conflict (kept with the server's copy; Discard in Unsent changes), never a refusal that blocks
     sign-out. A create already on the server is left as it is; otherwise it is written without a transaction read
@@ -151,11 +151,12 @@ Pickers are full-screen **Recent | All | Write-In** lists, with recents remember
 ### Added in the 14 Oct improvement run (worth not regressing)
 
 - **Unsent work:** `cloud.hasUnsentWrites()` (the queue's `flush`: this account's outbox, another tab's, and SDK writes) and
-  `whenSynced()`. `signOutSafely()` (ui-core) asks before signing out with unsent writes; sign-out is app-sync's `forgetDevice` (outbox,
+  `whenSynced()`. `signOutSafely()` (ui-core) asks before signing out with unsent writes; sign-out is createApp's `signOut` (its `forgetDevice` order: outbox,
   SDK cache (at most 3 s: another tab can hold it), `evals-draft-*` first). One sign-in serves every app on the site,
   so `cloud.signOut()` refuses (`unsent-saves`) while this account has unsent saves in evals', the logbook's
-  (`apmes-logbook-recovery`) or CCC's (`ccc-outbox`) outbox, and forgets all three; `signOutSafely()` asks, then
-  passes `{ force: true }`. People signs out through `signOutSafely()` too. The Sent screen says "Saved on this phone" until synced; so
+  (`apmes-logbook-recovery`) or CCC's (`ccc-outbox`) outbox (all three are on the origin's outbox list, createApp's registry), and forgets all three; `signOutSafely()` asks, then
+  passes `{ force: true }` (the unsent saves are set aside, then forgotten). The lists keep their own listeners (role- and
+  status-scoped queries; the hub's deltas would miss a record leaving the query), so the chip is still `cloud.syncState()`. People signs out through `signOutSafely()` too. The Sent screen says "Saved on this phone" until synced; so
   does the request share step. A refused save waits up to 3 s for the answer (`ACK_WAIT`), so the screens still show "the request is no
   longer open"; later refusals go to the screen's `onError` or the toast.
 - **Sync chip (header, 25 Oct 2026):** `cloud.syncState()` (app-sync `syncStatus` with `confirmed`: "Connecting" until a list has come

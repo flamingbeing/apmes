@@ -10,8 +10,8 @@
 //   applications/{uid}                     { uid, email, name, role, note, status, createdAt, decidedAt?, decidedBy? }
 //   evaluations/{id}                       see EVAL_FIELDS in schema.js
 //
-// Evaluations are saved through app-sync's write queue (eval-queue.js): a durable outbox on this device, then one
-// transaction per record, merged by field onto the server's copy. The other writes (roles, people lists, access)
+// Evaluations are saved through app-sync's createApp (the write queue, eval-queue.js's commit): a durable outbox on this
+// device, then one transaction per record, merged by field onto the server's copy. The other writes (roles, people lists, access)
 // go straight to the SDK; they keep the sign-out check shut until the server has them.
 
 import { FIREBASE_CONFIG } from './firebase-config.js';
@@ -74,36 +74,47 @@ function queued(p) {
   p.catch(e => { if (late) { console.error('Sync failed', e); for (const cb of syncErrorListeners) cb(e); } });
   return Promise.race([p, new Promise(r => setTimeout(() => { late = true; r(); }, ACK_WAIT))]);
 }
-// ---- the evaluations write queue ----
+// ---- the evaluations write queue (app-sync createApp) ----
 // Loaded at the first sign-in, never in the demo (app-sync comes from core.anawj.com; sw.js keeps it offline), so CCC
-// and People, which sign in through this file, load without it until someone signs in.
-const KIND = 'evaluation';
+// and People, which sign in through this file, load without it until someone signs in. createApp brings the outbox
+// (apmes-evals-outbox, as before), the per-record save order, the origin's outbox list (which sign-out checks and
+// forgets) and the sign-out order; the lists below keep their own listeners (role- and status-scoped queries).
+const KIND = 'evaluation', COLL = 'evaluations';
 let owner = null;   // the signed-in email (the outbox keeps each account's saves apart)
-let evq = null, SY = null, loading = null;
+let app = null, ev = null, SY = null, loading = null, forcing = false;
 const sdkPending = async () => { if (!fb) return false; const { db, F } = await sdk(); let done = false; await Promise.race([F.waitForPendingWrites(db).then(() => { done = true; }, () => { done = true; }), new Promise(r => setTimeout(r, 300))]); return !done; };
 function loadQueue() {
   if (!loading) loading = Promise.all([import('./eval-queue.js'), import('./app-sync.js')]).then(([Q, sync]) => {
     SY = sync;
-    evq = Q.createEvalQueue({ sdk, store: sync.createOutbox({ name: 'apmes-evals-outbox' }), getOwner: () => owner, otherPending: sdkPending });
-    evq.queue.onChange(onQueueChange);
-    if (typeof addEventListener === 'function') addEventListener('online', () => evq.queue.kick());
-    return evq;
+    ev = Q.createEvalBackend({ sdk });
+    app = sync.createApp({
+      name: 'apmes-evals', colls: [COLL], kinds: { [KIND]: COLL }, path: () => [COLL],
+      sdk: async () => { const s = await sdk(); return { A: s.A, F: s.F, auth: s.auth, db: s.db }; },
+      commit: ev.commit, watchEvery: 0,
+      // writes sent straight to the SDK (People's batches, roles) count as unsent too, except on "Sign out anyway"
+      queue: { otherPending: async () => !forcing && await sdkPending(), labels: { recover: 'Unsent changes' } },
+    });
+    // the other apps on this site share the sign-in: their outboxes are checked and forgotten with this one
+    for (const o of OTHER_OUTBOXES) app.parts.registry?.register(o);
+    app.queue.onChange(onQueueChange);
+    void app.onUser(() => {});   // createApp's own sign-in steps (storage guard) on this page
+    return app;
   });
   loading.catch(() => { loading = null; });   // e.g. offline before it was ever saved: try again next time
   return loading;
 }
-const evalQueue = () => { if (!evq) throw Object.assign(new Error('The save queue has not loaded: check your signal and try again'), { code: 'unavailable' }); return evq; };
+const evalQueue = () => { if (!app) throw Object.assign(new Error('The save queue has not loaded: check your signal and try again'), { code: 'unavailable' }); return app; };
 // a save the server refused is reported once: to the screen that made it (onError, or the screen waiting for the
 // answer: 'wait'), else to onSyncError listeners. errorFor: record id -> onError | 'wait'.
 const reported = new Set(), errorFor = new Map();
 const queueListeners = new Set();
 function onQueueChange() {
-  for (const x of evq.queue.entries()) {
+  for (const x of app.queue.entries()) {
     if ((x.state !== 'failed' && x.state !== 'conflict') || reported.has(x.key)) continue;
     const cb = errorFor.get(x.record.id);
     if (cb === 'wait') continue;   // save() throws it
     reported.add(x.key);
-    const e = new Error(x.error); e.code = x.state === 'conflict' ? 'write-conflict' : evq.codeOf(x.record.id);
+    const e = new Error(x.error); e.code = x.state === 'conflict' ? 'write-conflict' : ev.codeOf(x.record.id);
     if (cb) { errorFor.delete(x.record.id); cb(e); } else { console.error('Sync failed', e); for (const l of syncErrorListeners) l(e); }
   }
   for (const cb of [...queueListeners]) cb();
@@ -116,8 +127,8 @@ function onQueueChange() {
 let heard = false, persisted = true;
 export function syncState() {
   if (demo || !owner) return { state: 'synced', count: 0 };
-  if (!evq) return { state: 'unknown', count: 0 };
-  const q = evq.queue;
+  if (!app) return { state: 'unknown', count: 0 };
+  const q = app.queue;
   return SY.syncStatus({ online: typeof navigator === 'undefined' || navigator.onLine !== false, pending: q.pending(), attention: SY.attentionCount(q.entries()),
     persisted, confirmed: heard, atRiskOnlyOffline: true });
 }
@@ -128,10 +139,10 @@ export function onSyncChange(cb) {
 }
 const changed = () => { for (const cb of [...queueListeners]) cb(); };
 // Saves the server refused (or met a change it can't take): the chip's sheet offers Retry or Discard.
-export const unsentEntries = () => (demo || !owner || !evq ? [] : evq.queue.entries().filter(x => x.state === 'failed' || x.state === 'pending' || x.state === 'conflict'));
+export const unsentEntries = () => (demo || !owner || !app ? [] : app.queue.entries().filter(x => x.state === 'failed' || x.state === 'pending' || x.state === 'conflict'));
 export const retrySave = key => evalQueue().queue.retry(key);
 export const discardSave = key => evalQueue().queue.archive(key);
-export const pendingSaves = () => (demo || !owner || !evq ? 0 : evq.queue.pending());
+export const pendingSaves = () => (demo || !owner || !app ? 0 : app.queue.pending());
 
 // For apps built on evals' sign-in that keep their own collections (selection/): the Firestore handle and the same
 // offline-friendly write. Never used in the demo.
@@ -148,28 +159,21 @@ const soft = p => p.catch(e => {
 // True when this phone holds writes the server hasn't confirmed yet (e.g. a form submitted without
 // signal). Signing out would delete them with the offline cache, so the UI asks first.
 // The apps on this site share one sign-in, so signing out of one signs out of all: the other apps' outboxes count
-// too (the logbook's, CCC's), for this account. A store that can't be read counts as unsent (can't tell).
+// too (the logbook's, CCC's), for this account, through the origin's outbox list (createApp's registry; a store that
+// can't be read counts as unsent).
 const OTHER_OUTBOXES = [{ name: 'apmes-logbook-recovery', realm: 'account' }, { name: 'ccc-outbox' }];
-const others = () => OTHER_OUTBOXES.map(o => SY.createOutbox(o));
 const DONE = new Set(['synced', 'archived']);
-async function othersUnsent(email) {
-  if (!SY || typeof indexedDB === 'undefined' && typeof localStorage === 'undefined') return false;
-  for (const box of others()) {
-    try { if ((await box.list(email)).some(x => !DONE.has(x.state))) return true; } catch { return true; }
-  }
-  return false;
-}
 // The outbox (this account's and another tab's), the other apps' outboxes and the SDK's own pending writes all count.
 export async function hasUnsentWrites(ms = 1500) {
   if (demo || !owner) return false;
-  if (!evq) return sdkPending();
-  return !(await evq.queue.flush(ms)) || await othersUnsent(owner);
+  if (!app) return sdkPending();
+  return !(await app.flush(ms));
 }
 // Resolves once every write made so far has reached the server (outbox empty, SDK writes confirmed).
 export async function whenSynced() {
   if (demo) return;
-  if (owner && evq) {
-    const q = evq.queue;
+  if (owner && app) {
+    const q = app.queue;
     await new Promise(resolve => {
       const check = () => { if (!q.pending()) { off(); resolve(); } };
       const off = q.onChange(check); check();
@@ -203,9 +207,9 @@ export async function watchUser(cb) {
     heard = false;
     if (owner) {
       const email = owner;
-      await loadQueue().then(q => {
+      await loadQueue().then(a => {
         if (owner !== email) return;
-        q.queue.activate(email).then(changed, () => {});
+        a.open(email).then(changed, () => {});
         SY.persistGuard().then(r => { persisted = r.persisted; changed(); });
       }).catch(e => console.warn('Save queue not loaded', e));
     }
@@ -236,36 +240,48 @@ export async function signInWithToken(token) {
   await A.signInWithCustomToken(auth, token);
 }
 
-// Signing out also wipes this device's offline copy (a shared ward PC keeps nothing): app-sync's forgetDevice, in
-// one order: listeners stopped, the outbox of this account, the SDK's cache, then the assessor's answers kept here.
+// Signing out also wipes this device's offline copy (a shared ward PC keeps nothing): createApp's signOut, in one
+// order: listeners stopped, the outbox of this account (and the other apps' on this site), the SDK's cache (at most
+// 3 s: another tab holding the shared IndexedDB would otherwise hang it), then the assessor's answers kept here.
 // Refused ({ code: 'unsent-saves' }) while anything of this account is unsent on this device, in any app's outbox,
-// unless { force } (signOutSafely asks first). Clearing the SDK's cache waits at most CLEAR_WAIT: another tab holding
-// the shared IndexedDB would otherwise hang it.
+// unless { force } (signOutSafely asks first: the unsent saves are set aside, then forgotten with the rest).
 const CLEAR_WAIT = 3000;
 const within = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('Clearing the offline cache timed out')), ms))]);
 const dropDrafts = () => { try { for (const k of Object.keys(localStorage)) if (k.startsWith('evals-draft-')) localStorage.removeItem(k); } catch {} };
+const unsentError = () => Object.assign(new Error('Some changes on this device are not sent yet'), { code: 'unsent-saves' });
 export async function signOut({ force = false } = {}) {
   if (demo) { dropDrafts(); return D.signOut(); }
   const s = await sdk();
-  if (!force && await hasUnsentWrites()) throw Object.assign(new Error('Some changes on this device are not sent yet'), { code: 'unsent-saves' });
+  if (!force && await hasUnsentWrites()) throw unsentError();
   const email = owner;
-  const q = owner && evq ? evq.queue : null;
+  const a = app || (email ? await loadQueue().catch(() => null) : null);
   for (const stop of [...live]) stop();   // before auth changes, so no listener fails as permission-denied
-  await s.A.signOut(s.auth);
-  owner = null; heard = false;
-  // (app-sync not loaded: nothing of this account is in the outbox here; the SDK's cache still goes)
   dropDrafts();   // first: the steps below may stall
-  const forget = SY ? SY.forgetDevice : async ({ clearBackendCache, extra }) => { await clearBackendCache().catch(e => console.warn(e)); await extra(); };
-  const { failed = [] } = await forget({ queue: q,
-    extra: async () => {
-      known.clear(); reported.clear(); errorFor.clear();
-      if (SY && email) for (const box of others()) await box.forget(email).catch(e => console.warn('Could not clear an outbox', e));
-    },
-    clearBackendCache: async () => {
-      try { await within((async () => { await s.F.terminate(s.db); await s.F.clearIndexedDbPersistence(s.db); })(), CLEAR_WAIT); }
-      finally { s.db = openDb(s.app, s.F); }   // a fresh, empty Firestore for the next sign-in
-    } }) || {};
-  if (failed.length) console.warn('Sign-out could not clear', failed.join(', '));
+  if (!a) {
+    // (app-sync not loaded: nothing of this account is in the outbox here; the SDK's cache still goes)
+    await s.A.signOut(s.auth);
+    owner = null; heard = false;
+    try { await within((async () => { await s.F.terminate(s.db); await s.F.clearIndexedDbPersistence(s.db); })(), CLEAR_WAIT); }
+    catch (e) { console.warn('Sign-out could not clear the offline cache', e); }
+    finally { s.db = openDb(s.app, s.F); }
+    known.clear(); reported.clear(); errorFor.clear();
+    changed();
+    return;
+  }
+  let r;
+  forcing = force;
+  try {
+    if (force) {
+      for (const x of a.queue.entries()) if (!DONE.has(x.state)) await a.queue.archive(x.key).catch(e => console.warn('Could not set a save aside', e));
+      if (email) await a.parts.registry?.forget(email).catch(e => console.warn('Could not clear an outbox', e));
+    }
+    r = await a.signOut({ wait: force ? 300 : 4000 });
+  } finally { forcing = false; }
+  if (!r.ok) { changed(); throw unsentError(); }
+  owner = null; heard = false;
+  if (r.reload) s.db = openDb(s.app, s.F);   // a fresh, empty Firestore for the next sign-in (the page stays)
+  known.clear(); reported.clear(); errorFor.clear();
+  if (r.failed.length) console.warn('Sign-out could not clear', r.failed.join(', '));
   changed();
 }
 
@@ -471,16 +487,16 @@ export const newEvaluationId = () => D.newEvaluationId();
 // refusal (rules: the request is closed, the edit window passed) is thrown with its code as before; offline or slow it
 // returns and the outbox sends it later. onError (no wait): called if the server refuses it later.
 async function save(record, base, { wait = true, onError = null } = {}) {
-  const q = (evq || await loadQueue()).queue, id = String(record.id), email = signedInAs();
+  const a = app || await loadQueue(), q = a.queue, id = String(record.id), email = signedInAs();
   errorFor.set(id, wait ? 'wait' : onError);
   if (!wait && !onError) errorFor.delete(id);
   const refused = () => {
     const key = q.jobKey(KIND, id), job = q.entries().find(x => x.key === key);
     reported.add(key);
-    const e = new Error(job?.error || 'Could not save'); e.code = evq.codeOf(id); return e;
+    const e = new Error(job?.error || 'Could not save'); e.code = ev.codeOf(id); return e;
   };
-  try { await q.save(KIND, email, record, base); }
-  catch (e) { if (errorFor.get(id) === 'wait') errorFor.delete(id); if (!e.code) e.code = evq.codeOf(id); reported.add(q.jobKey(KIND, id)); throw e; }
+  try { await a.save(KIND, email, record, base); }
+  catch (e) { if (errorFor.get(id) === 'wait') errorFor.delete(id); if (!e.code) e.code = ev.codeOf(id); reported.add(q.jobKey(KIND, id)); throw e; }
   if (!wait) return;
   try {
     await q.settle(KIND, [id], ACK_WAIT);
@@ -551,7 +567,7 @@ function watch(build, cb, what, keep = () => true) {
   let stop = null, stopped = false, docs = null, meta = null;
   const show = () => {
     if (stopped || !docs) return;
-    const q = owner && evq ? evq.queue : null;
+    const q = owner && app ? app.queue : null;
     const list = remember((q ? q.overlay(KIND, owner, docs) : docs).filter(keep)).sort(byNewest);
     cb(list, { fromCache: meta.fromCache, hasPendingWrites: meta.hasPendingWrites || !!(q && q.pending()) });
   };

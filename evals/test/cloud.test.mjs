@@ -79,6 +79,18 @@ await t('a change the rules refuse is thrown with its code, and listed for Retry
   FS.rules = () => true;
 });
 
+await t('the origin\'s outbox list names this app\'s outbox and the other apps\' (createApp registry)', async () => {
+  const names = JSON.parse(localStorage.getItem('app-sync:outboxes') || '[]').map(x => x.name);
+  for (const n of ['apmes-evals-outbox', 'apmes-logbook-recovery', 'ccc-outbox']) assert.ok(names.includes(n), n);
+});
+
+await t('sign-out is refused while CCC has unsent saves for this account', async () => {
+  localStorage.setItem('ccc-outbox:k9', JSON.stringify({ key: 'k9', owner: RES, kind: 'review', record: { id: 'r1' }, state: 'pending', realm: 'default', at: 1 }));
+  assert.equal(await cloud.hasUnsentWrites(100), true);
+  await assert.rejects(cloud.signOut(), e => e.code === 'unsent-saves');
+  localStorage.removeItem('ccc-outbox:k9');
+});
+
 await t('sign-out is refused while another app on the site (the logbook) has unsent saves for this account', async () => {
   localStorage.setItem('apmes-logbook-recovery:k1', JSON.stringify({ key: 'k1', owner: RES, kind: 'case', record: { id: 'c1' }, state: 'pending', realm: 'account', at: 1 }));
   assert.equal(await cloud.hasUnsentWrites(100), true);
@@ -100,6 +112,18 @@ await t('sign-out forgets the device: outbox, the SDK cache and the drafts', asy
   assert.ok(!keys().some(k => k.startsWith('evals-draft-')), 'drafts wiped');
   assert.equal(FS.terminated, 1);
   assert.equal(cloud.pendingSaves(), 0);
+});
+
+await t('signed in again: saves reach the server (a fresh Firestore), and a sign-out with nothing unsent goes ahead', async () => {
+  AUTH.emit({ email: ASR, displayName: 'Dr Two', uid: 'u2', getIdTokenResult: async () => ({ claims: {} }) });
+  await until(() => user?.email === ASR);
+  await cloud.createEvaluation({ ...ev, id: 'ev2' });
+  await until(() => FS.docs.has('evaluations/ev2'));
+  assert.equal(await cloud.hasUnsentWrites(100), false);
+  FS.hang = false;
+  await cloud.signOut();
+  assert.equal(AUTH.user, null, 'signed out');
+  assert.equal(FS.terminated, 2);
 });
 
 console.log(`cloud: ${n} checks passed`);
