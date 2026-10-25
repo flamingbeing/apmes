@@ -25,12 +25,12 @@ assert.ok(!local.has('js/rate.js'), 'the raters’ page is not part of the offli
 // the pins: sw.js, app-sync.js and update.js name the same exact versions
 const pin = (text, base) => [...new Set([...text.matchAll(new RegExp(base.replace(/\./g, '\\.') + '(\\d+\\.\\d+\\.\\d+)/', 'g')).map(m => m[1])])];
 const syncPin = pin(fs.readFileSync(path.join(dir, 'js/app-sync.js'), 'utf8'), 'https://core.anawj.com/sync/');
-assert.deepEqual(syncPin, ['0.4.1']);
+assert.deepEqual(syncPin, ['0.6.0']);
 assert.deepEqual(pin(sw, 'https://core.anawj.com/sync/'), syncPin, 'sw.js precaches the app-sync version the page imports');
 const updPin = pin(fs.readFileSync(path.join(dir, 'js/update.js'), 'utf8'), 'https://core.anawj.com/update/');
 assert.deepEqual(updPin, ['0.2.0']);
 assert.deepEqual(pin(sw, 'https://core.anawj.com/update/'), updPin, 'sw.js loads the update core the page registers with');
-for (const f of ['index', 'src/sync', 'src/writes', 'src/conflict', 'src/store', 'src/outbox', 'src/watchdog', 'src/persist', 'src/status', 'src/firestore', 'src/forget'])
+for (const f of ['index', 'src/sync', 'src/writes', 'src/conflict', 'src/store', 'src/outbox', 'src/watchdog', 'src/persist', 'src/status', 'src/firestore', 'src/forget', 'src/registry', 'src/report', 'src/app'])
   assert.ok(shell.includes(`https://core.anawj.com/sync/${syncPin[0]}/${f}.js`), `app-sync ${f}.js is precached`);
 
 // the anonymous raters’ page, the demo landing page and the status page never go through the app’s worker

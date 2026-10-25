@@ -1,7 +1,8 @@
 // The coordinators' write queue (js/writes.js) against a fake Firestore: made-up people only.
 // Run: node --import ./logbook/test/app-sync-hook.mjs ccc/test/writes.test.mjs
 import assert from 'node:assert/strict';
-const { createStaffWrites, mergeMarks } = await import('../js/writes.js');
+const { createStaffWrites, mergeMarks, SIBLINGS } = await import('../js/writes.js');
+const { createOutboxRegistry } = await import('../js/app-sync.js');
 const { overlayRounds, overlayReviews, overlayNominees, overlayInvites } = await import('../js/overlay.js');
 
 // ---- a fake Firestore: documents by path, transactions, server timestamps, and a switch for "no connection" ----
@@ -33,10 +34,14 @@ function memoryOutbox() {
   return { async put(r) { m.set(r.key, JSON.parse(JSON.stringify(r))); return r; }, async list(o) { return [...m.values()].filter(x => x.owner === o); },
     async get(k) { return m.get(k) || null; }, async remove(k) { m.delete(k); }, async forget(o) { for (const [k, v] of m) if (v.owner === o) m.delete(k); }, size: () => m.size };
 }
+function memoryStorage() { const m = new Map(); return { getItem: k => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) }; }
 const setup = (f = fake(), extra = {}) => {
   const outbox = memoryOutbox();
   let online = true;
-  const w = createStaffWrites({ sdk: f.sdk, getOwner: () => 'pc@example.com', online: () => online, outbox, guard: async () => ({ persisted: true }), siblings: [], ...extra });
+  const { siblings = null, ...rest } = extra;
+  // the origin's outbox list, kept in memory; every other app's outbox opens as `siblings(name)`
+  const registry = siblings ? createOutboxRegistry({ storage: memoryStorage(), open: siblings }) : null;
+  const w = createStaffWrites({ sdk: f.sdk, getOwner: () => 'pc@example.com', online: () => online, outbox, guard: async () => ({ persisted: true }), registry, storage: null, ...rest });
   return { f, w, outbox, setOnline: v => { online = v; } };
 };
 const settled = async w => { for (let i = 0; i < 40 && w.queue.pending(); i++) { w.queue.kick(); await new Promise(r => setTimeout(r, 25)); } };
@@ -160,7 +165,7 @@ assert.deepEqual(mergeMarks(null, { a: 'ok' }, null), { a: 'ok' }, 'no server co
 // ---- shared sign-in: the logbook's and evals' outboxes count too, and are forgotten with ours ----
 {
   const sib = memoryOutbox();
-  const { w } = setup(fake(), { siblings: [sib] }); await w.start();
+  const { w } = setup(fake(), { siblings: () => sib }); await w.start();
   await sib.put({ key: 'k1', owner: 'pc@example.com', state: 'pending' });
   await sib.put({ key: 'k2', owner: 'other@example.com', state: 'pending' });
   assert.equal(await w.canSignOut(), false, 'another app has an unsent change for this user');
@@ -170,7 +175,17 @@ assert.deepEqual(mergeMarks(null, { a: 'ok' }, null), { a: 'ok' }, 'no server co
   assert.deepEqual((await sib.list('pc@example.com')), [], 'the other app’s copy for this user is forgotten');
   assert.equal((await sib.list('other@example.com')).length, 1, 'another user’s is not');
   const broken = { list: async () => { throw new Error('blocked'); }, forget: async () => {} };
-  assert.equal(await setup(fake(), { siblings: [broken] }).w.canSignOut(), false, 'an outbox that can’t be read keeps sign-out shut');
+  const wb = setup(fake(), { siblings: () => broken }).w; await wb.start();   // (app.js asks only once it has started)
+  assert.equal(await wb.canSignOut(), false, 'an outbox that can’t be read keeps sign-out shut');
+}
+
+// ---- the origin's outbox list (createApp's registry) names the logbook's and evals' outboxes ----
+{
+  const storage = memoryStorage();
+  const registry = createOutboxRegistry({ storage, open: () => memoryOutbox() });
+  createStaffWrites({ sdk: fake().sdk, getOwner: () => 'pc@example.com', online: () => true, outbox: memoryOutbox(), guard: async () => ({ persisted: true }), registry, storage: null });
+  assert.deepEqual(registry.list().map(x => x.name).sort(), SIBLINGS.map(x => x.name).sort(), 'the other apps’ outboxes are on the list');
+  assert.equal(registry.list().find(x => x.name === 'apmes-logbook-recovery').realm, 'account', 'with the logbook’s realm');
 }
 
 // ---- unsent saves shown over the server’s lists ----
