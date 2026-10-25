@@ -135,7 +135,11 @@ async function signOutSafely() {
     if (!await writes.canSignOut()) { toast('Some changes aren’t on the server yet. Stay signed in until the chip says Synced.'); syncSheet(); return; }
     await writes.forget({ extra: async () => { try { for (const k of Object.keys(localStorage)) if (k.startsWith(NS + '-draft-')) localStorage.removeItem(k); } catch {} } });
   }
-  await cloud.signOut();
+  try { await cloud.signOut(); } catch (err) {
+    // the shared check (evals' cloud.js) still sees a change waiting, e.g. a Send the SDK has not confirmed
+    if (err?.code === 'unsent-saves') { toast('Some changes aren’t on the server yet. Stay signed in until you have signal.'); return; }
+    throw err;
+  }
   location.reload();
 }
 
