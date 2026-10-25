@@ -143,7 +143,7 @@ const scenarios = {
     assert.ok(j, 'the offline edit meets the online one: a conflict');
     assert.match(await header(A), /needs attention/i);
     await A.p.evaluate(() => { location.hash = '#recovery'; });
-    await A.p.getByRole('button', { name: 'Restore my version' }).first().click();
+    await A.p.getByRole('button', { name: 'Keep mine' }).first().click();   // (was 'Restore my version')
     await A.p.getByRole('button', { name: 'Restore', exact: true }).click();
     await settle(A); await reopen(A);
     assert.equal((await serverCases()).get(id), 'fake edit offline', 'my version, chosen in Recent changes, is on the server');

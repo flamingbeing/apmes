@@ -42,12 +42,22 @@ assert.equal(S.cases.length, before);
 assert.equal((await cloud.listCases(email)).length, before);
 assert.equal((await cloud.listBin(email)).length, 0);
 
-// restoring when the id is taken gives a new id
+// restoring when the id is taken by another version gives a new id
 const e2 = await B.moveToBin('case', victim);
-await cloud.saveCase(email, victim); setCases(await cloud.listCases(email));
+await cloud.saveCase(email, { ...victim, details: victim.details + ' (edited elsewhere)' }); setCases(await cloud.listCases(email));
 const back2 = await B.restoreFromBin(e2.id);
 assert.notEqual(back2.id, victim.id);
 assert.equal((await cloud.listCases(email)).length, before + 1);
+// the same version already live (another device restored it at the same moment): no second copy, the entry goes
+{
+  const n = (await cloud.listCases(email)).length;
+  const e3 = await B.moveToBin('case', back2);
+  await cloud.saveCase(email, back2); setCases(await cloud.listCases(email));
+  const back3 = await B.restoreFromBin(e3.id);
+  assert.equal(back3.id, back2.id, 'the live copy, same id');
+  assert.equal((await cloud.listCases(email)).length, n, 'no duplicate');
+  assert.ok(!(await cloud.listBin(email)).some(x => x.id === e3.id), 'bin entry gone');
+}
 
 // bulk
 const two = S.cases.slice(0, 2);
@@ -93,9 +103,9 @@ await assert.rejects(B.restoreFromBin('nope'));
   const back = await B.restoreFromBin(be.id);   // what the toast's Undo and the bin's Restore do
   assert.equal(back.id, c.id); assert.ok(queued(c.id), 'back in the outbox after Undo');
   assert.equal(sheetOutbox().filter(e => e.id === c.id).length, 1);
-  // restored under a new id (a live case has the old one): not queued, or the sheet would get the case twice
+  // restored under a new id (a live case, another version, has the old one): not queued, or the sheet would get the case twice
   const be2 = await B.moveToBin('case', S.cases.find(x => x.id === c.id));
-  await cloud.saveCase(email, { ...c }); setCases(await cloud.listCases(email));
+  await cloud.saveCase(email, { ...c, details: c.details + ' (edited elsewhere)' }); setCases(await cloud.listCases(email));
   const back2 = await B.restoreFromBin(be2.id);
   assert.notEqual(back2.id, c.id); assert.ok(!queued(back2.id), 'never under a new id'); assert.ok(!queued(c.id));
   // an app case from before the outbox went live: restored, not queued

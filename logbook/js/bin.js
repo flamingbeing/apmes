@@ -15,6 +15,7 @@ import { cleanCase } from './clean.js';
 import { cleanReflection } from './reflections.js';
 import { REFLECTION_HEADINGS } from './categories.js';
 import { uid, fmtDate, caseText } from './engine.js';
+import { recordSignature } from './recovery-store.js';
 
 export const BIN_DAYS = 30;
 const DAY = 864e5;
@@ -168,6 +169,10 @@ async function findEntry(id) {
   return e || null;
 }
 
+// the same item, stamps aside: a live copy that matches the bin's is that item already restored (by another device at
+// the same moment, or a second tap), so restoring it again would make a duplicate under a new id
+const sameItem = (clean, a, b) => recordSignature(clean(a, 0)) === recordSignature(clean(b, 0));
+
 // Restores the item; returns it (with its id, which is new if the old one was taken).
 export async function restoreFromBin(id) {
   const e = await findEntry(id);
@@ -175,11 +180,15 @@ export async function restoreFromBin(id) {
   let out;
   if (e.kind === 'case') {
     out = { ...e.data };
-    const sameId = !S.cases.some(c => c.id === out.id);
-    if (!sameId) out.id = uid();
-    await restoreCase(out);    // updates S.cases, the counts and the summary
-    // back into the response sheet's outbox (the delete took its entry out); never under a new id (a second sheet row)
-    if (sameId) toSheet([out]);
+    const live = S.cases.find(c => c.id === out.id);
+    if (live && sameItem(cleanCase, live, out)) out = live;   // already back: only the bin entry goes
+    else {
+      const sameId = !live;
+      if (!sameId) out.id = uid();
+      await restoreCase(out);    // updates S.cases, the counts and the summary
+      // back into the response sheet's outbox (the delete took its entry out); never under a new id (a second sheet row)
+      if (sameId) toSheet([out]);
+    }
   } else if (e.kind === 'note') {
     // the notes may not be loaded yet (they load on first use): load them, so the limit and the id check hold
     const have = (await (await import('./ui-notepad.js')).ensureNotes().catch(() => null)) || S.notes || [];
@@ -194,11 +203,15 @@ export async function restoreFromBin(id) {
     }
   } else {
     out = { ...e.data };
-    if ((S.reflections || []).some(r => r.id === out.id)) out.id = uid();
-    // through the write queue, as notes and cases (base null: never over a copy the server has): queued behind a delete
-    // still waiting for signal, so it shows at once and lands after it. A blind save went ahead of that delete, which
-    // then removed the restored copy (its content matches the version deleted), with the bin entry already gone
-    out = await writes.save('reflection', mine(), out, null);
+    const live = (S.reflections || []).find(r => r.id === out.id);
+    if (live && sameItem(cleanReflection, live, out)) out = live;   // already back: only the bin entry goes
+    else {
+      if (live) out.id = uid();
+      // through the write queue, as notes and cases (base null: never over a copy the server has): queued behind a delete
+      // still waiting for signal, so it shows at once and lands after it. A blind save went ahead of that delete, which
+      // then removed the restored copy (its content matches the version deleted), with the bin entry already gone
+      out = await writes.save('reflection', mine(), out, null);
+    }
   }
   await cloud.deleteBinEntry(mine(), e.id);
   binCache = binCache.filter(x => x.id !== e.id);
