@@ -468,6 +468,16 @@ await t('note with a made-up serverAt', assertFails(setDoc(doc(a, 'logbooks', A,
 await t('bin entry with server stamp', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'bin', 'c_s1_x'), { ...binE('c_s1_x'), ...sa() })));
 await t('bin entry with a made-up serverAt', assertFails(setDoc(doc(a, 'logbooks', A, 'bin', 'c_s2_x'), { ...binE('c_s2_x'), serverAt: Timestamp.fromMillis(1) })));
 await t('other writes a stamped case', assertFails(setDoc(doc(b, 'logbooks', A, 'cases', 's3'), { ...c('s3'), ...sa() })));
+// ---- who changed each field (app-sync 0.6.3 held conflicts, `edits`): only the record's own fields ----
+const ed = (...fields) => ({ _edits: Object.fromEntries(fields.map(f => [f, { by: 'Resident A', device: '', at: 1 }])) });
+await t('case with _edits', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'cases', 'e1'), { ...c('e1'), ...sa(), ...ed('details', 'cats') })));
+await t('case _edits naming an unknown field', assertFails(setDoc(doc(a, 'logbooks', A, 'cases', 'e2'), { ...c('e2'), ...ed('details', 'patient') })));
+await t('case _edits not a map', assertFails(setDoc(doc(a, 'logbooks', A, 'cases', 'e2'), { ...c('e2'), _edits: 'x' })));
+await t('reflection with _edits', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'reflections', 'e1'), { ...refl('e1'), ...ed('title', 'sections') })));
+await t('reflection _edits naming an unknown field', assertFails(setDoc(doc(a, 'logbooks', A, 'reflections', 'e2'), { ...refl('e2'), ...ed('x') })));
+await t('note with _edits', assertSucceeds(setDoc(doc(a, 'logbooks', A, 'notes', 'e1'), { ...note('e1'), ...ed('body') })));
+await t('note _edits naming an unknown field', assertFails(setDoc(doc(a, 'logbooks', A, 'notes', 'e2'), { ...note('e2'), ...ed('cats') })));
+await t('other writes a case with _edits', assertFails(setDoc(doc(b, 'logbooks', A, 'cases', 'e3'), { ...c('e3'), ...ed('details') })));
 console.log(`${n - fail}/${n} rule checks passed`);
 await env.cleanup();
 process.exit(fail ? 1 : 0);
