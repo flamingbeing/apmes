@@ -25,7 +25,7 @@ assert.ok(!local.has('js/rate.js'), 'the raters’ page is not part of the offli
 // the pins: sw.js, app-sync.js and update.js name the same exact versions
 const pin = (text, base) => [...new Set([...text.matchAll(new RegExp(base.replace(/\./g, '\\.') + '(\\d+\\.\\d+\\.\\d+)/', 'g')).map(m => m[1])])];
 const syncPin = pin(fs.readFileSync(path.join(dir, 'js/app-sync.js'), 'utf8'), 'https://core.anawj.com/sync/');
-assert.deepEqual(syncPin, ['0.7.1']);
+assert.deepEqual(syncPin, ['0.7.3']);
 assert.deepEqual(pin(sw, 'https://core.anawj.com/sync/'), syncPin, 'sw.js precaches the app-sync version the page imports');
 const updPin = pin(fs.readFileSync(path.join(dir, 'js/update.js'), 'utf8'), 'https://core.anawj.com/update/');
 assert.deepEqual(updPin, ['0.2.0']);
