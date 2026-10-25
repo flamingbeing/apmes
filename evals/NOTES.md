@@ -99,7 +99,12 @@ Pickers are full-screen **Recent | All | Write-In** lists, with recents remember
   - Project `apmes-logbook`, **Blaze** (pay-as-you-go) plan, asia-southeast1. Usage is within the free quotas at this scale.
   - **Shared with the logbook.** Evals reuses the logbook's `residents` collection.
   - Google popup sign-in, with a redirect fallback.
-  - Firestore with a persistent offline cache.
+  - Firestore with a persistent offline cache for reads. Evaluation saves go through app-sync (pinned `0.4.0` in
+    `js/app-sync.js` and `sw.js`): `js/eval-queue.js` puts each create, change and draft delete in a durable outbox
+    (IndexedDB `apmes-evals-outbox`), then sends it in a transaction merged by field onto the server's copy. A create
+    is written without a read (the rules can't answer a non-staff read of a missing doc); a resent create that had
+    landed counts as sent. Other writes (roles, people lists, access, applications) go straight to the SDK and keep
+    the sign-out check shut until confirmed (`otherPending`). app-sync loads at sign-in only, never in the demo.
 - **Rules:** one file, `logbook/firestore.rules`, for the whole project.
   - `.github/workflows/deploy-firestore-rules.yml` deploys it on merge to main, using the `FIREBASE_SERVICE_ACCOUNT` secret. The same workflow deploys `nuh-roster/firestore.rules` to project `nuh-roster`.
   - Logbook behaviour must not change when the evals rules are edited.
@@ -142,9 +147,16 @@ Pickers are full-screen **Recent | All | Write-In** lists, with recents remember
 
 ### Added in the 14 Oct improvement run (worth not regressing)
 
-- **Unsent work:** `cloud.hasUnsentWrites()` / `whenSynced()` (Firestore `waitForPendingWrites`). `signOutSafely()` (ui-core) asks before
-  signing out with unsent writes, because sign-out clears the offline cache and its write queue. The Sent screen says "Saved on this phone"
-  until synced; so does the request share step. `pruneDrafts` keeps a draft newer than the server's `updatedAt` (edits in the 15-min window).
+- **Unsent work:** `cloud.hasUnsentWrites()` (the queue's `flush`: this account's outbox, another tab's, and SDK writes) and
+  `whenSynced()`. `signOutSafely()` (ui-core) asks before signing out with unsent writes; sign-out is app-sync's `forgetDevice` (outbox,
+  SDK cache, `evals-draft-*`). People signs out through `signOutSafely()` too. The Sent screen says "Saved on this phone" until synced; so
+  does the request share step. A refused save waits up to 3 s for the answer (`ACK_WAIT`), so the screens still show "the request is no
+  longer open"; later refusals go to the screen's `onError` or the toast.
+- **Sync chip (header, 25 Oct 2026):** `cloud.syncState()` (app-sync `syncStatus` with `confirmed`: "Connecting" until a list has come
+  from the server since sign-in, at-risk only offline) drawn by `syncChip()` (ui-core `SYNC_CHIP`). Tapping it when saves wait or were
+  refused opens "Unsent changes" (Retry / Discard). None in the demo.
+- **Updates:** update core `0.2.0` with `canReload` (app.js): the take-over reload waits while a text box has focus, a sheet is open or
+  saves are waiting. `pruneDrafts` keeps a draft newer than the server's `updatedAt` (edits in the 15-min window).
 - **Errors:** `errText(err)` (ui-core) maps Firebase codes to plain words; never show raw `err.message`.
 - **Assessor links:** `evalLink(id, email)` adds `?as=<assessor email>`; `linkAccount()` reads it; sign-in passes it as `login_hint`. An `#e/`
   link signed out shows the assessor landing; `inAppBrowser()` + `openInBrowserCard()` handle WhatsApp/Facebook/Instagram web views (Google

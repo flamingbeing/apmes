@@ -230,6 +230,11 @@ svg.e-row__chev { flex: none; width: 16px; height: 16px; color: var(--a-ink-3); 
 .e-chip--in-progress { background: var(--a-warn-bg); color: var(--a-warn); }
 .e-chip--submitted { background: var(--a-ok-bg); color: var(--a-ok); }
 .e-chip--declined, .e-chip--overdue { background: var(--a-danger-bg); color: var(--a-danger); }
+/* the header's sync chip (ui-core syncChip): a button when tapping opens the unsent changes */
+.e-sync { display: inline-flex; align-items: center; margin-right: 6px; padding: 2px 8px; border: 0; border-radius: 6px; font: inherit; font-size: var(--a-text-xs); font-weight: 600; line-height: 1.6; white-space: nowrap; background: var(--a-surface-2); color: var(--a-ink-2); }
+button.e-sync { cursor: pointer; min-height: 32px; }
+.e-sync--ok { background: var(--a-ok-bg); color: var(--e-ok-ink); }
+.e-sync--warn { background: var(--a-warn-bg); color: var(--a-warn); }
 .e-tag { display: inline-block; padding: 1px 7px; border-radius: 6px; background: var(--a-surface-2); color: var(--a-ink-2); font-size: 12px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
 .e-tag--tool { background: var(--a-tint-soft); color: var(--a-tint); }
 .e-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--n-red); color: #fff; font-size: 12px; font-weight: 600; line-height: 1; }
