@@ -6,7 +6,7 @@
 // backup's older copies over newer ones, and a backup held nothing. Notes load on first use, so this device's copy
 // may be weeks old.
 
-import { S, h, toast, modal, cloud, writes, download, fileButton, addMissingCases, patchLogbook, todayISO, displayName, catName } from './ui-core.js';
+import { S, h, toast, modal, cloud, writes, download, fileButton, addMissing, addMissingCases, patchLogbook, todayISO, displayName, catName } from './ui-core.js';
 import { cleanCase } from './clean.js';
 import { cleanReflection } from './reflections.js';
 import { cleanNote, MAX_NOTES, isDayNote, cappedNotes } from './notepad.js';
@@ -158,12 +158,12 @@ async function restoreBackup(file) {
         m.close();
         toast('Restoring…');   // (first a look at what the server has: a moment for a big logbook)
         // again now: the lists may have changed while the dialog was open. Cases and reflections are written only
-        // where the server has none with that id (cloud.addMissing), so even a list that missed one never overwrites it
+        // where the server has none with that id (addMissing: cloud.missingOf, then the write queue), so even a list that missed one never overwrites it
         const p = restorePlan(data);
         try {
           const added = p.cases.length ? await addMissingCases(p.cases) : [];
           if (S.resident) for (const img of p.images) await cloud.saveImage(mine(), img);   // photos: programme residents only (rules)
-          const addedRefl = p.refl.length ? await cloud.addMissing(mine(), 'reflection', p.refl) : [];
+          const addedRefl = p.refl.length ? await addMissing('reflection', p.refl) : [];
           // a note with a change made elsewhere still to choose is kept in Recent changes; the rest of the restore goes on
           let held = 0;
           for (const n of p.notes) await writes.save('note', mine(), n, null).catch(err => { if (writes.status('note', n.id) !== 'conflict') throw err; held++; });   // (base null: never over an existing note)

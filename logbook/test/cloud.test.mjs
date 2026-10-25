@@ -71,13 +71,13 @@ const E = DEMO_USER.email;
   assert.equal(calls.length, 3);
   assert.deepEqual(calls[2].map(c => c.id), ['b', 'a']);
   calls[2][0].details = 'mutated';   // callers get copies
-  await cloud.saveCases(E, [{ id: 'c', date: null, dateText: '31/6/24', details: 'x', cats: [] }, { id: 'a', date: '2026-01-01', details: 'AB 30F LSCS spinal', cats: ['16', '17'] }]);
+  for (const c of [{ id: 'c', date: null, dateText: '31/6/24', details: 'x', cats: [] }, { id: 'a', date: '2026-01-01', details: 'AB 30F LSCS spinal', cats: ['16', '17'] }]) await cloud.saveCase(E, c);
   const last = calls.at(-1);
   assert.deepEqual(last.map(c => c.id), ['b', 'a', 'c']);
   assert.equal(last[0].details, 'CD 70M TKR');
   assert.deepEqual(last[1].cats, ['16', '17']);
   await cloud.deleteCase(E, 'c');
-  await cloud.deleteCases(E, ['b']);
+  await cloud.deleteCase(E, 'b');
   assert.deepEqual(calls.at(-1).map(c => c.id), ['a']);
   const before = calls.length;
   stop();

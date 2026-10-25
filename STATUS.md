@@ -17,6 +17,11 @@
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 25 Oct 2026: app-sync 0.5.1 in the logbook and evals. Evals' first save of a request goes through the adapter's
+  `create`. In the logbook, new cases (paste, plans, spreadsheet rows), their Undo, a backup's missing cases and
+  reflections and the Word import go through the write queue (outbox, sync chip, sign-out check) instead of blind
+  batches; the restore lookup is the adapter's `existing`. The Form pick-up, admin import and initials fix stay
+  all-or-nothing batches and now carry `serverAt`.
 - 23 Oct 2026: guidebook as an installable app (manifest id `/guide/`, icon from anawj-site `tools/app-icons/`
   `guide.svg`), `home/guide/sw.js` keeps every page offline, app version line and "Get the latest version" on the
   contents page; on the home page it moved to Apps. `check.mjs` and `stamp-versions.mjs` include `home/guide`.

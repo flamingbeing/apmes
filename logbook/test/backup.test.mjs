@@ -9,7 +9,7 @@ globalThis.localStorage = { getItem: k => device.get(k) || null, setItem: (k,v) 
 const cloud = await import('../js/cloud.js');
 const D = await import('../js/demo-backend.js');
 const { openStore } = await import('../js/store.js');
-const { S, setCases, addMissingCases, resetCaches } = await import('../js/ui-core.js');
+const { S, setCases, addMissing, addMissingCases, writes, resetCaches } = await import('../js/ui-core.js');
 const B = await import('../js/backup.js');
 
 D.resetDemo({ seeded: true });
@@ -46,15 +46,16 @@ const server = await cloud.listCases(email);
 assert.equal(server.length, n0);
 assert.equal(server.find(c => c.id === c1.id).details, c1.details + ' EDITED LATER', 'edited case kept');
 assert.ok(S.cases.some(c => c.id === c2.id), 'the added case shows at once');
-const addedRefl = await cloud.addMissing(email, 'reflection', p.refl);
+const addedRefl = await addMissing('reflection', p.refl);
+await writes.settle('reflection', addedRefl.map(r => r.id), 3000);
 assert.deepEqual(addedRefl.map(r => r.id), [r2.id], 'only the deleted reflection is added');
 const refls = D.reflectionsOf(email.toLowerCase());
 assert.equal(refls.find(r => r.id === r1.id).summary, '900 finished words', 'edited reflection kept');
 assert.equal(refls.find(r => r.id === r2.id).summary, 'kept');
 // a restored record is stamped now (other devices' "changed since" reads see it), and repeats in a file go once
 assert.ok(addedRefl[0].updatedAt > r2.updatedAt);
-assert.deepEqual((await cloud.addMissing(email, 'case', [{ ...c1, id: 'fake-new' }, { ...c1, id: 'fake-new' }])).map(c => c.id), ['fake-new']);
-assert.deepEqual(await cloud.addMissing(email, 'case', []), []);
+assert.deepEqual((await cloud.missingOf(email, 'case', [{ ...c1, id: 'fake-new' }, { ...c1, id: 'fake-new' }])).map(c => c.id), ['fake-new']);
+assert.deepEqual(await cloud.missingOf(email, 'case', []), []);
 
 // once the lists are in, the plan is worked out against them again
 setCases(await cloud.listCases(email)); S.reflections = D.reflectionsOf(email.toLowerCase());
@@ -73,7 +74,7 @@ await assert.rejects(B.makeBackup({ fromServer: true, wait: 300 }), /your logboo
 S.casesSynced = true; S.reflectionsSynced = true;
 const data = await B.makeBackup({ fromServer: true });
 assert.deepEqual(data.notes.map(n => n.id + ':' + n.body).sort(), ['fake-n1:new text', 'fake-n2:x'], 'the server’s notes');
-assert.equal(data.cases.length, n0 + 1);
+assert.equal(data.cases.length, n0);   // (missingOf only looks: it writes nothing)
 assert.ok(!('noteIndex' in data.logbook.settings));
 
 // restoring notes: only the ones the server doesn't have

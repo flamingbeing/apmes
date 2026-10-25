@@ -78,6 +78,17 @@ await t('a new evaluation is written without reading first (the rules refuse a r
   assert.equal(queue.pending(), 0);
 });
 
+await t('a create goes through app-sync\'s adapter (fs.create, 0.5.1): stamped as every other save, no SDK call here', async () => {
+  const { queue, docs } = setup({ rules: (op, _p, before) => op !== 'read' || !!before });
+  const before = Date.now();
+  await queue.save(KIND, RES, { ...base, updatedAt: 1 }, null);
+  await settle(queue);
+  assert.ok(docs.get('evaluations/ev1').updatedAt >= before, 'stamped at the commit, like a change');
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../js/eval-queue.js', import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(src, /\bF\.\w+\(|runTransaction|getDocFromServer/, 'no Firestore SDK call beside the adapter');
+});
+
 await t('a change is merged by field: another device\'s change to another field stays', async () => {
   const { queue, docs } = setup({ who: ASR });
   docs.set('evaluations/ev1', { ...base });

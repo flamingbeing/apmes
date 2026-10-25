@@ -5,7 +5,7 @@
 import { REFLECTION_HEADINGS } from './categories.js';
 import { HEADING_BY_ID, splitDetails, wordCount, IMAGE_MAX_B64, IMAGE_MAX_SIDE, IMAGE_QUALITY, PHOTO_BUDGET_KB, photoUsageKb, imageKb, fmtMb } from './reflections.js';
 import { fmtDate, caseText } from './engine.js';
-import { S, h, toast, cloud, fill } from './ui-core.js';
+import { S, h, toast, cloud, writes, fill } from './ui-core.js';
 import { needZip } from './portfolio.js';
 import { parseDocx, sameKey, chooseImportedCase } from './reflect-import.js';
 
@@ -194,7 +194,7 @@ export function renderImport(onDone) {
           caseId: x.caseId || null, source: 'word', status: 'draft', ...((S.logbook && S.logbook.settings && S.logbook.settings.reflExport === false) ? { export: false } : {}), createdAt: now, updatedAt: now };
         if (r.sections) out.sections = r.sections;
         if (!r.date && r.dateText) out.summary = [`(Date in the Word file: ${r.dateText})`, out.summary].filter(Boolean).join('\n');
-        await cloud.saveReflection(email, out);
+        await writes.save('reflection', email, out, null);   // through the write queue: kept on this device until sent
         st.added++;
       } catch (err) { console.warn(err); st.failed.push(`${r.initials || '?'} ${r.date || r.dateText || ''}: ${err.message}`); }
     }
