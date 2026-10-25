@@ -63,7 +63,7 @@ export async function signOutSafely() {
       'Sign out anyway', true);
     if (!ok) return false;
   }
-  try { await cloud.signOut(); return true; }
+  try { await cloud.signOut({ force: true }); return true; }
   catch (err) { console.warn(err); toast('Couldn’t sign out. Check your signal and try again.'); return false; }
 }
 
@@ -253,6 +253,7 @@ export function errText(e) {
   const code = String(e?.code || '').replace(/^firestore\//, '');
   const msg = {
     'permission-denied': 'You can’t change this any more (it may have been cancelled, reassigned or closed).',
+    'write-conflict': 'This request changed on another device (cancelled, reassigned or sent). Your version is kept: tap the sync chip to see it.',
     'unavailable': 'No connection. Check your signal and try again.',
     'auth/network-request-failed': 'No connection. Check your signal and try again.',
     'auth/popup-closed-by-user': 'The sign-in window was closed before it finished. Try again.',

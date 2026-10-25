@@ -99,11 +99,11 @@ const reported = new Set(), errorFor = new Map();
 const queueListeners = new Set();
 function onQueueChange() {
   for (const x of evq.queue.entries()) {
-    if (x.state !== 'failed' || reported.has(x.key)) continue;
+    if ((x.state !== 'failed' && x.state !== 'conflict') || reported.has(x.key)) continue;
     const cb = errorFor.get(x.record.id);
     if (cb === 'wait') continue;   // save() throws it
     reported.add(x.key);
-    const e = new Error(x.error); e.code = evq.codeOf(x.record.id);
+    const e = new Error(x.error); e.code = x.state === 'conflict' ? 'write-conflict' : evq.codeOf(x.record.id);
     if (cb) { errorFor.delete(x.record.id); cb(e); } else { console.error('Sync failed', e); for (const l of syncErrorListeners) l(e); }
   }
   for (const cb of [...queueListeners]) cb();
@@ -147,11 +147,23 @@ const soft = p => p.catch(e => {
 
 // True when this phone holds writes the server hasn't confirmed yet (e.g. a form submitted without
 // signal). Signing out would delete them with the offline cache, so the UI asks first.
-// The outbox (this account's and another tab's) and the SDK's own pending writes both count.
+// The apps on this site share one sign-in, so signing out of one signs out of all: the other apps' outboxes count
+// too (the logbook's, CCC's), for this account. A store that can't be read counts as unsent (can't tell).
+const OTHER_OUTBOXES = [{ name: 'apmes-logbook-recovery', realm: 'account' }, { name: 'ccc-outbox' }];
+const others = () => OTHER_OUTBOXES.map(o => SY.createOutbox(o));
+const DONE = new Set(['synced', 'archived']);
+async function othersUnsent(email) {
+  if (!SY || typeof indexedDB === 'undefined' && typeof localStorage === 'undefined') return false;
+  for (const box of others()) {
+    try { if ((await box.list(email)).some(x => !DONE.has(x.state))) return true; } catch { return true; }
+  }
+  return false;
+}
+// The outbox (this account's and another tab's), the other apps' outboxes and the SDK's own pending writes all count.
 export async function hasUnsentWrites(ms = 1500) {
   if (demo || !owner) return false;
   if (!evq) return sdkPending();
-  return !(await evq.queue.flush(ms));
+  return !(await evq.queue.flush(ms)) || await othersUnsent(owner);
 }
 // Resolves once every write made so far has reached the server (outbox empty, SDK writes confirmed).
 export async function whenSynced() {
@@ -226,22 +238,34 @@ export async function signInWithToken(token) {
 
 // Signing out also wipes this device's offline copy (a shared ward PC keeps nothing): app-sync's forgetDevice, in
 // one order: listeners stopped, the outbox of this account, the SDK's cache, then the assessor's answers kept here.
-// Callers check hasUnsentWrites first (signOutSafely).
+// Refused ({ code: 'unsent-saves' }) while anything of this account is unsent on this device, in any app's outbox,
+// unless { force } (signOutSafely asks first). Clearing the SDK's cache waits at most CLEAR_WAIT: another tab holding
+// the shared IndexedDB would otherwise hang it.
+const CLEAR_WAIT = 3000;
+const within = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('Clearing the offline cache timed out')), ms))]);
 const dropDrafts = () => { try { for (const k of Object.keys(localStorage)) if (k.startsWith('evals-draft-')) localStorage.removeItem(k); } catch {} };
-export async function signOut() {
+export async function signOut({ force = false } = {}) {
   if (demo) { dropDrafts(); return D.signOut(); }
   const s = await sdk();
+  if (!force && await hasUnsentWrites()) throw Object.assign(new Error('Some changes on this device are not sent yet'), { code: 'unsent-saves' });
+  const email = owner;
   const q = owner && evq ? evq.queue : null;
   for (const stop of [...live]) stop();   // before auth changes, so no listener fails as permission-denied
   await s.A.signOut(s.auth);
   owner = null; heard = false;
   // (app-sync not loaded: nothing of this account is in the outbox here; the SDK's cache still goes)
+  dropDrafts();   // first: the steps below may stall
   const forget = SY ? SY.forgetDevice : async ({ clearBackendCache, extra }) => { await clearBackendCache().catch(e => console.warn(e)); await extra(); };
-  await forget({ queue: q, extra: async () => { dropDrafts(); known.clear(); reported.clear(); errorFor.clear(); },
+  const { failed = [] } = await forget({ queue: q,
+    extra: async () => {
+      known.clear(); reported.clear(); errorFor.clear();
+      if (SY && email) for (const box of others()) await box.forget(email).catch(e => console.warn('Could not clear an outbox', e));
+    },
     clearBackendCache: async () => {
-      try { await s.F.terminate(s.db); await s.F.clearIndexedDbPersistence(s.db); }
+      try { await within((async () => { await s.F.terminate(s.db); await s.F.clearIndexedDbPersistence(s.db); })(), CLEAR_WAIT); }
       finally { s.db = openDb(s.app, s.F); }   // a fresh, empty Firestore for the next sign-in
-    } });
+    } }) || {};
+  if (failed.length) console.warn('Sign-out could not clear', failed.join(', '));
   changed();
 }
 
@@ -460,7 +484,9 @@ async function save(record, base, { wait = true, onError = null } = {}) {
   if (!wait) return;
   try {
     await q.settle(KIND, [id], ACK_WAIT);
-    if (q.stateOf(q.jobKey(KIND, id)) === 'failed') throw refused();
+    const state = q.stateOf(q.jobKey(KIND, id));
+    if (state === 'failed') throw refused();
+    if (state === 'conflict') { const e = refused(); e.code = 'write-conflict'; throw e; }
   } finally { if (errorFor.get(id) === 'wait') errorFor.delete(id); onQueueChange(); }
 }
 function signedInAs() {

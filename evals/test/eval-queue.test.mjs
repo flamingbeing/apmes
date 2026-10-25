@@ -155,6 +155,42 @@ await t('the stamp moves past the server copy\'s even when this clock is behind'
   assert.ok(docs.get('evaluations/ev1').updatedAt > future);
 });
 
+await t('the resident cancelled while the assessor answered offline: a conflict with the server copy, not a refusal', async () => {
+  const x = setup({ who: ASR });
+  x.docs.set('evaluations/ev1', { ...base });
+  x.st.online = false;
+  await x.queue.save(KIND, ASR, { ...base, assessment: { q1: 4 } }, base);   // answered offline
+  x.docs.set('evaluations/ev1', { ...base, status: 'cancelled', updatedAt: 7 });   // meanwhile, on the resident's phone
+  x.st.online = true; x.queue.kick();
+  await settle(x.queue);
+  assert.equal(x.queue.status(KIND, 'ev1'), 'conflict');
+  const [job] = x.queue.entries();
+  assert.equal(job.remote.status, 'cancelled', 'the server copy is kept to show');
+  assert.ok(!('assessment' in x.docs.get('evaluations/ev1')), 'nothing written over the cancel');
+  await x.queue.archive(job.key);   // Discard
+  assert.equal(await x.queue.flush(50), true, 'and sign-out is no longer blocked');
+});
+
+await t('a create already on the server is left as it is (even where the rules would allow the write)', async () => {
+  const { queue, docs, st } = setup();
+  docs.set('evaluations/ev1', { ...base, chasedAt: 4 });
+  await queue.save(KIND, RES, base, null);
+  await settle(queue);
+  assert.equal(queue.status(KIND, 'ev1'), 'synced');
+  assert.equal(docs.get('evaluations/ev1').chasedAt, 4);
+  assert.equal(st.txs, 0, 'no write');
+});
+
+await t('mergeEval: the flow unchanged, the change applies with its times stamped against the server copy', async () => {
+  const { mergeEval } = await import('../js/eval-queue.js');
+  const cur = { ...base, chasedAt: 5 };
+  const out = mergeEval(cur, { ...base, status: 'submitted', assessment: { q1: 1 } }, base);
+  assert.equal(out.status, 'submitted');
+  assert.ok(out.submittedAt > 0, 'submittedAt stamped');
+  assert.equal(out.chasedAt, 5);
+  assert.throws(() => mergeEval({ ...base, assessorEmail: 'dr.three@example.com' }, { ...base, assessment: {} }, base), e => e.code === 'write-conflict');
+});
+
 await t('the chip has words for every app-sync state', async () => {
   for (const state of ['attention', 'at-risk', 'offline', 'saving', 'stale', 'unknown', 'synced']) assert.ok(SYNC_CHIP[state], state);
   assert.equal(syncStatus({ confirmed: false }).state, 'unknown', 'not synced before the server answered');

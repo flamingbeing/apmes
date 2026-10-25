@@ -15,7 +15,7 @@ const SHELL = [
   'js/vendor/qrcode.js', '../apmes/guidebook/dops-expectations.md',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
   'js/app-sync.js', 'js/eval-queue.js',
-  'https://core.anawj.com/sync/0.4.0/index.js', 'https://core.anawj.com/sync/0.4.0/src/sync.js', 'https://core.anawj.com/sync/0.4.0/src/writes.js', 'https://core.anawj.com/sync/0.4.0/src/conflict.js', 'https://core.anawj.com/sync/0.4.0/src/store.js', 'https://core.anawj.com/sync/0.4.0/src/outbox.js', 'https://core.anawj.com/sync/0.4.0/src/watchdog.js', 'https://core.anawj.com/sync/0.4.0/src/persist.js', 'https://core.anawj.com/sync/0.4.0/src/status.js', 'https://core.anawj.com/sync/0.4.0/src/forget.js', 'https://core.anawj.com/sync/0.4.0/src/firestore.js',
+  'https://core.anawj.com/sync/0.4.1/index.js', 'https://core.anawj.com/sync/0.4.1/src/sync.js', 'https://core.anawj.com/sync/0.4.1/src/writes.js', 'https://core.anawj.com/sync/0.4.1/src/conflict.js', 'https://core.anawj.com/sync/0.4.1/src/store.js', 'https://core.anawj.com/sync/0.4.1/src/outbox.js', 'https://core.anawj.com/sync/0.4.1/src/watchdog.js', 'https://core.anawj.com/sync/0.4.1/src/persist.js', 'https://core.anawj.com/sync/0.4.1/src/status.js', 'https://core.anawj.com/sync/0.4.1/src/forget.js', 'https://core.anawj.com/sync/0.4.1/src/firestore.js',
   'https://core.anawj.com/update/0.2.0/register.js',
 ];
 const MANIFEST = {};

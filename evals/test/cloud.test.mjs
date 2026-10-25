@@ -79,16 +79,26 @@ await t('a change the rules refuse is thrown with its code, and listed for Retry
   FS.rules = () => true;
 });
 
+await t('sign-out is refused while another app on the site (the logbook) has unsent saves for this account', async () => {
+  localStorage.setItem('apmes-logbook-recovery:k1', JSON.stringify({ key: 'k1', owner: RES, kind: 'case', record: { id: 'c1' }, state: 'pending', realm: 'account', at: 1 }));
+  assert.equal(await cloud.hasUnsentWrites(100), true);
+  await assert.rejects(cloud.signOut(), e => e.code === 'unsent-saves');
+  assert.equal(AUTH.user?.email, RES, 'still signed in');
+});
+
 await t('sign-out forgets the device: outbox, the SDK cache and the drafts', async () => {
   FS.online = false;
   await cloud.updateEvaluation('ev1', { chasedAt: Date.now() + 1 });
   localStorage.setItem('evals-draft-ev1', '{}');
   FS.online = true;
-  // (the screens ask first: signOutSafely; here straight to signOut)
-  await cloud.signOut();
+  FS.hang = true;   // another tab holds the shared IndexedDB: clearing the cache never finishes
+  const t0 = Date.now();
+  await cloud.signOut({ force: true });   // (the screens ask first: signOutSafely)
+  assert.ok(Date.now() - t0 < 6000, 'does not hang');
   assert.ok(!keys().some(k => k.startsWith('apmes-evals-outbox:')), 'outbox wiped');
+  assert.ok(!keys().some(k => k.startsWith('apmes-logbook-recovery:')), 'the other apps\' outboxes for this account too');
   assert.ok(!keys().some(k => k.startsWith('evals-draft-')), 'drafts wiped');
-  assert.equal(FS.terminated, 1); assert.equal(FS.cleared, 1);
+  assert.equal(FS.terminated, 1);
   assert.equal(cloud.pendingSaves(), 0);
 });
 

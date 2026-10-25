@@ -23,7 +23,7 @@ export async function getDocFromServer(ref) { if (!fs.online) throw err('unavail
 export async function getDocs(q) { const docs = [...fs.docs].filter(([p, d]) => inColl(q, p) && match(q, d)).map(([p, d]) => snapOf(p, d)); return { docs, size: docs.length }; }
 export async function setDoc(ref, data) { fs.docs.set(ref.path, structuredClone(data)); notify(); }
 export async function waitForPendingWrites() {}
-export async function terminate() { fs.terminated++; }
+export async function terminate() { fs.terminated++; if (fs.hang) await new Promise(() => {}); }
 export async function clearIndexedDbPersistence() { fs.cleared++; }
 export function onSnapshot(q, _opts, next) {
   const run = () => { if (!fs.online) return; getDocs(q).then(s => next({ ...s, metadata: { fromCache: false, hasPendingWrites: false } })); };

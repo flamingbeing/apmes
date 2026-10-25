@@ -110,7 +110,8 @@ function unsentSheet() {
       h('p', { class: 'e-small' }, x.state === 'pending' ? (x.error || 'Waiting to send') : x.error),
       x.state === 'pending' ? null : h('div', { class: 'e-actions' },
         h('button', { class: 'a-btn a-btn--tinted e-btn-quiet', type: 'button', onclick: async () => { if (await confirmBox('Discard this change?', 'It is not sent, and this phone forgets it.', 'Discard', true)) { await cloud.discardSave(x.key); paint(); } } }, 'Discard'),
-        h('button', { class: 'a-btn', type: 'button', onclick: async () => { await cloud.retrySave(x.key).catch(err => toast(errText(err))); paint(); } }, 'Retry'))))
+        // a conflict: the server's copy has moved on, so trying again would meet it again (Discard keeps the server's)
+        x.state === 'conflict' ? null : h('button', { class: 'a-btn', type: 'button', onclick: async () => { await cloud.retrySave(x.key).catch(err => toast(errText(err))); paint(); } }, 'Try again'))))
       : h('p', {}, 'Everything is sent.'));
   };
   paint();
