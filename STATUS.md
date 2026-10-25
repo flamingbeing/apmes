@@ -17,6 +17,9 @@
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 25 Oct 2026: evals (and People, CCC's sign-in) on app-sync 0.6.0 `createApp`: queue, outbox (name kept), origin
+  outbox list and sign-out from createApp; the evaluation merge (held conflicts) and the scoped listeners stay in the app.
+  Next: CCC's writes, then the logbook (last).
 - 25 Oct 2026: app-sync 0.5.1 in the logbook and evals. Evals' first save of a request goes through the adapter's
   `create`. In the logbook, new cases (paste, plans, spreadsheet rows), their Undo, a backup's missing cases and
   reflections and the Word import go through the write queue (outbox, sync chip, sign-out check) instead of blind

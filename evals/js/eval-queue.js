@@ -1,4 +1,4 @@
-// Saves of evaluations through app-sync's write queue (cloud.js uses it; People and CCC sign in through cloud.js too).
+// Saves of evaluations through app-sync's write queue (cloud.js wires it with createApp; People and CCC sign in through cloud.js too).
 // Every create, change and draft delete goes to a durable outbox on this device first, then to Firestore one record
 // at a time in a transaction, so a form filled in without signal is kept even if the browser drops the SDK's cache,
 // the status chip can tell what is still unsent, and sign-out can refuse while anything is.
@@ -41,10 +41,12 @@ export function mergeEval(current, record, base) {
   return mergeFields(current, next, base);
 }
 
-export function createEvalQueue({ sdk, store, getOwner, online = () => typeof navigator === 'undefined' || navigator.onLine !== false, otherPending = null, delay, sendTimeout }) {
+// the save itself (createApp's commit in cloud.js): a new record through the adapter's create, the rest merged by
+// mergeEval in one transaction. codeOf(id): the code of that record's last refused save, for the screens.
+export function createEvalBackend({ sdk }) {
   const fs = createFirestoreBackend({ sdk, path: () => [COLL], merge: { [COLL]: mergeEval } });
-  const codes = new Map();   // record id -> the code of its last refused save ('permission-denied', …), for the screens
-  async function backend(owner, kind, record, base, extra) {
+  const codes = new Map();   // record id -> the code of its last refused save ('permission-denied', …)
+  async function commit(owner, kind, record, base, extra) {
     if (kind !== KIND) throw new Error('Unknown kind ' + kind);
     try {
       const out = !base && !record._deleted ? await fs.create(owner, COLL, record) : await fs.commit(owner, COLL, record, base, extra);
@@ -52,7 +54,13 @@ export function createEvalQueue({ sdk, store, getOwner, online = () => typeof na
       return out;
     } catch (e) { codes.set(String(record.id), e?.code || ''); throw e; }
   }
-  const queue = createWriteQueue({ store, backend, getOwner, online, otherPending, labels: { recover: 'Unsent changes' },
+  return { commit, fs, codeOf: id => codes.get(String(id)) || '' };
+}
+
+// the same backend behind a bare write queue (the queue's tests; the app itself goes through createApp)
+export function createEvalQueue({ sdk, store, getOwner, online = () => typeof navigator === 'undefined' || navigator.onLine !== false, otherPending = null, delay, sendTimeout }) {
+  const { commit, fs, codeOf } = createEvalBackend({ sdk });
+  const queue = createWriteQueue({ store, backend: commit, getOwner, online, otherPending, labels: { recover: 'Unsent changes' },
     ...(delay ? { delay } : {}), ...(sendTimeout ? { sendTimeout } : {}) });
-  return { queue, fs, codeOf: id => codes.get(String(id)) || '' };
+  return { queue, fs, codeOf };
 }
