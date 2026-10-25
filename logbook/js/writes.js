@@ -6,5 +6,8 @@ import { createWriteQueue } from './app-sync.js';
 import { recoveryStore } from './recovery-store.js';
 export { createWriteQueue };
 
-export const writes = createWriteQueue({ store: recoveryStore, online: () => typeof navigator === 'undefined' || navigator.onLine !== false, labels: { recover: 'Recover' } });
+// outside.pending: writes sent straight to Firestore (photos, settings, the notes index...) not yet on the server; they
+// keep the sign-out check (writes.flush) shut too (app-sync 0.4.0 otherPending). ui-core.js sets it once cloud.js loads.
+export const outside = { pending: async () => false };
+export const writes = createWriteQueue({ store: recoveryStore, online: () => typeof navigator === 'undefined' || navigator.onLine !== false, labels: { recover: 'Recover' }, otherPending: () => outside.pending() });
 if (typeof window !== 'undefined') window.addEventListener('online', () => writes.kick());

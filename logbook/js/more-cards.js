@@ -14,7 +14,7 @@ export function signOutCard() {
       h('button', { onclick: async e => {
         const btn = e.currentTarget;
         btn.disabled = true;
-        const ok = await writes.flush() && await cloud.synced();
+        const ok = await writes.flush();   // also waits for writes made outside the queue (writes.js outside)
         btn.disabled = false;
         if (!ok && !(await confirmBox('Not synced yet', 'Some cases or changes on this device have not reached the server yet (no signal?). Signing out now deletes them. Wait for signal and try again, or sign out anyway?', 'Sign out anyway', true))) return;
         cloud.signOut();
