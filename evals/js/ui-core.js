@@ -55,15 +55,35 @@ export function pruneDrafts(list, meta) {
 
 // Sign out, but first warn when answers on this phone haven't reached the server: signing out
 // deletes this device's offline copy, unsent forms included.
+// -> true once signed out.
 export async function signOutSafely() {
   if (await cloud.hasUnsentWrites()) {
     const ok = await confirmBox('Not sent yet',
       'Some answers on this phone haven’t reached the server yet (no signal?). Signing out now deletes them. Wait until you have signal, then sign out.',
       'Sign out anyway', true);
-    if (!ok) return;
+    if (!ok) return false;
   }
-  try { await cloud.signOut(); }
-  catch (err) { console.warn(err); toast('Couldn’t sign out. Check your signal and try again.'); }
+  try { await cloud.signOut({ force: true }); return true; }
+  catch (err) { console.warn(err); toast('Couldn’t sign out. Check your signal and try again.'); return false; }
+}
+
+// ---------- sync chip ----------
+// The header's word on saves (app-sync's status rules, cloud.syncState()): what the chip says for each state, and
+// whether tapping it opens the list of unsent changes. Nothing in the demo (its data never leaves the browser).
+export const SYNC_CHIP = {
+  attention: { text: n => `⚠ ${n} not sent`, cls: 'warn', sheet: true, title: 'The server refused a change: tap to retry or discard it' },
+  'at-risk': { text: () => '⚠ On this phone only', cls: 'warn', sheet: true, title: 'Saved on this phone; this browser may clear it. Get signal soon, or add the app to your home screen' },
+  offline: { text: n => `⏳ ${n} to send`, cls: 'wait', sheet: true, title: 'Saved on this phone; sends when there is signal' },
+  saving: { text: () => '⟳ Saving', cls: 'wait', sheet: false, title: 'Sending to the server…' },
+  stale: { text: () => '⚠ Not up to date', cls: 'wait', sheet: false, title: 'Not hearing from the server: what shows may be out of date' },
+  unknown: { text: () => '⟳ Connecting', cls: 'wait', sheet: false, title: 'Not heard from the server yet' },
+  synced: { text: () => '✓ Synced', cls: 'ok', sheet: false, title: 'Everything is saved to the server' },
+};
+export function syncChip({ state, count } = {}, onsheet = () => {}) {
+  const c = SYNC_CHIP[state];
+  if (!c || cloud.demo) return null;
+  const attrs = { class: `e-sync e-sync--${c.cls}`, title: c.title, 'data-sync': state };
+  return c.sheet ? h('button', { ...attrs, type: 'button', onclick: onsheet }, c.text(count)) : h('span', { ...attrs, role: 'status' }, c.text(count));
 }
 
 // A request that needs the resident: declined, new feedback, or waiting 20 h or more (nudge).
@@ -233,6 +253,7 @@ export function errText(e) {
   const code = String(e?.code || '').replace(/^firestore\//, '');
   const msg = {
     'permission-denied': 'You can’t change this any more (it may have been cancelled, reassigned or closed).',
+    'write-conflict': 'This request changed on another device (cancelled, reassigned or sent). Your version is kept: tap the sync chip to see it.',
     'unavailable': 'No connection. Check your signal and try again.',
     'auth/network-request-failed': 'No connection. Check your signal and try again.',
     'auth/popup-closed-by-user': 'The sign-in window was closed before it finished. Try again.',

@@ -9,6 +9,10 @@
 //   faculty/{email}                        { email, name, status: ACTIVE|INACTIVE, updatedAt }   admins or PDs write
 //   applications/{uid}                     { uid, email, name, role, note, status, createdAt, decidedAt?, decidedBy? }
 //   evaluations/{id}                       see EVAL_FIELDS in schema.js
+//
+// Evaluations are saved through app-sync's write queue (eval-queue.js): a durable outbox on this device, then one
+// transaction per record, merged by field onto the server's copy. The other writes (roles, people lists, access)
+// go straight to the SDK; they keep the sign-out check shut until the server has them.
 
 import { FIREBASE_CONFIG } from './firebase-config.js';
 import * as D from './demo-backend.js';
@@ -70,6 +74,65 @@ function queued(p) {
   p.catch(e => { if (late) { console.error('Sync failed', e); for (const cb of syncErrorListeners) cb(e); } });
   return Promise.race([p, new Promise(r => setTimeout(() => { late = true; r(); }, ACK_WAIT))]);
 }
+// ---- the evaluations write queue ----
+// Loaded at the first sign-in, never in the demo (app-sync comes from core.anawj.com; sw.js keeps it offline), so CCC
+// and People, which sign in through this file, load without it until someone signs in.
+const KIND = 'evaluation';
+let owner = null;   // the signed-in email (the outbox keeps each account's saves apart)
+let evq = null, SY = null, loading = null;
+const sdkPending = async () => { if (!fb) return false; const { db, F } = await sdk(); let done = false; await Promise.race([F.waitForPendingWrites(db).then(() => { done = true; }, () => { done = true; }), new Promise(r => setTimeout(r, 300))]); return !done; };
+function loadQueue() {
+  if (!loading) loading = Promise.all([import('./eval-queue.js'), import('./app-sync.js')]).then(([Q, sync]) => {
+    SY = sync;
+    evq = Q.createEvalQueue({ sdk, store: sync.createOutbox({ name: 'apmes-evals-outbox' }), getOwner: () => owner, otherPending: sdkPending });
+    evq.queue.onChange(onQueueChange);
+    if (typeof addEventListener === 'function') addEventListener('online', () => evq.queue.kick());
+    return evq;
+  });
+  loading.catch(() => { loading = null; });   // e.g. offline before it was ever saved: try again next time
+  return loading;
+}
+const evalQueue = () => { if (!evq) throw Object.assign(new Error('The save queue has not loaded: check your signal and try again'), { code: 'unavailable' }); return evq; };
+// a save the server refused is reported once: to the screen that made it (onError, or the screen waiting for the
+// answer: 'wait'), else to onSyncError listeners. errorFor: record id -> onError | 'wait'.
+const reported = new Set(), errorFor = new Map();
+const queueListeners = new Set();
+function onQueueChange() {
+  for (const x of evq.queue.entries()) {
+    if ((x.state !== 'failed' && x.state !== 'conflict') || reported.has(x.key)) continue;
+    const cb = errorFor.get(x.record.id);
+    if (cb === 'wait') continue;   // save() throws it
+    reported.add(x.key);
+    const e = new Error(x.error); e.code = x.state === 'conflict' ? 'write-conflict' : evq.codeOf(x.record.id);
+    if (cb) { errorFor.delete(x.record.id); cb(e); } else { console.error('Sync failed', e); for (const l of syncErrorListeners) l(e); }
+  }
+  for (const cb of [...queueListeners]) cb();
+}
+
+// ---- sync status (the header chip) ----
+// confirmed: a list has come from the server (not the device's copy) since sign-in, so the chip never says synced on
+// the strength of the cache alone. persisted: persistGuard's answer (at-risk only while offline: online, a save
+// waits seconds).
+let heard = false, persisted = true;
+export function syncState() {
+  if (demo || !owner) return { state: 'synced', count: 0 };
+  if (!evq) return { state: 'unknown', count: 0 };
+  const q = evq.queue;
+  return SY.syncStatus({ online: typeof navigator === 'undefined' || navigator.onLine !== false, pending: q.pending(), attention: SY.attentionCount(q.entries()),
+    persisted, confirmed: heard, atRiskOnlyOffline: true });
+}
+// cb() whenever the chip may change (a save queued, sent or refused, the first answer from the server)
+export function onSyncChange(cb) {
+  queueListeners.add(cb);
+  return () => queueListeners.delete(cb);
+}
+const changed = () => { for (const cb of [...queueListeners]) cb(); };
+// Saves the server refused (or met a change it can't take): the chip's sheet offers Retry or Discard.
+export const unsentEntries = () => (demo || !owner || !evq ? [] : evq.queue.entries().filter(x => x.state === 'failed' || x.state === 'pending' || x.state === 'conflict'));
+export const retrySave = key => evalQueue().queue.retry(key);
+export const discardSave = key => evalQueue().queue.archive(key);
+export const pendingSaves = () => (demo || !owner || !evq ? 0 : evq.queue.pending());
+
 // For apps built on evals' sign-in that keep their own collections (selection/): the Firestore handle and the same
 // offline-friendly write. Never used in the demo.
 export async function firestore() {
@@ -84,17 +147,34 @@ const soft = p => p.catch(e => {
 
 // True when this phone holds writes the server hasn't confirmed yet (e.g. a form submitted without
 // signal). Signing out would delete them with the offline cache, so the UI asks first.
-export async function hasUnsentWrites(ms = 1500) {
-  if (demo || !fb) return false;
-  const { db, F } = await sdk();
-  let done = false;
-  const settle = () => { done = true; };
-  await Promise.race([F.waitForPendingWrites(db).then(settle, settle), new Promise(r => setTimeout(r, ms))]);
-  return !done;
+// The apps on this site share one sign-in, so signing out of one signs out of all: the other apps' outboxes count
+// too (the logbook's, CCC's), for this account. A store that can't be read counts as unsent (can't tell).
+const OTHER_OUTBOXES = [{ name: 'apmes-logbook-recovery', realm: 'account' }, { name: 'ccc-outbox' }];
+const others = () => OTHER_OUTBOXES.map(o => SY.createOutbox(o));
+const DONE = new Set(['synced', 'archived']);
+async function othersUnsent(email) {
+  if (!SY || typeof indexedDB === 'undefined' && typeof localStorage === 'undefined') return false;
+  for (const box of others()) {
+    try { if ((await box.list(email)).some(x => !DONE.has(x.state))) return true; } catch { return true; }
+  }
+  return false;
 }
-// Resolves once every write made so far has reached the server.
+// The outbox (this account's and another tab's), the other apps' outboxes and the SDK's own pending writes all count.
+export async function hasUnsentWrites(ms = 1500) {
+  if (demo || !owner) return false;
+  if (!evq) return sdkPending();
+  return !(await evq.queue.flush(ms)) || await othersUnsent(owner);
+}
+// Resolves once every write made so far has reached the server (outbox empty, SDK writes confirmed).
 export async function whenSynced() {
   if (demo) return;
+  if (owner && evq) {
+    const q = evq.queue;
+    await new Promise(resolve => {
+      const check = () => { if (!q.pending()) { off(); resolve(); } };
+      const off = q.onChange(check); check();
+    });
+  }
   const { db, F } = await sdk();
   await F.waitForPendingWrites(db);
 }
@@ -117,7 +197,20 @@ export async function watchUser(cb) {
   const { auth, A } = await sdk();
   // finishes a redirect sign-in (the fallback below) when the page loads again
   A.getRedirectResult(auth).catch(e => console.warn('Redirect sign-in failed', e));
-  A.onAuthStateChanged(auth, async u => cb(await asUser(u)));
+  A.onAuthStateChanged(auth, async u => {
+    const user = await asUser(u);
+    owner = user && !user.guest ? user.email : null;
+    heard = false;
+    if (owner) {
+      const email = owner;
+      await loadQueue().then(q => {
+        if (owner !== email) return;
+        q.queue.activate(email).then(changed, () => {});
+        SY.persistGuard().then(r => { persisted = r.persisted; changed(); });
+      }).catch(e => console.warn('Save queue not loaded', e));
+    }
+    cb(user);
+  });
 }
 
 // Popup first; redirect when popups are blocked or unsupported (e.g. some home-screen apps).
@@ -143,20 +236,37 @@ export async function signInWithToken(token) {
   await A.signInWithCustomToken(auth, token);
 }
 
-// Signing out also wipes this device's offline copy (a shared ward PC keeps nothing).
-export async function signOut() {
-  // the assessor's unsent answers on this device go too
-  try { for (const k of Object.keys(localStorage)) if (k.startsWith('evals-draft-')) localStorage.removeItem(k); } catch {}
-  if (demo) return D.signOut();
+// Signing out also wipes this device's offline copy (a shared ward PC keeps nothing): app-sync's forgetDevice, in
+// one order: listeners stopped, the outbox of this account, the SDK's cache, then the assessor's answers kept here.
+// Refused ({ code: 'unsent-saves' }) while anything of this account is unsent on this device, in any app's outbox,
+// unless { force } (signOutSafely asks first). Clearing the SDK's cache waits at most CLEAR_WAIT: another tab holding
+// the shared IndexedDB would otherwise hang it.
+const CLEAR_WAIT = 3000;
+const within = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('Clearing the offline cache timed out')), ms))]);
+const dropDrafts = () => { try { for (const k of Object.keys(localStorage)) if (k.startsWith('evals-draft-')) localStorage.removeItem(k); } catch {} };
+export async function signOut({ force = false } = {}) {
+  if (demo) { dropDrafts(); return D.signOut(); }
   const s = await sdk();
+  if (!force && await hasUnsentWrites()) throw Object.assign(new Error('Some changes on this device are not sent yet'), { code: 'unsent-saves' });
+  const email = owner;
+  const q = owner && evq ? evq.queue : null;
   for (const stop of [...live]) stop();   // before auth changes, so no listener fails as permission-denied
   await s.A.signOut(s.auth);
-  try {
-    await s.F.terminate(s.db);
-    await s.F.clearIndexedDbPersistence(s.db);
-  } catch (e) { console.warn('Could not clear the offline cache', e); }
-  s.db = openDb(s.app, s.F);   // a fresh, empty Firestore for the next sign-in
-  known.clear();
+  owner = null; heard = false;
+  // (app-sync not loaded: nothing of this account is in the outbox here; the SDK's cache still goes)
+  dropDrafts();   // first: the steps below may stall
+  const forget = SY ? SY.forgetDevice : async ({ clearBackendCache, extra }) => { await clearBackendCache().catch(e => console.warn(e)); await extra(); };
+  const { failed = [] } = await forget({ queue: q,
+    extra: async () => {
+      known.clear(); reported.clear(); errorFor.clear();
+      if (SY && email) for (const box of others()) await box.forget(email).catch(e => console.warn('Could not clear an outbox', e));
+    },
+    clearBackendCache: async () => {
+      try { await within((async () => { await s.F.terminate(s.db); await s.F.clearIndexedDbPersistence(s.db); })(), CLEAR_WAIT); }
+      finally { s.db = openDb(s.app, s.F); }   // a fresh, empty Firestore for the next sign-in
+    } }) || {};
+  if (failed.length) console.warn('Sign-out could not clear', failed.join(', '));
+  changed();
 }
 
 // ---- roles ----
@@ -357,12 +467,38 @@ const remember = list => { for (const d of list) known.set(d.id, d); return list
 
 export const newEvaluationId = () => D.newEvaluationId();
 
+// save(record, base, { wait, onError }): through the queue. wait: up to ACK_WAIT for the server's answer, so a
+// refusal (rules: the request is closed, the edit window passed) is thrown with its code as before; offline or slow it
+// returns and the outbox sends it later. onError (no wait): called if the server refuses it later.
+async function save(record, base, { wait = true, onError = null } = {}) {
+  const q = (evq || await loadQueue()).queue, id = String(record.id), email = signedInAs();
+  errorFor.set(id, wait ? 'wait' : onError);
+  if (!wait && !onError) errorFor.delete(id);
+  const refused = () => {
+    const key = q.jobKey(KIND, id), job = q.entries().find(x => x.key === key);
+    reported.add(key);
+    const e = new Error(job?.error || 'Could not save'); e.code = evq.codeOf(id); return e;
+  };
+  try { await q.save(KIND, email, record, base); }
+  catch (e) { if (errorFor.get(id) === 'wait') errorFor.delete(id); if (!e.code) e.code = evq.codeOf(id); reported.add(q.jobKey(KIND, id)); throw e; }
+  if (!wait) return;
+  try {
+    await q.settle(KIND, [id], ACK_WAIT);
+    const state = q.stateOf(q.jobKey(KIND, id));
+    if (state === 'failed') throw refused();
+    if (state === 'conflict') { const e = refused(); e.code = 'write-conflict'; throw e; }
+  } finally { if (errorFor.get(id) === 'wait') errorFor.delete(id); onQueueChange(); }
+}
+function signedInAs() {
+  if (!owner) throw new Error('Sign in first');
+  return owner;
+}
+
 export async function createEvaluation(ev) {
   if (demo) return D.createEvaluation(ev);
-  const { db, F } = await sdk();
   const doc = cleanEval(ev);
-  await queued(F.setDoc(F.doc(db, 'evaluations', doc.id), doc));
   known.set(doc.id, doc);
+  await save(doc, null);
   return doc;
 }
 
@@ -372,17 +508,15 @@ export async function createEvaluation(ev) {
 export async function updateEvaluation(id, patch, { wait = true, onError = null } = {}) {
   if (demo) return D.updateEvaluation(id, patch);
   id = String(id);
-  const { db, F } = await sdk();
+  signedInAs();
   const cur = known.get(id) || await getEvaluation(id);
+  if (!cur) { const e = new Error('This evaluation is not on this device'); e.code = 'not-found'; throw e; }
   const { set, remove } = cleanPatch(stampPatch(cur, patch));
-  const write = { ...set };
-  for (const k of remove) write[k] = F.deleteField();
-  const p = queued(F.updateDoc(F.doc(db, 'evaluations', id), write));
-  if (wait) await p;
-  // not awaited: a quick rejection (before ACK_WAIT) would otherwise go unnoticed
-  else p.catch(e => { if (onError) onError(e); else for (const cb of syncErrorListeners) cb(e); });
-  const merged = { ...(cur || { id }), ...set };
+  const merged = { ...cur, ...set, id };
   for (const k of remove) delete merged[k];
+  // the whole record as this device now has it, against the copy the change started from: only the fields that
+  // differ are applied to the server's copy (the queue's merge), so another phone's change to other fields stays
+  await save(plain(merged), plain(cur), { wait, onError });
   known.set(id, merged);
   return plain(merged);
 }
@@ -401,24 +535,36 @@ export async function getEvaluation(id) {
 // Removes a resident's own unsent draft (the only delete the UI offers).
 export async function deleteDraft(id) {
   if (demo) return D.deleteDraft(id);
-  const { db, F } = await sdk();
-  await queued(F.deleteDoc(F.doc(db, 'evaluations', String(id))));
-  known.delete(String(id));
+  id = String(id);
+  const cur = known.get(id) || await getEvaluation(id);
+  await save({ id, _deleted: true }, cur ? plain(cur) : null);
+  known.delete(id);
 }
 
 // Live lists, newest change first, served from the offline cache when there is no signal.
 // cb(list, { fromCache, hasPendingWrites }). Returns an unsubscribe function.
 const byNewest = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0) || String(a.id).localeCompare(String(b.id));
 const live = new Set();   // stop functions of open listeners (signOut closes them first)
-function watch(build, cb, what) {
-  let stop = null, stopped = false;
-  const end = () => { stopped = true; live.delete(end); if (stop) stop(); };
+// The list shows this device's saves not yet on the server (the queue's overlay), limited to what the query asks
+// for (keep); hasPendingWrites is also true while the outbox holds a save, so pruneDrafts keeps the answers here.
+function watch(build, cb, what, keep = () => true) {
+  let stop = null, stopped = false, docs = null, meta = null;
+  const show = () => {
+    if (stopped || !docs) return;
+    const q = owner && evq ? evq.queue : null;
+    const list = remember((q ? q.overlay(KIND, owner, docs) : docs).filter(keep)).sort(byNewest);
+    cb(list, { fromCache: meta.fromCache, hasPendingWrites: meta.hasPendingWrites || !!(q && q.pending()) });
+  };
+  const offQueue = onSyncChange(show);
+  const end = () => { stopped = true; live.delete(end); offQueue(); if (stop) stop(); };
   live.add(end);
   sdk().then(({ db, F }) => {
     if (stopped) return;
     stop = F.onSnapshot(build(db, F), { includeMetadataChanges: true }, snap => {
-      const list = remember(snap.docs.map(d => ({ ...d.data(), id: d.id }))).sort(byNewest);
-      cb(list, { fromCache: snap.metadata.fromCache, hasPendingWrites: snap.metadata.hasPendingWrites });
+      docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+      meta = { fromCache: snap.metadata.fromCache, hasPendingWrites: snap.metadata.hasPendingWrites };
+      if (!meta.fromCache && !heard) { heard = true; changed(); }
+      show();
     }, e => {
       if (stopped) return;   // e.g. signing out
       console.error(what + ' listener failed', e); for (const l of syncErrorListeners) l(e);
@@ -429,13 +575,14 @@ function watch(build, cb, what) {
 
 export function watchMine(email, cb) {
   if (demo) return D.watchMine(email, cb);
-  return watch((db, F) => F.query(F.collection(db, 'evaluations'), F.where('residentEmail', '==', lc(email))), cb, 'My evaluations');
+  const me = lc(email);
+  return watch((db, F) => F.query(F.collection(db, 'evaluations'), F.where('residentEmail', '==', me)), cb, 'My evaluations', ev => ev.residentEmail === me);
 }
 export function watchAssigned(email, cb) {
   if (demo) return D.watchAssigned(email, cb);
   // never the resident's unsent drafts (the rules hide those from the assessor)
   return watch((db, F) => F.query(F.collection(db, 'evaluations'), F.where('assessorEmail', '==', lc(email)),
-    F.where('status', 'in', SENT)), cb, 'Assigned evaluations');
+    F.where('status', 'in', SENT)), cb, 'Assigned evaluations', ev => ev.assessorEmail === lc(email) && SENT.includes(ev.status));
 }
 // PDs and admins only
 export function watchAll(cb) {

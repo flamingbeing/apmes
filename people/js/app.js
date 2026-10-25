@@ -5,7 +5,7 @@
 // Data: the logbook project's residents/{rid}, faculty/{email}, pds/{email}, applications/{uid}
 // (logbook/firestore.rules). With ?demo, evals' in-browser demo backend instead (made-up people).
 
-import { S, h, fill, add, toast, cloud, icon, initials, modal, confirmBox, download, segment, empty, applyTheme, errText, hooks, avatar } from '../../evals/js/ui-core.js';
+import { S, h, fill, add, toast, cloud, icon, initials, modal, confirmBox, download, segment, empty, applyTheme, errText, hooks, avatar, signOutSafely } from '../../evals/js/ui-core.js';
 import { residentsPane, facultyPane, applicationsPane, clearResidentsCache, pasteDialog, field, input, select, cleanEmail, validEmail, nextRid } from '../../evals/js/ui-admin.js';
 import { residentYear, todayISO } from '../../evals/js/engine.js';
 import { rotationsScreen } from './rotations-ui.js';
@@ -54,7 +54,7 @@ function account() {
     h('p', { class: 'e-small' }, h('a', { href: '../logbook/' }, 'Open the logbook'), ' · ', h('a', { href: '../evals/' }, 'Open evals')),
     h('div', { class: 'e-actions' },
       h('button', { class: 'a-btn a-btn--tinted e-btn-quiet', type: 'button', onclick: () => m.close() }, 'Close'),
-      h('button', { class: 'a-btn', type: 'button', onclick: async () => { m.close(); await cloud.signOut(); location.reload(); } }, 'Sign out')),
+      h('button', { class: 'a-btn', type: 'button', onclick: async () => { m.close(); if (await signOutSafely()) location.reload(); } }, 'Sign out')),
   ]);
 }
 

@@ -2,7 +2,7 @@
 // own ui-*.js file and is loaded on first use; shared state and helpers are in ui-core.js.
 // Data comes from cloud.js (Firestore, or the in-browser demo backend with ?demo).
 
-import { S, hooks, h, fill, toast, cloud, icon, initials, go, isResident, isFaculty, isStaff, hasRole, pruneDrafts, signOutSafely, confirmBox, needsAction, applyTheme, errText, linkAccount, inAppBrowser, openInBrowserCard, wrongAccountCard } from './ui-core.js';
+import { S, hooks, h, fill, toast, cloud, icon, initials, go, isResident, isFaculty, isStaff, hasRole, pruneDrafts, signOutSafely, confirmBox, needsAction, applyTheme, errText, linkAccount, inAppBrowser, openInBrowserCard, wrongAccountCard, syncChip, modal } from './ui-core.js';
 
 applyTheme();   // also keeps the browser's theme-color in step with the page
 
@@ -96,9 +96,29 @@ function paintHeader(title) {
   subEl.hidden = !bits.length;
   syncSub();
   backEl.hidden = !(S.user && ROUTES[S.route] && (ROUTES[S.route].back || ROUTES[S.route].bare));
-  if (S.user) fill(meEl, h('a', { href: '#more', class: 'a-bar-btn e-appbar__me', title: S.user.email, 'aria-label': 'Account and settings' }, h('span', { class: 'a-avatar', 'aria-hidden': 'true' }, initials(S.user.name || S.user.email))));
+  if (S.user) fill(meEl, syncChip(cloud.syncState(), unsentSheet), h('a', { href: '#more', class: 'a-bar-btn e-appbar__me', title: S.user.email, 'aria-label': 'Account and settings' }, h('span', { class: 'a-avatar', 'aria-hidden': 'true' }, initials(S.user.name || S.user.email))));
   else fill(meEl);
 }
+// Saves still on this phone (cloud's outbox): what each is, and Retry / Discard for one the server refused.
+function unsentSheet() {
+  const list = h('div', { class: 'e-stack' });
+  const paint = () => {
+    const items = cloud.unsentEntries();
+    fill(list, items.length ? items.map(x => h('div', { class: 'e-card' },
+      h('p', {}, h('b', {}, x.record._deleted ? 'Delete a draft' : (x.record.itemText || x.record.tool || 'Evaluation')),
+        ' · ', x.record.residentName || x.record.residentEmail || ''),
+      h('p', { class: 'e-small' }, x.state === 'pending' ? (x.error || 'Waiting to send') : x.error),
+      x.state === 'pending' ? null : h('div', { class: 'e-actions' },
+        h('button', { class: 'a-btn a-btn--tinted e-btn-quiet', type: 'button', onclick: async () => { if (await confirmBox('Discard this change?', 'It is not sent, and this phone forgets it.', 'Discard', true)) { await cloud.discardSave(x.key); paint(); } } }, 'Discard'),
+        // a conflict: the server's copy has moved on, so trying again would meet it again (Discard keeps the server's)
+        x.state === 'conflict' ? null : h('button', { class: 'a-btn', type: 'button', onclick: async () => { await cloud.retrySave(x.key).catch(err => toast(errText(err))); paint(); } }, 'Try again'))))
+      : h('p', {}, 'Everything is sent.'));
+  };
+  paint();
+  modal('Unsent changes', [h('p', { class: 'e-small' }, 'Saved on this phone, not yet on the server.'), list]);
+}
+cloud.onSyncChange(() => { if (S.user) paintHeader(titleEl.textContent); });
+
 // Offline under the screen's large title too (the demo has its banner)
 function syncSub() {
   const big = app.querySelector(':scope > .e-titlebox .a-subtitle');
@@ -437,11 +457,15 @@ if (window.visualViewport) window.visualViewport.addEventListener('scroll', keyb
 
 // ---------- offline: service worker and updates ----------
 // Through the shared update core (app-update, the exact version sw.js loads): a new version takes over at once and the
-// page reloads once; checked on every return to the app and every 3 h. Loaded with import() so the app still runs when
-// the core's site can't be reached.
+// page reloads once, but not while someone is typing, a sheet is open or changes are sending (canReload: tried again
+// when the app is hidden or shown); checked on every return to the app and every 3 h. Loaded with import() so the app
+// still runs when the core's site can't be reached.
+export const canReload = () => !document.querySelector('dialog[open]')
+  && !(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))
+  && !cloud.pendingSaves();
 async function registerSW() {
   if (!('serviceWorker' in navigator) || location.protocol === 'file:' || new URLSearchParams(location.search).has('nosw')) return;
-  try { await (await import('https://core.anawj.com/update/0.1.0/register.js')).register({ app: 'evals', sw: 'sw.js' }); }
+  try { await (await import('https://core.anawj.com/update/0.2.0/register.js')).register({ app: 'evals', sw: 'sw.js', canReload }); }
   catch (err) { console.warn('Service worker not registered', err); }
 }
 

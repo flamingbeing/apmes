@@ -14,6 +14,8 @@ missing was one obvious screen to keep them, and an easy way to add the yearly b
 - No code of its own for storage or sign-in: it imports evals' `cloud.js`, `ui-core.js`, `engine.js` and the People
   panes in `ui-admin.js` (`residentsPane`, `facultyPane`, `applicationsPane`), and evals' `style.css`. A change to those
   shows here too, so run `node people/test/e2e.mjs` after changing them.
+  Its writes (people lists, access batches) go straight to the SDK and keep evals' sign-out check shut until the server
+  has them; sign-out is evals' `signOutSafely()` (asks while anything is unsent, then app-sync's `forgetDevice`).
 - `js/batch.js`: the new parts, free of page code (unit tests in `test/batch.test.mjs`):
   - **Add a new intake** (`parseIntake`): one intake year for the whole batch; paste `Name, email`, `Name <email>` or
     two spreadsheet columns; an ID at the start of a line is kept, otherwise the next IDs are given in order. People
