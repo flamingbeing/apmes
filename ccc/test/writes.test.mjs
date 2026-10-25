@@ -36,7 +36,7 @@ function memoryOutbox() {
 const setup = (f = fake(), extra = {}) => {
   const outbox = memoryOutbox();
   let online = true;
-  const w = createStaffWrites({ sdk: f.sdk, getOwner: () => 'pc@example.com', online: () => online, outbox, guard: async () => ({ persisted: true }), ...extra });
+  const w = createStaffWrites({ sdk: f.sdk, getOwner: () => 'pc@example.com', online: () => online, outbox, guard: async () => ({ persisted: true }), siblings: [], ...extra });
   return { f, w, outbox, setOnline: v => { online = v; } };
 };
 const settled = async w => { for (let i = 0; i < 40 && w.queue.pending(); i++) { w.queue.kick(); await new Promise(r => setTimeout(r, 25)); } };
@@ -133,6 +133,17 @@ assert.deepEqual(mergeMarks(null, { a: 'ok' }, null), { a: 'ok' }, 'no server co
   assert.equal(f.docs.get('ccc/r3').title, 'Refused'); assert.equal(w.status().state, 'synced');
 }
 
+// ---- a refused marks save replaced by the next one keeps its changes ----
+{
+  const { f, w } = setup(); await w.start(); w.hear();
+  f.docs.set('ccc/r1/review/amy@example.com', { email: 'amy@example.com', marks: { n1: 'ok' }, updatedAt: 5 });
+  f.st.deny = true;
+  await assert.rejects(w.saveMarks('r1', 'amy@example.com', { n1: 'ok', n2: 'swap' }, { n1: 'ok' }));
+  f.st.deny = false;
+  await w.saveMarks('r1', 'amy@example.com', { n1: 'ok', n2: 'swap', n3: 'ok' }, { n1: 'ok' }); await settled(w);
+  assert.deepEqual(f.docs.get('ccc/r1/review/amy@example.com').marks, { n1: 'ok', n2: 'swap', n3: 'ok' }, 'the refused mark (n2) is not lost');
+}
+
 // ---- sign-out: forgetDevice empties the outbox and runs the app’s own clean-up ----
 {
   const { f, w, outbox } = setup(); await w.start();
@@ -144,6 +155,22 @@ assert.deepEqual(mergeMarks(null, { a: 'ok' }, null), { a: 'ok' }, 'no server co
   assert.equal(outbox.size(), 0, 'the outbox is forgotten');
   const stopped = await w.forget({ proceed: async () => false });
   assert.equal(stopped.wiped, false, 'proceed can stop it');
+}
+
+// ---- shared sign-in: the logbook's and evals' outboxes count too, and are forgotten with ours ----
+{
+  const sib = memoryOutbox();
+  const { w } = setup(fake(), { siblings: [sib] }); await w.start();
+  await sib.put({ key: 'k1', owner: 'pc@example.com', state: 'pending' });
+  await sib.put({ key: 'k2', owner: 'other@example.com', state: 'pending' });
+  assert.equal(await w.canSignOut(), false, 'another app has an unsent change for this user');
+  await sib.put({ key: 'k1', owner: 'pc@example.com', state: 'synced' });
+  assert.equal(await w.canSignOut(), true, 'only finished entries, and another user’s, are left');
+  await w.forget();
+  assert.deepEqual((await sib.list('pc@example.com')), [], 'the other app’s copy for this user is forgotten');
+  assert.equal((await sib.list('other@example.com')).length, 1, 'another user’s is not');
+  const broken = { list: async () => { throw new Error('blocked'); }, forget: async () => {} };
+  assert.equal(await setup(fake(), { siblings: [broken] }).w.canSignOut(), false, 'an outbox that can’t be read keeps sign-out shut');
 }
 
 // ---- unsent saves shown over the server’s lists ----

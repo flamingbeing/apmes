@@ -11,6 +11,10 @@
 // The anonymous rater page (rate.js) never loads this file.
 import { createWriteQueue, createOutbox, persistGuard, syncStatus, attentionCount, forgetDevice } from './app-sync.js';
 
+// The other apps on this origin keep their own outboxes, but sign-in is shared: signing out here signs them all out. These
+// names and realms are theirs (logbook/js/recovery-store.js, evals/js/cloud.js); keep them in step.
+export const SIBLINGS = [{ name: 'apmes-logbook-recovery', realm: 'account' }, { name: 'apmes-evals-outbox' }];
+
 export const KINDS = ['round', 'review', 'invite', 'nominees', 'purge'];
 const terminal = s => s === 'synced' || s === 'archived';
 const plain = v => JSON.parse(JSON.stringify(v));
@@ -68,7 +72,7 @@ export function createBackend(sdk) {
 }
 
 // -> the staff side's writer. sdk: async () => ({ db, F }). getOwner: () => the signed-in email (lower case).
-export function createStaffWrites({ sdk, getOwner, online = () => navigator.onLine !== false, name = 'ccc-outbox', outbox = createOutbox({ name }), guard = persistGuard }) {
+export function createStaffWrites({ sdk, getOwner, online = () => navigator.onLine !== false, name = 'ccc-outbox', outbox = createOutbox({ name }), guard = persistGuard, siblings = SIBLINGS.map(s => createOutbox(s)) }) {
   const send = createBackend(sdk);
   // a rater link is checked against the resident's mark on the server, so it waits for that mark's own save first
   const backend = async (o, kind, r) => { if (kind === 'invite') await queue.settle('review', [r.round + '|' + r.resident], 8000); return send(o, kind, r); };
@@ -92,7 +96,10 @@ export function createStaffWrites({ sdk, getOwner, online = () => navigator.onLi
     // what each screen asks to be saved
     saveRound(doc) { return queue.save('round', owner(), { id: doc.round, ...doc }, null); },
     saveMarks(round, email, marks, base) {
-      const id = round + '|' + email, prev = last.get(id) ?? base ?? null;
+      const id = round + '|' + email;
+      // a refused save is replaced by this one (queue.js), so its changes are still owed: diff from where it started
+      const failed = queue.entries().find(x => x.kind === 'review' && x.record.id === id && x.state === 'failed');
+      const prev = failed ? failed.record.baseMarks : (last.get(id) ?? base ?? null);
       last.set(id, plain(marks || {}));
       return queue.save('review', owner(), { id, round, email, marks: plain(marks || {}), baseMarks: prev ? plain(prev) : null }, null);
     },
@@ -104,8 +111,19 @@ export function createStaffWrites({ sdk, getOwner, online = () => navigator.onLi
     // the saves not on the server yet, newest first
     open: () => queue.entries().filter(x => !terminal(x.state)),
     // sign-out: false while anything is unsent (nothing is wiped)
-    canSignOut: () => queue.flush(),
-    async forget({ extra, proceed } = {}) { return forgetDevice({ queue, proceed, extra }); },
+    // (this app's queue, and the other apps' outboxes for this user: one unreadable counts as unsent)
+    async canSignOut() {
+      if (!await queue.flush()) return false;
+      for (const box of siblings) {
+        try { if ((await box.list(owner())).some(x => !terminal(x.state))) return false; } catch { return false; }
+      }
+      return true;
+    },
+    // forget this device: the outbox, the other apps' outboxes for this user (the sign-out is theirs too), then `extra`
+    async forget({ extra, proceed } = {}) {
+      const who = owner();
+      return forgetDevice({ queue, proceed, extra: async () => { for (const box of siblings) await box.forget(who).catch(e => console.warn('outbox not forgotten', e)); if (extra) await extra(); } });
+    },
   };
   return api;
 }
