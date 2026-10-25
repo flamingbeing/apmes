@@ -34,9 +34,9 @@ Part of the logbook working notes; index in [../NOTES.md](../NOTES.md).
   every case and reflection as missing and wrote the backup's older copies over newer ones with blind sets. Restore
   waits up to 30 s ("Your logbook is still loading (no signal?), try again"), works out what's missing again when
   Restore is tapped (`restorePlan`; toast "Restoring…"), and writes cases and reflections only where the server has no
-  document with that id (`cloud.addMissing`: ids looked up on the server 30 at a time with `documentId() in`, four
-  lookups at once, a read per one found, then batches; it needs signal); notes go through the write queue with base
-  null. Save to Google Drive / Dropbox takes
+  document with that id (`addMissing` in `ui-core.js`: `cloud.missingOf` asks app-sync's adapter, `fs.existing`, 30
+  ids a lookup with `documentId() in`, four lookups at once, a read per one found; it needs signal. Since 25 Oct 2026
+  the missing ones go through the write queue with base null, as notes do, not in blind batches). Save to Google Drive / Dropbox takes
   everything as the server has it (`makeBackup({ fromServer: true })`, "Not saved" after 30 s; the notes zip then
   reads the same notes). Download backup and the spreadsheet wait 10 s, then save this device's copy and say so in
   the toast (a backup made offline still helps), or stop if the device has nothing yet.

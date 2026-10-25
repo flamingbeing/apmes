@@ -506,11 +506,37 @@ export async function restoreCase(c, base = S.cases.find(x => x.id === c.id) || 
   applyLocal(list => [saved, ...list.filter(x => x.id !== c.id)]);
 }
 
-// Restore from a backup: only the cases the server doesn't have (cloud.addMissing: one already there is never
-// replaced by the backup's older copy). -> the cases added
+// New records (kind 'case', 'reflection'), with no base: each through the write queue (kept on this device until the
+// server has it, counted by the sync chip, and in Recover if it fails or one with its id appeared meanwhile, never
+// written over it). Twenty at a time (each save() waits up to 180 ms for its send), stopping if the account changes.
+// -> { saved: the copies as saved (cleaned and stamped), error: the first save that didn't go, after the rest }
+// One repaint at the end, not one per save's state change (holding, as updateMany).
+async function saveNew(kind, owner, records) {
+  const saved = [];
+  let error = null;
+  holding++;
+  try {
+    for (let i = 0; i < records.length; i += 20) {
+      if (S.user?.email !== owner) { error = error || new Error('Account changed; the rest belongs to the previous account'); break; }
+      const r = await Promise.allSettled(records.slice(i, i + 20).map(x => writes.save(kind, owner, x, null)));
+      for (const x of r) if (x.status === 'fulfilled') saved.push(x.value); else error = error || x.reason;
+    }
+  } finally { if (!--holding && held) queueChanged(); }
+  return { saved, error };
+}
+
+// Restore from a backup: only the records the server doesn't have (cloud.missingOf: one already there is never
+// replaced by the backup's older copy), saved through the write queue. -> the records added
+export async function addMissing(kind, records) {
+  const owner = mine();
+  const out = await cloud.missingOf(owner, kind, records);
+  const { error } = await saveNew(kind, owner, out);
+  if (error) throw error;
+  return out;
+}
 export async function addMissingCases(cases) {
   const owner = mine();
-  const added = await cloud.addMissing(owner, 'case', cases);
+  const added = await addMissing('case', cases);
   if (added.length && S.user?.email === owner) applyLocal(list => { const have = new Set(list.map(c => c.id)); return [...list, ...added.filter(c => !have.has(c.id))]; });
   return added;
 }
@@ -562,24 +588,40 @@ export function updatedToast(text, r, again = '') {
   toast(`${text}. ${not}`, { action: 'Recover', onaction: () => { location.hash = '#recovery'; }, ms: 12000 });
 }
 
-// New cases only (pasted lists, plans, a backup's missing cases): one blind batch, with no base to check against; a
-// change to a logged case goes through updateMany. opts.sheet: cases made now by pasting (also queued for the response
-// sheet); restores are not
+// New cases only (pasted lists, plans, a spreadsheet's new rows): each through the write queue with no base (saveNew;
+// a blind batch used to bypass the outbox); a change to a logged case goes through updateMany. opts.sheet: cases made
+// now by pasting (also queued for the response sheet); restores are not
 export async function saveMany(cases, { sheet = false } = {}) {
+  const owner = mine();
   applyLocal(list => {
     const byId = new Map(list.map(c => [c.id, c]));
     for (const c of cases) byId.set(c.id, c);
     return [...byId.values()];
   });
-  await cloud.saveCases(mine(), cases);
-  if (sheet) toSheet(cases);
+  const { saved, error } = await saveNew('case', owner, cases);
+  // the copies as saved, so an Undo (deleteMany) is made on what the server has
+  const byId = new Map(saved.map(c => [String(c.id), c]));
+  if (byId.size && S.user?.email === owner) applyLocal(list => list.map(x => byId.get(String(x.id)) || x));
+  if (sheet) toSheet(cases);   // (one that failed is kept in Recover, and is sent from there)
+  if (error) throw error;
 }
 
+// for good (no bin entry): Undo of a plan's "done" or of a pasted list. Each through the write queue, made on the case
+// as shown here, so one changed on another device meanwhile is kept (Recover), not deleted
 export async function deleteMany(ids) {
-  const set = new Set(ids);
-  applyLocal(list => list.filter(c => !set.has(c.id)));
-  await cloud.deleteCases(mine(), ids);
+  const owner = mine(), set = new Set(ids.map(String));
+  const bases = new Map(S.cases.filter(c => set.has(String(c.id))).map(c => [String(c.id), c]));
+  applyLocal(list => list.filter(c => !set.has(String(c.id))));
   offSheet(ids);
+  let error = null;
+  holding++;
+  try {
+    for (let i = 0; i < ids.length && S.user?.email === owner; i += 20) {
+      const r = await Promise.allSettled(ids.slice(i, i + 20).map(id => writes.save('case', owner, { id: String(id), _deleted: true }, bases.get(String(id)) || null)));
+      for (const x of r) if (x.status === 'rejected') error = error || x.reason;
+    }
+  } finally { if (!--holding && held) queueChanged(); }
+  if (error) throw error;
 }
 
 export async function patchLogbook(patch) {

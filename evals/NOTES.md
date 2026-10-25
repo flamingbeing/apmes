@@ -99,13 +99,14 @@ Pickers are full-screen **Recent | All | Write-In** lists, with recents remember
   - Project `apmes-logbook`, **Blaze** (pay-as-you-go) plan, asia-southeast1. Usage is within the free quotas at this scale.
   - **Shared with the logbook.** Evals reuses the logbook's `residents` collection.
   - Google popup sign-in, with a redirect fallback.
-  - Firestore with a persistent offline cache for reads. Evaluation saves go through app-sync (pinned `0.4.1` in
+  - Firestore with a persistent offline cache for reads. Evaluation saves go through app-sync (pinned `0.5.1` in
     `js/app-sync.js` and `sw.js`): `js/eval-queue.js` puts each create, change and draft delete in a durable outbox
     (IndexedDB `apmes-evals-outbox`), then sends it in a transaction merged by field onto the server's copy
     (`mergeEval`). When `status`, `assessorEmail` or `residentEmail` moved on elsewhere since the edit started, the
     save is a conflict (kept with the server's copy; Discard in Unsent changes), never a refusal that blocks
     sign-out. A create already on the server is left as it is; otherwise it is written without a transaction read
-    (the rules can't answer a non-staff read of a missing doc). Other writes (roles, people lists, access, applications) go straight to the SDK and keep
+    (the rules can't answer a non-staff read of a missing doc): the adapter's `create` (app-sync 0.5.1, since 25 Oct
+    2026; it was SDK code in `eval-queue.js`), stamped like every other save. Other writes (roles, people lists, access, applications) go straight to the SDK and keep
     the sign-out check shut until confirmed (`otherPending`). app-sync loads at sign-in only, never in the demo.
 - **Rules:** one file, `logbook/firestore.rules`, for the whole project.
   - `.github/workflows/deploy-firestore-rules.yml` deploys it on merge to main, using the `FIREBASE_SERVICE_ACCOUNT` secret. The same workflow deploys `nuh-roster/firestore.rules` to project `nuh-roster`.

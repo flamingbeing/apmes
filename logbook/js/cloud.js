@@ -431,7 +431,8 @@ const fs = createFirestoreBackend({
   onSnapshotMeta: (_coll, meta) => { if (meta && meta.fromCache === false) heard = true; watchdog.heard(meta); },
   onRead: reads ? (coll, k, n) => count(coll, k, n) : () => {},
 });
-// serverAt for the writes to synced collections made outside the write queue (saveCase, batches, bin entries, restamps)
+// serverAt for the writes to synced collections made outside the write queue (saveCase, the Form pick-up, the admin
+// import and initials fix, bin entries, restamps): app-sync's own stamp fields, so every write is stamped alike
 const serverStamp = async () => ({ serverAt: (await fs.stampFields()).serverAt });
 // The listener watchdog (app-sync): a Firestore stream can go quiet with no error, leaving old data under "Synced".
 // Each live listener is kept here so the watchdog can start it again (only changes are read: a resume), and when
@@ -609,61 +610,28 @@ async function inBatches(items, write, onBatch) {
     const b = F.writeBatch(db);
     const part = items.slice(i, i + BATCH);
     for (const it of part) write(b, it, F, db);
-    await (onBatch ? onBatch(b, part, i + part.length, F, db) : queued(b.commit()));
+    await onBatch(b, part, i + part.length, F, db);
   }
 }
 
-export async function saveCases(email, cases) {
-  if (demo) return D.saveCases(email, cases);
-  email = lc(email);
-  const docs = cases.map(c => cleanCase(c));
-  const st = await serverStamp();
-  await inBatches(docs, (b, d, F, db) => b.set(F.doc(db, 'logbooks', email, 'cases', d.id), { ...d, ...st }),
-    (b, part) => queued(b.commit(), late(email, 'cases', part.map(d => d.id))));
-  return docs;
-}
-
-// Restore from a backup (kind 'case' or 'reflection'): writes only the records the server doesn't have. One already
-// there is never written, even when it differs: it may have been changed since the backup was made (a restore used to
-// write the backup's older copy over it), and a restore only adds what is missing. The ids are looked up on the server
-// first, 30 at a time and four lookups at once (a read for each one found, at least one per lookup; about 13 rounds for
-// 1,500 cases), then the missing ones go in batches. Needs signal. -> the docs written
-export async function addMissing(email, kind, records) {
+// Restore from a backup (kind 'case' or 'reflection'): the records the server doesn't have, cleaned, each id once. One
+// already there is never written again, even when it differs: it may have been changed since the backup was made (a
+// restore used to write the backup's older copy over it), and a restore only adds what is missing. app-sync's adapter
+// asks the server (fs.existing: 30 ids a lookup, four at once, a read for each one found, at least one per lookup;
+// about 13 rounds for 1,500 cases). Needs signal. The caller saves the result through the write queue with no base
+// (ui-core addMissing), so one created meanwhile is a conflict kept in Recover, never overwritten. -> the docs missing
+export async function missingOf(email, kind, records) {
   const coll = COLLECTION[kind];
   const docs = [...new Map(records.map(r => CLEAN[kind](r)).map(d => [d.id, d])).values()];
+  if (!docs.length) return [];
   if (demo) {
     const have = new Set((kind === 'case' ? await D.listCases(email) : D.reflectionsOf(lc(email))).map(x => x.id));
-    const out = docs.filter(d => !have.has(d.id));
-    if (kind === 'case') return out.length ? D.saveCases(email, out) : [];
-    const saved = [];
-    for (const d of out) saved.push(await D.saveReflection(email, d));
-    return saved;
+    return docs.filter(d => !have.has(d.id));
   }
-  email = lc(email);
-  const { db, F } = await sdk();
-  const have = new Set();
-  const lookup = async ids => {
-    const snap = await F.getDocsFromServer(F.query(F.collection(db, 'logbooks', email, coll), F.where(F.documentId(), 'in', ids)));
-    if (reads) count(coll, 'billed', Math.max(1, snap.size));
-    for (const d of snap.docs) have.add(d.id);
-  };
-  try {
-    for (let i = 0; i < docs.length; i += 30 * 4)
-      await Promise.all([0, 1, 2, 3].map(k => docs.slice(i + 30 * k, i + 30 * (k + 1)).map(d => d.id)).filter(ids => ids.length).map(lookup));
-  } catch (e) { throw e && e.code === 'unavailable' ? new Error('no signal (a restore first checks what your logbook already has). Try again with signal.') : e; }
-  const out = docs.filter(d => !have.has(d.id));
-  const st = await serverStamp();
-  await inBatches(out, (b, d, F, db) => b.set(F.doc(db, 'logbooks', email, coll, d.id), { ...d, ...st }),
-    (b, part) => queued(b.commit(), late(email, coll, part.map(d => d.id))));
-  return out;
-}
-
-// for good (no bin entry): Undo of a plan's "done" or of a pasted list, and after the bin copy
-export async function deleteCases(email, ids) {
-  await hub.drop(lc(email), 'cases', ids.map(String));
-  if (demo) return D.deleteCases(email, ids);
-  email = lc(email);
-  await inBatches(ids, (b, id, F, db) => b.delete(F.doc(db, 'logbooks', email, 'cases', String(id))));
+  let have;
+  try { have = await fs.existing(lc(email), coll, docs.map(d => d.id)); }
+  catch (e) { throw e && e.code === 'unavailable' ? new Error('no signal (a restore first checks what your logbook already has). Try again with signal.') : e; }
+  return docs.filter(d => !have.has(d.id));
 }
 
 // ---- summaries (counts only; everyone signed in can read them) ----
@@ -752,7 +720,7 @@ export async function commitFormPickup(email, items) {
   if (demo) return D.commitFormPickup ? D.commitFormPickup(email, items) : [];
   email = lc(email);
   const { db, F } = await sdk();
-  const done = [];
+  const done = [], st = await serverStamp();
   for (const it of items) {
     const b = F.writeBatch(db);
     if (it.case) {
@@ -760,8 +728,8 @@ export async function commitFormPickup(email, items) {
       // the key's '@<ms>' (form-inbox.js keyOf) is the updatedAt written now: each entry waits for the server, so a
       // later one stamped with the pick-up's start would look edited in the app and lose the response's next edit
       if (d.source === 'form' && d.importKey) d.importKey = String(d.importKey).replace(/@\d+$/, '@' + d.updatedAt);
-      b.set(F.doc(db, 'logbooks', email, 'cases', d.id), d);
-    } else if (it.mark) b.update(F.doc(db, 'logbooks', email, 'cases', String(it.mark.id)), { importKey: String(it.mark.importKey), updatedAt: Math.max(Date.now(), Number(it.mark.updatedAt) || 0) });
+      b.set(F.doc(db, 'logbooks', email, 'cases', d.id), { ...d, ...st });
+    } else if (it.mark) b.update(F.doc(db, 'logbooks', email, 'cases', String(it.mark.id)), { importKey: String(it.mark.importKey), updatedAt: Math.max(Date.now(), Number(it.mark.updatedAt) || 0), ...st });
     b.delete(F.doc(db, 'formInbox', String(it.id)));
     try { await b.commit(); done.push(String(it.id)); }
     catch (err) { console.warn('Google Form entry not picked up', it.id, err.message); }
@@ -796,8 +764,8 @@ export async function listLogbookEmails() {
 export async function fixCaseInitials(email, fixes, onProgress) {
   if (demo) return D.fixCaseInitials(email, fixes, onProgress);
   email = lc(email);
-  const now = Date.now();
-  await inBatches(fixes, (b, f, F, db) => b.update(F.doc(db, 'logbooks', email, 'cases', f.id), { initials: f.initials, details: f.details, updatedAt: now }),
+  const now = Date.now(), st = await serverStamp();
+  await inBatches(fixes, (b, f, F, db) => b.update(F.doc(db, 'logbooks', email, 'cases', f.id), { initials: f.initials, details: f.details, updatedAt: now, ...st }),
     async (b, part, n) => { await b.commit(); if (onProgress) onProgress(n, fixes.length); });
   return fixes.length;
 }
@@ -832,7 +800,8 @@ export async function importCases(email, rid, cases, onProgress, { have = [] } =
   const done = new Set([...prev, ...found]);
   if (found.length && !fresh.length) await F.setDoc(impRef, { email, keys: [...done], updatedAt: Date.now() });
   if (onProgress) onProgress(0, fresh.length);
-  await inBatches(fresh, (b, d) => b.set(F.doc(db, 'logbooks', email, 'cases', d.id), d), async (b, part, n) => {
+  const st = await serverStamp();
+  await inBatches(fresh, (b, d) => b.set(F.doc(db, 'logbooks', email, 'cases', d.id), { ...d, ...st }), async (b, part, n) => {
     for (const d of part) done.add(d.importKey);
     b.set(impRef, { email, keys: [...done], updatedAt: Date.now() });
     await b.commit();   // admins import online; wait for the server so progress is real

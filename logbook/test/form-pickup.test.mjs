@@ -144,7 +144,7 @@ for (const coll of ['bin', 'formGone']) {
 // serverAt (the server's time), beside their own updatedAt or deletedAt; the bin as the app reads it leaves it out
 {
   reset();
-  await cloud.saveCases(E, [{ id: 'st1', date: '2026-01-01', details: 'Fake case', cats: [] }, { id: 'st2', date: null, details: 'Fake case 2', cats: [] }]);
+  for (const c of [{ id: 'st1', date: '2026-01-01', details: 'Fake case', cats: [] }, { id: 'st2', date: null, details: 'Fake case 2', cats: [] }]) await cloud.saveCase(E, c);
   await cloud.saveCase(E, { id: 'st3', date: '2026-01-02', details: 'Fake case 3', cats: [] });
   for (const id of ['st1', 'st2', 'st3']) {
     assert.deepEqual(cases().get(id).serverAt, F.SERVER_TIME, id + ' stamped by the server');

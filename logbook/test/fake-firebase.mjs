@@ -17,10 +17,19 @@ export const doc = (db, ...p) => ({ path: p.join('/'), id: String(p[p.length - 1
 export const collection = (db, ...p) => ({ path: p.join('/') });
 const docsIn = path => [...server].filter(([k]) => k.startsWith(path + '/') && !k.slice(path.length + 1).includes('/'))
   .map(([k, v]) => ({ id: k.slice(path.length + 1), data: () => copy(v), exists: () => true }));
+// queries: only documentId() 'in' [ids] (app-sync's existing), the rest of a query's filters are not modelled
+export const documentId = () => '__name__';
+export const where = (field, op, value) => ({ field, op, value });
+export const query = (col, ...w) => ({ path: col.path, w });
 export async function getDocsFromServer(col) {
   if (net.fail.has(col.path)) throw new Error('Failed to get documents from server (fake)');
-  const docs = docsIn(col.path);
+  const ids = (col.w || []).find(w => w.field === '__name__' && w.op === 'in')?.value;
+  const docs = docsIn(col.path).filter(d => !ids || ids.includes(d.id));
   return { docs, size: docs.length };
+}
+export async function getDoc(ref) {
+  const d = server.get(ref.path);
+  return { id: ref.id, exists: () => d !== undefined, data: () => copy(d) };
 }
 // the offline cache: always empty here, so a test can tell which one was read (a failing path fails here too: refused)
 export async function getDocs(col) {

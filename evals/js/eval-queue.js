@@ -13,7 +13,8 @@
 //   offline, the assessor submitted while the resident edited), the save is a conflict (kept, shown in Unsent
 //   changes with the server's copy) instead of a refusal that would block the sign-out check for good. A new
 //   evaluation already on the server is left as it is (a resend whose answer was lost); otherwise it is written
-//   without a transaction read (the rules can't answer a non-staff read of a document that isn't there yet).
+//   without a transaction read (the rules can't answer a non-staff read of a document that isn't there yet): the
+//   adapter's create (app-sync 0.5.1), stamped as every other save. No Firestore SDK call here beside the adapter.
 import { createWriteQueue, createFirestoreBackend, mergeFields, recordSignature } from './app-sync.js';
 import { stampPatch } from './schema.js';
 
@@ -43,27 +44,10 @@ export function mergeEval(current, record, base) {
 export function createEvalQueue({ sdk, store, getOwner, online = () => typeof navigator === 'undefined' || navigator.onLine !== false, otherPending = null, delay, sendTimeout }) {
   const fs = createFirestoreBackend({ sdk, path: () => [COLL], merge: { [COLL]: mergeEval } });
   const codes = new Map();   // record id -> the code of its last refused save ('permission-denied', …), for the screens
-  async function create(record) {
-    const { db, F } = await sdk();
-    const ref = F.doc(db, COLL, String(record.id));
-    const found = async () => { const snap = await F.getDocFromServer(ref).catch(e => { if (e?.code === 'permission-denied') return null; throw e; }); return snap?.exists() ? { ...snap.data(), id: snap.id } : null; };
-    // already there (sent before, its answer lost): nothing to do. Not readable: not there yet, or not ours
-    const there = await found();
-    if (there) return there;
-    try {
-      // a transaction never waits in the SDK's own offline queue: offline it fails and the outbox keeps the save
-      await F.runTransaction(db, async tx => { tx.set(ref, record); });
-      return record;
-    } catch (e) {
-      // sent before, and that one landed (its answer was lost): a second create is an update the rules may refuse
-      if (e?.code === 'permission-denied') { const now = await found().catch(() => null); if (now) return now; }
-      throw e;
-    }
-  }
   async function backend(owner, kind, record, base, extra) {
     if (kind !== KIND) throw new Error('Unknown kind ' + kind);
     try {
-      const out = !base && !record._deleted ? await create(record) : await fs.commit(owner, COLL, record, base, extra);
+      const out = !base && !record._deleted ? await fs.create(owner, COLL, record) : await fs.commit(owner, COLL, record, base, extra);
       codes.delete(String(record.id));
       return out;
     } catch (e) { codes.set(String(record.id), e?.code || ''); throw e; }

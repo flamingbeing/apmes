@@ -1591,7 +1591,7 @@ async function run(label, ctxOpts) {
     await p.evaluate(async () => {
       const cloud = await import('./js/cloud.js');
       const mk = (id, details) => ({ id, date: '2026-09-01', details, initials: '', cats: ['16'], source: 'import', createdAt: 1, updatedAt: 1 });
-      await cloud.saveCases('demo@example.com', [mk('fx1', 'ABCDEF 45F lap chole'), mk('fx2', 'K/30F LSCS spinal'), mk('fx3', 'ELECTIVE LSCS spinal')]);
+      for (const c of [mk('fx1', 'ABCDEF 45F lap chole'), mk('fx2', 'K/30F LSCS spinal'), mk('fx3', 'ELECTIVE LSCS spinal')]) await cloud.saveCase('demo@example.com', c);
     });
     await goAdmin('adminadv');
     const card = p.locator('section.card', { has: p.locator('h2', { hasText: 'Fix initials' }) });
@@ -1606,7 +1606,7 @@ async function run(label, ctxOpts) {
     assert(JSON.stringify(got) === JSON.stringify({ fx1: ['ABCDEF', '45F lap chole'], fx2: ['K', '30F LSCS spinal'], fx3: ['', 'ELECTIVE LSCS spinal'] }), 'initials not fixed: ' + JSON.stringify(got));
     await card.getByRole('button', { name: 'Check all logbooks' }).click();
     await card.getByText(/nothing to fix/).waitFor();
-    await p.evaluate(async () => { const cloud = await import('./js/cloud.js'); await cloud.deleteCases('demo@example.com', ['fx1', 'fx2', 'fx3']); });
+    await p.evaluate(async () => { const cloud = await import('./js/cloud.js'); for (const id of ['fx1', 'fx2', 'fx3']) await cloud.deleteCase('demo@example.com', id); });
   });
 
   await step('totals shows imported intake', async () => {

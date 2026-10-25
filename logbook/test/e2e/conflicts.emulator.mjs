@@ -329,7 +329,8 @@ const scenarios = {
     assert.equal(await summaryOn(A), '900 finished words', 'A shows the finished text');
     return `delete ${ra.ok ? 'accepted offline, then refused' : 'refused: ' + ra.error}; finished text kept`;
   },
-  // Restore from a backup writes only what the server lacks (cloud.addMissing: ids looked up 30 at a time), never the
+  // Restore from a backup writes only what the server lacks (addMissing: app-sync's fs.existing, ids looked up 30 at a
+  // time, then the write queue), never the
   // backup's older copy over a case that is there; with no signal it says so and writes nothing
   async restoreAddsOnlyMissing(A) {
     // its own reflection on the server (not one an earlier scenario left), changed since the backup was made
@@ -339,10 +340,10 @@ const scenarios = {
     const ids = [];
     for (let i = 0; i < 32; i++) ids.push(await seedCase('fake case: restore keeps ' + i));
     const r = await A.p.evaluate(async ids => {
-      const cloud = await import('./js/cloud.js'), { S } = await import('./js/ui-core.js');
+      const { addMissing } = await import('./js/ui-core.js');
       const backup = [...ids, 'restored1'].map(id => ({ id, date: '2026-10-01', initials: 'AB', details: id === 'restored1' ? 'fake case only in the backup' : 'fake OLD backup copy', cats: ['08'], createdAt: 1, updatedAt: 1, source: 'app' }));
-      const added = await cloud.addMissing(S.user.email, 'case', backup);
-      const refl = await cloud.addMissing(S.user.email, 'reflection', [{ id: 'reflKeep', headingId: 'thyroid', initials: 'AB', title: 'Fake reflection', summary: 'old backup text', status: 'draft' },
+      const added = await addMissing('case', backup);
+      const refl = await addMissing('reflection', [{ id: 'reflKeep', headingId: 'thyroid', initials: 'AB', title: 'Fake reflection', summary: 'old backup text', status: 'draft' },
         { id: 'reflR', headingId: 'thyroid', initials: 'AB', title: 'Fake restored', summary: 'only in the backup', status: 'draft' }]);
       return { added: added.map(c => c.id), refl: refl.map(x => x.id) };
     }, ids);
@@ -357,14 +358,36 @@ const scenarios = {
     assert.equal(refls.get('reflR'), 'only in the backup');
     await A.ctx.setOffline(true);
     const off = await A.p.evaluate(async () => {
-      const cloud = await import('./js/cloud.js'), { S } = await import('./js/ui-core.js');
-      try { await cloud.addMissing(S.user.email, 'case', [{ id: 'restored2', date: '2026-10-01', initials: 'AB', details: 'fake offline restore', cats: ['08'], createdAt: 1, updatedAt: 1, source: 'app' }]); return 'written'; }
+      const { addMissing } = await import('./js/ui-core.js');
+      try { await addMissing('case', [{ id: 'restored2', date: '2026-10-01', initials: 'AB', details: 'fake offline restore', cats: ['08'], createdAt: 1, updatedAt: 1, source: 'app' }]); return 'written'; }
       catch (e) { return e.message; }
     });
     await A.ctx.setOffline(false); await settle(A);
     assert.match(off, /no signal/);
     assert.ok(!(await serverCases()).has('restored2'), 'nothing written offline');
     return '1 of 33 cases and 1 of 2 reflections added; offline: ' + off.slice(0, 40);
+  },
+  // new cases pasted offline (saveMany) wait in the write queue's outbox on this device, keep sign-out shut, and reach
+  // the server and the other device once signal is back; their Undo (deleteMany) goes the same way
+  async pasteOffline(A, B) {
+    await reopen(A); await reopen(B);
+    await A.ctx.setOffline(true);
+    const r = await A.p.evaluate(async () => {
+      const { saveMany, writes } = await import('./js/ui-core.js');
+      await saveMany([1, 2].map(i => ({ id: 'paste' + i, date: '2026-10-02', initials: 'AB', details: 'fake pasted offline ' + i, cats: ['08'], source: 'paste' })));
+      return { pending: writes.pending(), flush: await writes.flush(300) };
+    });
+    assert.ok(r.pending >= 2, 'kept in the outbox: ' + r.pending);
+    assert.equal(r.flush, false, 'sign-out waits for them');
+    await A.ctx.setOffline(false); await settle(A);
+    const on = await serverCases();
+    assert.equal(on.get('paste1'), 'fake pasted offline 1'); assert.equal(on.get('paste2'), 'fake pasted offline 2');
+    await reopen(B);
+    assert.equal((await casesOn(B)).get('paste2'), 'fake pasted offline 2', 'B sees them');
+    await A.p.evaluate(async () => { const { deleteMany } = await import('./js/ui-core.js'); await deleteMany(['paste1', 'paste2']); });
+    await settle(A);
+    assert.ok(!(await serverCases()).has('paste1') && !(await serverCases()).has('paste2'), 'Undo deleted them');
+    return '2 pasted offline: kept, sent, seen on B, undone';
   },
   // a reflection moved to the bin offline, then restored from the bin while still offline: it shows at once, and after
   // signal (the delete, then the restore) it is on the server and still shows here, also after reopening (the delete's

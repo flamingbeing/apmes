@@ -192,8 +192,8 @@ try { for (const width of [390, 1280]) {
     await d.getByRole('button', { name: 'Save all' }).click();
   }
   await p.waitForFunction(n => window.__core?.S.cases.length === n + 6, n0);
-  // one toast: the note is said in it and Undo stays
-  assert.match(await p.locator('#toast').innerText(), /Saved 3 cases · the rest is in a linked note/);
+  // one toast: the note is said in it and Undo stays (once the queue has taken the saves: shown at once, saved after)
+  await p.locator('#toast', { hasText: /Saved 3 cases · the rest is in a linked note/ }).waitFor({ timeout: 5000 });
   const gh = (await cases()).find(c => c.initials === 'GH');
   assert.ok(gh.details.length <= 2000 && gh.details.length > 1000, String(gh.details.length));
   await p.waitForFunction(id => (window.__core?.S.notes || []).some(n => n.caseId === id), gh.id, { timeout: 8000 });
