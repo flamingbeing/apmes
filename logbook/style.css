@@ -1217,6 +1217,9 @@ html.no-header:not(.who-alert).tabs-top .tabs { padding-top: env(safe-area-inset
   html.case-inverted .log-card .log-initials { order: 11; }
   html.case-inverted .log-card .box-wrap { order: 11; }
   html.case-inverted .log-card .savebar { order: 12; }
+  /* while typing the Save bar is fixed above the tab bar, below the box here: scrolling the box into view stops
+     short of it, so the bar does not cover the box (--savebar-h is measured in app.js keyboardCheck) */
+  html.case-inverted .log-card .box-wrap textarea { scroll-margin-bottom: calc(var(--savebar-h, 120px) + 12px); }
 }
 /* Colourful (Settings → Display): one colour per tab, on its tab button and the headings of its pages
    (body[data-bar] = the bar tab the page sits under). The --t-* shades are worked out in ui-settings.js (tabColourCss):
