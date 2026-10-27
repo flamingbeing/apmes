@@ -137,6 +137,11 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   await page.locator('input[type="search"]').fill('malignant hyperthermia');
   await page.locator('.g-results li').first().waitFor();
   assert.ok(await page.locator('.g-results a[href^="epa-02.html?q=malignant%20hyperthermia#"]').count() >= 1, 'search finds EPA 2');
+  await page.locator('input[type="search"]').fill('airway');   // entrustment questions list before the rest of the guidebook
+  await page.locator('.g-results li').first().waitFor();
+  const titles = await page.locator('.g-results .g-hit-title').allTextContents();
+  const lastQ = titles.map(t => /^(DOPS|Mini-CEX|EBD) — /.test(t)).lastIndexOf(true), firstOther = titles.findIndex(t => !/^(DOPS|Mini-CEX|EBD) — /.test(t));
+  assert.ok(lastQ >= 0 && firstOther > lastQ, 'search lists entrustment questions first');
   await page.locator('input[type="search"]').fill('');
   await page.locator('a.a-row[href="epa-01.html"]').click();
   await page.locator('.g-doc h2').first().waitFor();

@@ -145,12 +145,18 @@
     const list = await load().catch(() => null);
     if (mine !== run) return;
     if (!list) { out.textContent = 'Search needs a connection the first time.'; return; }
+    // entrustment questions ("DOPS — ...", "Mini-CEX — ...", "EBD — ...") list first, then the rest of the guidebook
+    const isQ = e => /^(DOPS|Mini-CEX|EBD) — /.test(e.t);
     const hits = list.filter(e => ws.every(w => e.n.includes(w)))
-      .map(e => ({ e, score: ws.filter(w => e.nt.includes(w)).length * 10 + (e.n.includes(norm(q)) ? 5 : 0) }))
-      .sort((a, b) => b.score - a.score);
+      .map(e => ({ e, q: isQ(e), score: ws.filter(w => e.nt.includes(w)).length * 10 + (e.n.includes(norm(q)) ? 5 : 0) }))
+      .sort((a, b) => b.q - a.q || b.score - a.score);
     if (!hits.length) { out.textContent = 'No matches.'; return; }
-    const top = hits.slice(0, 40);
-    out.innerHTML = `<p class="a-footnote">${hits.length} match${hits.length === 1 ? '' : 'es'}${hits.length > top.length ? `, first ${top.length} shown` : ''}</p><ul class="a-list">${top.map(({ e }) =>
-      `<li><a class="a-row a-row--stack" href="${e.p}.html?q=${encodeURIComponent(q)}${e.id ? '#' + e.id : ''}"><span class="g-hit-where">${esc(e.d)}</span><span class="g-hit-title">${mark(e.t, ws)}</span><span class="g-hit-text">${snippet(e.x || e.t, ws)}</span></a></li>`).join('')}</ul>`;
+    const top = hits.slice(0, 40), nq = hits.filter(h => h.q).length;
+    const row = ({ e }) =>
+      `<li><a class="a-row a-row--stack" href="${e.p}.html?q=${encodeURIComponent(q)}${e.id ? '#' + e.id : ''}"><span class="g-hit-where">${esc(e.d)}</span><span class="g-hit-title">${mark(e.t, ws)}</span><span class="g-hit-text">${snippet(e.x || e.t, ws)}</span></a></li>`;
+    const list2 = (hs, label) => hs.length ? `${label ? `<p class="a-footnote">${label}</p>` : ''}<ul class="a-list">${hs.map(row).join('')}</ul>` : '';
+    const qs = top.filter(h => h.q), rest = top.filter(h => !h.q);
+    out.innerHTML = `<p class="a-footnote">${hits.length} match${hits.length === 1 ? '' : 'es'}${hits.length > top.length ? `, first ${top.length} shown` : ''}</p>`
+      + list2(qs, nq && rest.length ? `Entrustment questions (${nq})` : '') + list2(rest, nq ? `Rest of the guidebook (${hits.length - nq})` : '');
   });
 })();
