@@ -1372,6 +1372,8 @@ function keyboardCheck() {
   const root = document.documentElement.style;
   root.setProperty('--kb', kb + 'px');
   root.setProperty('--vvh', Math.round(vh) + 'px');
+  const bar = typing && document.querySelector('.savebar');
+  root.setProperty('--savebar-h', bar ? Math.round(bar.offsetHeight) + 'px' : '120px');
   root.setProperty('--vvt', Math.round(vv && typing ? vv.offsetTop : 0) + 'px');
 }
 // once per frame at most, and again when scrolling settles (iOS reports the keyboard late)
