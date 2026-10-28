@@ -115,7 +115,7 @@ await assert.rejects(B.restoreFromBin('nope'));
   assert.equal((await B.restoreFromBin(be3.id)).id, 'old1'); assert.ok(!queued('old1'), 'an old case is not sent late');
   // a delete accepted, then failing (a connection that only looks online): the case is saved again, and queued again
   const c2 = await createCase({ details: 'ZW 41M fake lap chole', cats: ['08', '13'], date: '2026-10-21' });
-  writes.configure({ backend: async (em, kind, rec, bs) => { if (!rec._deleted) return cloud.commitRecord(em, kind, rec, bs); await new Promise(r => setTimeout(r, 400)); throw new Error('Fake: the client is offline'); } });
+  writes.configure({ backend: async (em, kind, rec, bs) => { if (!rec._deleted || kind === 'bin') return cloud.commitRecord(em, kind, rec, bs); await new Promise(r => setTimeout(r, 400)); throw new Error('Fake: the client is offline'); } });
   try {
     await B.moveToBin('case', S.cases.find(x => x.id === c2.id));
     assert.ok(!queued(c2.id), 'taken out once the delete was accepted');
@@ -181,7 +181,7 @@ await cloud.saveReflection(email, { ...ed2, summary: 'edited on the laptop' });
 await assert.rejects(B.moveToBin('reflection', { ...ed2, summary: 'typed here' }, { base: ed2 }), /changed elsewhere/);
 assert.equal(reflOf('r9')?.summary, 'edited on the laptop');
 // a delete that fails (not a conflict): the copy leaves the bin and nothing is written over the server's copy
-writes.configure({ backend: async (em, kind, rec, bs) => { if (rec._deleted) throw Object.assign(new Error('Fake refusal'), { code: 'permission-denied' }); return cloud.commitRecord(em, kind, rec, bs); } });
+writes.configure({ backend: async (em, kind, rec, bs) => { if (rec._deleted && kind !== 'bin') throw Object.assign(new Error('Fake refusal'), { code: 'permission-denied' }); return cloud.commitRecord(em, kind, rec, bs); } });
 const cur = reflOf('r9');
 S.reflections = [cur];
 await assert.rejects(B.moveToBin('reflection', cur), /Fake refusal/);
@@ -227,12 +227,32 @@ signal = false;
 S.reflections = [reflOf('r10')];
 const off3 = await B.moveToBin('reflection', S.reflections[0]);
 await B.restoreFromBin(off3.id);
-writes.configure({ backend: async (em, kind, rec, bs) => { if (rec._deleted) throw Object.assign(new Error('Fake refusal'), { code: 'permission-denied' }); return cloud.commitRecord(em, kind, rec, bs); } });
+writes.configure({ backend: async (em, kind, rec, bs) => { if (rec._deleted && kind !== 'bin') throw Object.assign(new Error('Fake refusal'), { code: 'permission-denied' }); return cloud.commitRecord(em, kind, rec, bs); } });
 writes.kick(); await settled('r10');
 for (let i = 0; i < 50 && writes.entries().some(x => x.record.id === 'r10' && ['pending', 'failed'].includes(x.state)); i++) await new Promise(res => setTimeout(res, 20));
 assert.equal(reflOf('r10')?.summary, 'finished on the laptop');
 assert.equal(shown('r10')?.summary, 'finished on the laptop');
 assert.ok(!writes.entries().some(x => x.record.id === 'r10' && ['pending', 'conflict', 'failed'].includes(x.state)), 'nothing left waiting');
+writes.configure({ backend: cloud.commitRecord });
+
+// the bin copy goes through the queue before the record's delete (cloud.commitRecord 'bin', binFirst): a copy that
+// can't be saved stops the delete (the reflection stays, its copy leaves the bin); one still waiting holds it
+S.reflections = [await cloud.saveReflection(email, { id: 'r11', headingId: 'thyroid', initials: 'AB', title: 'Made-up', summary: 'bin first', status: 'draft' })];
+writes.configure({ backend: async (em, kind, rec, bs) => { if (kind === 'bin' && !rec._deleted) throw Object.assign(new Error('Fake refusal'), { code: 'permission-denied' }); return cloud.commitRecord(em, kind, rec, bs); } });
+await assert.rejects(B.moveToBin('reflection', S.reflections[0]), /Fake refusal/);
+await new Promise(res => setTimeout(res, 300));
+assert.equal(reflOf('r11')?.summary, 'bin first', 'not deleted without its bin copy');
+assert.ok(!writes.entries().some(x => x.kind === 'bin' && x.record.data?.id === 'r11' && ['pending', 'failed'].includes(x.state)), 'the refused copy set aside');
+let held = true;
+writes.configure({ backend: async (em, kind, rec, bs) => { if (kind === 'bin' && !rec._deleted && held) throw Object.assign(new Error('offline'), { code: 'unavailable' }); return cloud.commitRecord(em, kind, rec, bs); } });
+S.reflections = [reflOf('r11')];
+await B.moveToBin('reflection', S.reflections[0]);
+await new Promise(res => setTimeout(res, 300));
+assert.equal(writes.status('reflection', 'r11'), 'pending', 'the delete waits for its bin copy');
+assert.ok(reflOf('r11'), 'still on the server meanwhile');
+held = false; writes.kick();
+for (let i = 0; i < 300 && reflOf('r11'); i++) { if (i % 50 === 49) writes.kick(); await new Promise(res => setTimeout(res, 20)); }
+assert.equal(reflOf('r11'), undefined, 'deleted once its copy is in the bin');
 writes.configure({ backend: cloud.commitRecord });
 
 resetCaches();

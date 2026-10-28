@@ -30,7 +30,9 @@ const fold = (id, title, where, n, ...body) => h('details', { class: 'card fold-
   ontoggle: e => { if (e.target.open) open.add(id); else open.delete(id); } },
   h('summary', {}, h('span', { class: 'an-t' }, n == null ? title : `${title} (${n})`), h('small', { class: 'an-s' }, where)),
   h('div', { class: 'an-body' }, ...body));
-const jobCard = (job, run) => h('article', { class: 'card' },
+// a recycle bin copy (kind 'bin', bin.js) waiting to sync: Retry only
+const binCard = (job, run) => h('article', { class: 'card' }, h('p', {}, h('b', {}, 'Recycle bin copy'), ' · ', new Date(job.at).toLocaleString(), ' · ', job.state === 'pending' ? 'Saved locally · pending sync' : job.state), h('p', {}, job.record._deleted ? 'Removed from the bin' : summary(job.record.data)), job.error ? h('p', { role: 'status' }, job.error) : null, h('button', { onclick: () => run(() => writes.retry(job.key)) }, 'Retry sync'));
+const jobCard = (job, run) => job.kind === 'bin' ? binCard(job, run) : h('article', { class: 'card' },
   h('p', {}, h('b', {}, job.kind === 'case' ? 'Case' : job.kind === 'note' ? 'Note' : 'Reflection'), ' · ', new Date(job.at).toLocaleString(), ' · ', job.state === 'pending' ? 'Saved locally · pending sync' : job.state),
   h('p', {}, summary(job.record)), job.error ? h('p', { role: 'status' }, job.error) : null,
   job.state === 'failed' || job.state === 'pending' ? h('button', { onclick: () => run(() => writes.retry(job.key)) }, 'Retry sync') : null,
@@ -47,7 +49,7 @@ export function renderRecovery() {
   const run = async fn => { if (S.user?.email !== email) return; try { await fn(); } catch (err) { toast(err.message); } hooks.render(); };
   const jobs = writes.entries();
   const attention = jobs.filter(j => ['pending', 'failed', 'conflict'].includes(j.state));
-  const earlier = jobs.filter(j => !attention.includes(j));
+  const earlier = jobs.filter(j => !attention.includes(j) && j.kind !== 'bin');
   const nDrafts = drafts.length + reflections.length + edits.length;
   return h('div', { class: 'recover-page' },
     h('section', { class: 'card' }, h('h2', {}, 'Recover'),
