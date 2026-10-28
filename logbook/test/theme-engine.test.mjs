@@ -51,9 +51,9 @@ assert.match(lookCss({ pageMotion: 'ios' }), /--dur: 350ms/);
 assert.match(lookCss({ tabIconFill: true }), /fill: color-mix/);
 
 // icon sets: a set's own path wins, any other icon keeps the default
-ICON_SETS.test = { label: 'Test', paths: { search: 'M1 1h2' } };
-assert.equal(iconPath('search', 'M0 0', 'test'), 'M1 1h2');
-assert.equal(iconPath('copy', 'M0 0', 'test'), 'M0 0');
+assert.equal(iconPath('search', 'M0 0', 'ios'), ICON_SETS.ios.paths.search);
+assert.equal(iconPath('search', 'M0 0', 'material'), ICON_SETS.material.paths.search);
+assert.equal(iconPath('copy', 'M0 0', 'ios'), 'M0 0');
 assert.equal(iconPath('search', 'M0 0', ''), 'M0 0');
 delete ICON_SETS.test;
 for (const [k, s] of Object.entries(ICON_SETS)) for (const [n, d] of Object.entries(s.paths || {})) assert.match(d, /^[MmLlHhVvCcSsQqTtAaZz0-9.,\s-]+$/, `${k}.${n}`);

@@ -24,7 +24,8 @@ assert.equal(patternCss({}), ''); assert.equal(patternCss({ wallpaper: 'photo' }
 for (const k of Object.keys(PATTERNS)) {
   const css = patternCss({ wallpaper: k });
   assert.match(css, /^:root \{ --wall: .*--wall-size: .*--wall-repeat: .* \}$/, k);
-  assert.match(css, new RegExp(`var\\(--${PATTERNS[k].ink[0]}\\) ${PATTERNS[k].ink[1]}%`), k);
+  // (the kit names the text colour --text: index.html's kitoff layer sets it to the logbook's --ink)
+  assert.match(css, new RegExp(`var\\(--${PATTERNS[k].ink[0] === 'ink' ? 'text' : PATTERNS[k].ink[0]}\\) ${PATTERNS[k].ink[1]}%`), k);
   assert.doesNotMatch(css, /url\(/, k);
   assert.match(lookCss({ wallpaper: k }), /@layer theme \{[\s\S]*--wall: /, k + ' in the theme layer');
 }

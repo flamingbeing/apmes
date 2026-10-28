@@ -115,7 +115,7 @@ try { for (const width of [390, 1280]) {
     const row = p.locator('section.my-themes .theme-row', { hasText: 'Fake own font' });
     await row.waitFor(); await row.click();
     await poll(() => p.evaluate(async () => (await (await import('./js/fonts.js')).getUserFont('ui'))?.name === 'Fake Own.woff2'), 'font kept on the new phone');
-    await poll(() => p.evaluate(() => [...document.fonts].some(f => f.family.replace(/"/g, '') === 'Logbook own font' && f.status === 'loaded')), 'font in use');
+    await poll(() => p.evaluate(() => [...document.fonts].some(f => f.family.replace(/"/g, '') === 'Own font' && f.status === 'loaded')), 'font in use');
     assert.deepEqual(errors, []);
     await ctx.close();
   }
