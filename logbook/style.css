@@ -135,6 +135,7 @@ section.card h3 { margin: 12px 0 6px; font-size: calc(14px * var(--fs, 1)); }
 .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .bar .grow { flex: 1; min-width: 160px; }
 dialog .bar .grow { min-width: 0; }   /* keep Cancel / Save on one row in dialogs */
+dialog .kit-confirm { flex-direction: row-reverse; justify-content: flex-start; }   /* the kit puts OK first: show Cancel, OK on the right as before */
 @keyframes flash { 0%, 100% { box-shadow: none; } 30%, 70% { box-shadow: 0 0 0 3px var(--accent); } }
 .flash { animation: flash 1.2s ease 1; border-radius: calc(10px * var(--round, 1)); }
 .row { display: flex; gap: 8px; align-items: center; }
