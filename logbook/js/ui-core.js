@@ -302,7 +302,7 @@ export async function confirmBox(title, text, okLabel = 'OK', danger = false) {
   box?.querySelector('.ui-inline > button')?.classList.add('primary');
   const view = box && transients?.open(() => box.dispatchEvent(new Event('cancel', { cancelable: true })));
   const ok = await asked;
-  if (view?.active) void view.close();
+  if (view?.active) await view.close();   // answer once the history step has landed, or it would close the next dialog
   return ok && S.user === ownerUser;
 }
 function ownConfirm(title, text, okLabel, danger) {

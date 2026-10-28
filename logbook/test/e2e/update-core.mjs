@@ -47,7 +47,11 @@ async function check({ app, path, ready, page, typing }) {
     if (typing) {
       await p.waitForTimeout(2500);
       assert.equal(loads.length, 0, `${app}: no reload while someone is typing`);
-      assert.ok(await p.evaluate(() => navigator.serviceWorker.getRegistration().then(r => !!r.waiting)), `${app}: the new version waits`);
+      // (it installs its whole SHELL first, the UI kit's files from core.anawj.com too: slower on a busy machine)
+      const waiting = () => p.evaluate(() => navigator.serviceWorker.getRegistration().then(r => !!r.waiting));
+      for (let i = 0; i < 150 && !(await waiting()); i++) await p.waitForTimeout(200);
+      assert.ok(await waiting(), `${app}: the new version waits`);
+      assert.equal(loads.length, 0, `${app}: still no reload while someone is typing`);
       assert.equal(await p.evaluate(() => document.activeElement.value), 'Fake note being typed', `${app}: the typing is untouched`);
       await p.evaluate(() => document.activeElement.blur());
       await p.evaluate(async () => (await import('./js/app-version.js')).retryUpdate());

@@ -82,11 +82,13 @@ try {
   const sheets = await p.evaluate(() => {
     const first = document.styleSheets[0], kinds = s => [...s.cssRules].map(r => r.constructor.name);
     const own = id => kinds(document.getElementById(id).sheet);
-    return { order: first.cssRules[0].nameList, base: first.cssRules[1].layerName, baseRules: first.cssRules[1].styleSheet.cssRules.length,
+    const imp = layer => [...first.cssRules].find(r => r.layerName === layer);   // (the kit's sheet is cross-origin: its rules can't be read)
+    return { order: first.cssRules[0].nameList, kit: imp('kit')?.href || '', base: imp('base')?.layerName, baseRules: imp('base').styleSheet.cssRules.length,
       look: own('look-css'), accent: own('accent-css'), tabs: own('tab-colours'), user: own('user-css'),
       stacked: [...document.querySelectorAll('style')].some(s => /(:root){2}/.test(s.textContent)) };
   });
-  assert.deepEqual(sheets.order, ['base', 'facets', 'theme', 'tune', 'custom']);
+  assert.deepEqual(sheets.order, ['kit', 'kitoff', 'base', 'facets', 'theme', 'tune', 'custom']);
+  assert.match(sheets.kit, /^https:\/\/core\.anawj\.com\/ui\/[^/]+\/theme\/theme\.css$/, 'the UI kit in the lowest layer');
   assert.equal(sheets.base, 'base'); assert.ok(sheets.baseRules > 500, 'style.css loaded into the base layer');
   for (const k of ['look', 'accent', 'tabs', 'user']) assert.ok(sheets[k].length && sheets[k].every(n => n === 'CSSLayerBlockRule'), k + ' sheet is layered');
   assert.equal(sheets.stacked, false, 'no :root stacking');
