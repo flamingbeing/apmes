@@ -35,6 +35,7 @@ portfolio content.
 - New options: per device unless they belong to the account, off by default, defaults pixel-identical.
 - Theme links (`#t=`) and themes files are input from strangers: read them only through `themeFromLink` / `importText` (checkTheme drops what it rejects; fonts are checked by their first bytes).
 - Look settings: what each may hold is `js/look-schema.js` (one list for themes, files, settings files and links). New settings, choices, tints, fonts or patterns go at the **end** of their list, never reordered or removed, or old theme links change meaning (`test/fixtures/theme-links.json` catches it).
+- UI kit (app-ui): one exact version in `js/kit.js` (`KIT_VERSION`), also in `index.html` and `sw.js` SHELL (`test/kit.test.mjs` checks all three). It sits in the lowest cascade layer under the logbook's own theme, which stays in charge (`docs/theme-engine.md`, "Cascade layers"); the palette and confirm must still work when core.anawj.com can't be reached (kit.js falls back). The theme engine's pure parts are the kit's add-ons (`theme/addons/`, imported at the same version; kit.test checks every js/ file): the logbook passes its lists, IndexedDB names (`apmes-logbook-wall`, `apmes-logbook-fonts`) and file kind; a gap goes into app-ui, never a copy here.
 - Owner preferences (merging, screenshots, planning): "Working with the owner" in the root `AGENTS.md`. Status and decisions: `STATUS.md`.
 
 ## Topic notes (open only the one you need)

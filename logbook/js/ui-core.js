@@ -10,6 +10,7 @@ import { writes, outside } from './writes.js';
 import { hooks as syncHooks } from './sync-app.js';
 import { outboxOn, outboxEntries } from './sheet-outbox.js';
 import { transients } from './transients.js';
+import { kitConfirm } from './kit.js';
 import { shownIn, switchPatch, mergeSettings } from './profiles.js';
 
 export { cloud, writes, transients };
@@ -289,7 +290,22 @@ export function info(...text) {
   return [b, p];
 }
 
-export function confirmBox(title, text, okLabel = 'OK', danger = false) {
+// A yes/no question -> true when confirmed. The kit's confirm dialog (kit.js) dressed as the logbook's (Cancel, then the
+// filled OK on the right; style.css draws its dialog and buttons), with Back closing it and an account switch while it
+// is open answering no, as modal() does; the logbook's own dialog when the kit can't be loaded.
+export async function confirmBox(title, text, okLabel = 'OK', danger = false) {
+  const ownerUser = S.user;
+  const kit = await kitConfirm(text, { title, danger, yes: okLabel });
+  if (!kit) return ownConfirm(title, text, okLabel, danger);
+  const { asked, box } = kit;
+  box?.querySelector('.ui-inline')?.classList.add('bar', 'kit-confirm');
+  box?.querySelector('.ui-inline > button')?.classList.add('primary');
+  const view = box && transients?.open(() => box.dispatchEvent(new Event('cancel', { cancelable: true })));
+  const ok = await asked;
+  if (view?.active) await view.close();   // answer once the history step has landed, or it would close the next dialog
+  return ok && S.user === ownerUser;
+}
+function ownConfirm(title, text, okLabel, danger) {
   return new Promise(resolve => {
     let ok = false;
     const m = modal(title, [

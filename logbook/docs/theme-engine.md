@@ -83,15 +83,19 @@ setting gets an entry there (and its key in `display.js` `DISPLAY_KEYS`); `check
 
 ## Cascade layers (owner, 20 Oct 2026)
 
-`index.html` sets the order `@layer base, facets, theme, custom` and imports `style.css` into `base`. A later layer
+`index.html` sets the order `@layer kit, kitoff, base, facets, theme, tune, custom`, imports the UI kit's `theme.css`
+into `kit` and `style.css` into `base`. A later layer
 wins whatever the selectors, so **never repeat `:root`** to win; plain selectors are enough.
 
 | Layer | What | Written by |
 |---|---|---|
+| `kit` | the UI kit (app-ui, one exact version in `js/kit.js`): `theme.css` and its palette, which follows the logbook's `data-theme` (`applyTheme({ layer: 'kit', ownTheme: true })`); the lowest layer, so the logbook's own theme always wins | index.html, kit.js `startKit` |
+| `kitoff` | `all: revert` on the bare elements the kit styles (`:root`, `body`, headings, form controls, links, focus, selection), `initial` for the kit tokens the logbook only reads with a fallback (`--danger`, `--fill`, `--gap`…), and `--text`/`--surface` bridged from `--ink`/`--panel` | index.html |
 | `base` | `style.css` (today's look) | index.html |
 | `base` (again) | most facets and band "none", after style.css: they compete with it by specificity as before, so the app's own special cases (the bold reflection tick, the Display preview) stay | `facetCss`, `lookCss` |
 | `facets` | facets with `wins: true` (header style, see-through bars, tab tone, heading tone, pop-ups, text boxes), each in its own sub-layer in `FACETS` order (a later one wins) | `facetCss` |
 | `theme` | the resolved palette (accent or NUHS, tint, `colours`, roles), then band colours, heading font | `paletteCss` (display.js `applyPalette`), `lookCss`, tab colours |
+| `tune` | fine-tune numbers (`FINE_TUNE`) and Setup tuning such as bigger taps | theme-engine.js |
 | `custom` | the resident's custom CSS | display.js `applyCustomCss` |
 
 High contrast (`html.hc`) uses `!important` in `base` so it still wins over a theme's colours. Browsers without layers

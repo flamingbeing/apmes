@@ -33,7 +33,18 @@
      Fine-tune values (tune), then the resident's custom CSS, so a later layer wins without :root stacking. This comes before the first-paint sheets
      below so it sets the order. A browser without layers (before Safari 15.4, Chrome 99, Firefox 97) skips the @import
      and the layered sheets, and gets style.css on its own: the default look. -->
-<style>@layer base, facets, theme, tune, custom; @import url("style.css") layer(base);</style>
+<!-- The UI kit (app-ui, exact version; js/kit.js) sits under all of that: its tokens and base rules in `kit`, the
+     lowest layer, then `kitoff`, which takes the kit's base rules off the logbook's own elements and leaves the names
+     the logbook only reads with a fallback (var(--fill, var(--accent))) unset, so the logbook looks as it did and its
+     themes, saved themes, theme links and custom CSS work unchanged. early.js puts back this device's kit marks and
+     palette (in `kit`) before the first paint. -->
+<script src="https://core.anawj.com/ui/1.0.0-rc.33/theme/early.js"></script>
+<style>@layer kit, kitoff, base, facets, theme, tune, custom; @import url("https://core.anawj.com/ui/1.0.0-rc.33/theme/theme.css") layer(kit); @import url("style.css") layer(base);
+@layer kitoff {
+  :root, body, h1, h2, h3, button, input, select, textarea, a, :focus-visible, ::selection { all: revert; }
+  :root { --danger: initial; --fill: initial; --on-fill: initial; --focus: initial; --link: initial; --selection: initial;
+    --gap: initial; --radius: initial; --font-head: initial; --text: var(--ink); --surface: var(--panel); }
+}</style>
 <script>if (!window.CSSLayerBlockRule) document.write('<link rel="stylesheet" href="style.css">');</script>
 <script>
   // back from Google or Dropbox after a Save to Drive / Dropbox or Sync sign-in (cloud-save.js): keep the answer for
@@ -92,6 +103,7 @@
 <link rel="modulepreload" href="js/parts.js">
 <link rel="modulepreload" href="js/device-presets.js">
 <link rel="modulepreload" href="js/eval-link.js">
+<link rel="modulepreload" href="js/kit.js">
 <script>
   (function () {
     var pre = function (href, cors) { var l = document.createElement('link'); l.rel = 'modulepreload'; l.href = href; if (cors) l.crossOrigin = 'anonymous'; document.head.appendChild(l); };

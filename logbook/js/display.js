@@ -12,6 +12,7 @@ import { parseSettings, settingsCss } from './css-settings.js';
 import { applyFonts } from './fonts.js';
 import { cleanWall, dimOf, minDim, patternSamples, inkOf, scrimFor, frostAlpha, cssHex, getPhoto } from './wallpaper.js';
 import { rowLayoutOf } from './device-presets.js';
+import { startKit } from './kit.js';
 import { LINE_HEIGHTS, CONTRASTS, BUTTON_STYLES, BORDERS, ROUNDS } from './look-schema.js';
 export { LINE_HEIGHTS, CONTRASTS, BUTTON_STYLES, BORDERS, ROUNDS };   // (look-schema.js: with the values a theme may hold)
 import { offBar } from './profiles.js';
@@ -79,7 +80,9 @@ export function applyPalette(d = display()) {
   let el = document.getElementById('accent-css');
   if (!el) { el = document.createElement('style'); el.id = 'accent-css'; document.head.append(el); }
   if (el.textContent !== css) el.textContent = css;
-  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.setAttribute('content', resolvePalette(d, 'light', tintOf(d)).accent);
+  const accent = resolvePalette(d, 'light', tintOf(d)).accent;
+  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.setAttribute('content', accent);
+  void startKit({ accent });   // the kit's own tokens follow the logbook's colour (kit.js; the logbook's own win)
   try { localStorage.setItem(ACCENT_CSS_KEY, css); } catch { /* storage blocked */ }
 }
 // a colour tried in the colour sheet (or none: the look's own again)

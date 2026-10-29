@@ -7,6 +7,7 @@
 // How to write themes with it: docs/theme-engine.md. Pure, unit-tested (test/theme-engine.test.mjs).
 
 import { cleanAccent, lightPalette, darkPalette } from './colors.js';
+import { iconSetPath } from 'https://core.anawj.com/ui/1.0.0-rc.33/theme/addons/icon-sets.js';
 
 // the fields every rule below restyles (the app's text boxes, dropdowns and case box)
 const FIELDS = ['input[type="text"]', 'input[type="password"]', 'input[type="search"]', 'input[type="email"]', 'input:not([type])', 'input[type="date"]', 'input[type="number"]', 'select', 'textarea'];
@@ -50,8 +51,10 @@ export const ICON_SETS = {
   } },
 };
 // the path to draw for an icon: the set's own, else the default; set: <html data-icons> (display.js applyLook)
+// (the kit's iconSetPath; it calls ios and material thin and even, and reads the logbook's names as those)
+const SET_PATHS = { thin: ICON_SETS.ios.paths, even: ICON_SETS.material.paths };
 export function iconPath(name, fallback, set = typeof document !== 'undefined' ? document.documentElement.dataset.icons : '') {
-  return (set && ICON_SETS[set]?.paths?.[name]) || fallback;
+  return iconSetPath(name, fallback, set, SET_PATHS);
 }
 
 // An icon per tab (Themes → App-style details → Icons; theme-revamp S4): any tab may take one of these instead of
