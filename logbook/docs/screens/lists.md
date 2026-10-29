@@ -61,7 +61,8 @@ Part of the logbook working notes; index of screens in [../screens.md](../screen
   any other choice draws headings that fold (tap) and say how many cases, "(continued)" across a page, and "Select
   these N" while selecting. Pure grouping in `lb-group.js` (unit-tested); pages count the rows shown.
 - **Search** (log2 9e, first part): a line magnifier (`ic('search')`, never an emoji: it follows the theme; owner,
-  16 Oct 2026) in the header on every tab, or / on a computer (not while typing), opens
+  16 Oct 2026) in the header on every tab, or / on a computer (not while typing), opens (on a phone with the keyboard
+  up, owner 29 Oct 2026: a hidden stand-in box takes the focus during the tap, `S.searchKeys`, and hands it on)
   `#search` (`ui-search.js`; the engine `global-search.js`, unit-tested). One box over cases (planned ones too),
   reflections and notes (loaded the first time Search opens; offline works on what is on the device). The Logbook's
   search language plus in:, status:, is:interesting / is:planned, has:reflection / has:note, no:tag, linked:yes / no,

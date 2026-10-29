@@ -105,6 +105,9 @@ Part of the logbook working notes; index of screens in [../screens.md](../screen
   resets); Grow as I type (`boxGrow`, on by default) grows it to two thirds of the screen.
 - **Totals Compact** (this device, on by default): initials across the top (`analytics.js` shortNames; a tap names the
   person), short category names, a key under the table; Show targets at the bottom. Excel keeps full names.
+- **Totals never scroll sideways** (owner, 29 Oct 2026: they caught the tab swipe): as many people as fit beside
+  Category (measured, again on turning the phone); ‹ and › either side of the key (Behind · Due · Done; no On track,
+  the plain cells) page through the rest. Downloads keep everyone.
 - **Layout** (Themes): `navStyle` tabs (default) or a left icon-and-label rail above 900 px; smaller windows keep
   the existing `tabBar` placement. `rowLayout` card (default), compact (the older `rowShort` alias), chat (bold
   case, logged-at time when available, grey tags and separators), or timeline (a day spine, retaining the saved sort).

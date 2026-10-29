@@ -4,7 +4,7 @@
 
 import { replaceShow, legacyShow, tabsAfter } from './profiles.js';
 import { appVersion, versionLabel, freshCopy, startUpdates, retryUpdate } from './app-version.js';
-import { S, hooks, h, toast, basicHides, basicMode, logbookOnly, facultyMode, facultyRole, clearToast, cloud, writes, transients, setCases, scheduleSummary, fill, resetCaches, patchLogbook, confirmBox, fileButton, modal, download, todayISO, settings, setCategoryNames, categoryNames as categoryNamesNow, watchMyReflections, resetters } from './ui-core.js';
+import { S, hooks, h, toast, basicHides, basicMode, facultyMode, facultyRole, clearToast, cloud, writes, transients, setCases, scheduleSummary, fill, resetCaches, patchLogbook, confirmBox, fileButton, modal, download, todayISO, settings, setCategoryNames, categoryNames as categoryNamesNow, watchMyReflections, resetters } from './ui-core.js';
 import { renderLog, focusLog, logCasesChanged, clearDrafts } from './ui-log.js';
 import { applyCompact, cachedCompact, applyTheme, cachedTheme, applyTextSize, cachedTextSize, applyZoom, cachedZoom, stepZoom, applyAccent, adoptDisplay, applyDisplay, applyCustomCss, display, setDisplay, resetDisplay, DISPLAY_KEYS, IPHONE_APP, setPageLabel, START_TABS, arrangeTabs, setTabOnBar, barTabs, MAX_BAR, photoChanged } from './display.js';
 import { getPhoto, putPhoto, deletePhoto } from './wallpaper.js';
@@ -463,7 +463,7 @@ function settingsFileCard() {
     const forAccount = Object.fromEntries(Object.entries(d.settings).filter(([k]) => !DISPLAY_KEYS.includes(k)));
     // a file from before the `show` map: its basicOn / caseHide become the switches they set
     const from = profile();
-    const old = legacyShow(forAccount, ['advanced', 'logbook', 'basic', 'personal'].includes(forAccount.mode) ? forAccount.mode : from);
+    const old = legacyShow(forAccount, ['advanced', 'basic', 'personal'].includes(forAccount.mode) ? forAccount.mode : forAccount.mode === 'logbook' ? 'basic' : from);
     if (old) forAccount.show = old;
     // the file's switches replace the account's (the cloud merges `show` key by key, so the ones it lacks go as null)
     if (forAccount.show) forAccount.show = replaceShow(settings().show, forAccount.show);
@@ -682,13 +682,23 @@ function parentOf(tab) {
 // since the change already shows it, so a postponed draw is dropped (one left over from another tab, held back while
 // the note editor was open, never draws the Notes list again after Done; nor wipes a form opened meanwhile)
 let pendingRender = false;
+// Basic: logbook only was removed (owner, 29 Oct 2026): an account still saved with it becomes Basic, once, and this
+// device puts Reflections back on the tab bar (that profile had kept it in More)
+let retired = false;
+function retireLogbookOnly() {
+  if (retired || !S.logbook || !S.logbook.settings || S.logbook.settings.mode !== 'logbook') return;
+  retired = true;
+  const hid = display().tabHidden;
+  if (Array.isArray(hid) && hid.includes('reflect')) { setDisplay({ tabHidden: hid.filter(t => t !== 'reflect') }); }
+  patchLogbook({ settings: { mode: 'basic' } }).catch(() => {});
+}
 function render() {
   if (!S.user) return;
   pendingRender = false;
   // Settings → Logging → Show tips and help text: off hides every .help explanation (an experienced-user mode)
   document.body.classList.toggle('no-help', !!(S.logbook && S.logbook.settings && S.logbook.settings.hideTips));
   document.body.classList.toggle('basic', basicMode());
-  document.body.classList.toggle('logbook-only', logbookOnly());
+  retireLogbookOnly();
   document.body.classList.toggle('faculty-profile', facultyMode());
   paintTabs();
   const tab = visibleTabs().find(t => t.id === S.tab) || TABS[0];
@@ -1060,8 +1070,19 @@ function flushRender() {
 // loading, signed out and signed in. Demo / offline show as a small tag beside the name.
 // Search: on every tab (log2 9e), a line magnifier in the theme's colours (not an emoji; owner, 16 Oct 2026);
 // / opens it on a computer when you're not typing
+// A tap opens the keyboard too (owner, 29 Oct 2026). Phones only open it for a focus made during the tap itself, and
+// Search loads after the tap, so a hidden stand-in box takes the focus now and hands it to the search box once it is up.
 const searchBtn = () => h('button', { type: 'button', class: 'who-search', title: 'Search cases, reflections and notes (/)', 'aria-label': 'Search',
-  onclick: () => go('search') }, ic('search'));
+  onclick: () => {
+    const here = S.tab === 'search' && document.querySelector('input[aria-label="Search everything"]');
+    if (here) { here.focus(); return; }
+    if (matchMedia('(pointer: coarse)').matches) {
+      const k = h('input', { type: 'search', 'aria-hidden': 'true', tabindex: '-1', style: 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0' });
+      document.body.append(k); k.focus();
+      S.searchKeys = k; setTimeout(() => { if (S.searchKeys === k) S.searchKeys = null; k.remove(); }, 3000);
+    }
+    go('search');
+  } }, ic('search'));
 addEventListener('keydown', e => {
   if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || !S.user || e.defaultPrevented) return;
   const t = e.target;

@@ -1083,7 +1083,7 @@ export function renderShowHide() {
   return h('div', { class: 'showhide set-page' },
     profileCard(),
     h('h2', { class: 'set-heading' }, 'Show or hide'),
-    h('p', { class: 'hint help', style: 'margin:0 6px 10px' }, 'Everything you can show or hide, by area, in the order of the tabs. Each group has its own reset. The same switches are on their own pages too. Off in the Basic profiles: the Logbook grid, figures and references, and (in Basic: logbook only) the reflections.'),
+    h('p', { class: 'hint help', style: 'margin:0 6px 10px' }, 'Everything you can show or hide, by area, in the order of the tabs. Each group has its own reset. The same switches are on their own pages too. Off in Basic: the Logbook grid, figures and references.'),
     h('section', { class: 'card', 'data-group': 'case' },
       h('h3', { style: 'margin-top:0' }, 'Add tab'),
       h('p', { class: 'hint help', style: 'margin:0 0 6px' }, 'The case box, All tags and Save always stay. Still needed is under APMES.'),

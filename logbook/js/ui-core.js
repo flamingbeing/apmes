@@ -34,6 +34,7 @@ export const S = {
   sharedTemplates: [],
   tab: 'log',
   lastScreen: null,    // the page before More (app.js); Send feedback names it, nothing else
+  searchKeys: null,    // the header magnifier's stand-in box holding the phone keyboard until Search is up (app.js)
 };
 
 // Set by app.js: re-render the current screen, or tell it the case list changed.
@@ -51,16 +52,14 @@ export const settings = () => {
 // (profiles.js): picking one shows what it turns on and off, then sets them; any switch can be changed after, and the
 // profile then reads "Custom (based on …)". Basic is the default for everyone (owner, 12 Oct 2026): a simpler app, the
 // same tabs and buttons in the same places without the extras (the optional Add tab parts, the Logbook grid,
-// Analytics trends and forecasts, reflection figures and references), and Analytics in More. Basic: logbook only is
-// Basic without reflections, for residents who submit theirs separately (Reflections in More, for ones already
-// written; no Reflect buttons or ☆ Interesting). Advanced hides nothing. Personal is for logging outside APMES: the
+// Analytics trends and forecasts, reflection figures and references), and Analytics in More. (Basic: logbook only,
+// Basic without reflections, was removed on 29 Oct 2026 (owner): an account still saved with it is Basic.) Advanced hides nothing. Personal is for logging outside APMES: the
 // APMES parts (targets, Still needed, totals, portfolio, residency year, reflection headings) off, the extras on and
 // Notes on the tab bar. Faculty / PCs (faculty, PDs and admins, who include the programme coordinators; their
 // default, outside the demo): Totals (counts per tag from the summaries, never case details), then More, with
 // residents' Case logs and programme analytics first in it; their own Case, Logbook, Reflections and Notes tabs start in More.
 export const PROFILES = [
-  // simplest first: logbook only hides the most
-  ['logbook', 'Basic: logbook only', 'Basic without reflections, if you submit your reflections separately. Reflections you already wrote stay in More.'],
+  // simplest first
   ['basic', 'Basic', 'A simpler app (the default): the same tabs and buttons without the extras. Analytics is in More.'],
   ['advanced', 'Advanced', 'Everything: quick picks, the Logbook grid, Analytics trends and forecasts, reflection figures and references.'],
   ['personal', 'Personal', 'For logging outside APMES: no targets, totals or portfolio; the Advanced extras, your own tags and Notes on the tab bar.'],
@@ -70,13 +69,13 @@ export const PROFILES = [
 export const facultyRole = () => !!(S.admin || S.pd || S.faculty);
 export const profile = () => {
   const m = settings().mode;
-  if (m === 'advanced' || m === 'logbook' || m === 'basic' || m === 'personal') return m;
+  if (m === 'advanced' || m === 'basic' || m === 'personal') return m;
+  if (m === 'logbook') return 'basic';   // Basic: logbook only, removed (owner, 29 Oct 2026)
   if (m === 'faculty') return facultyRole() ? 'faculty' : 'basic';
   return facultyRole() && !cloud.demo ? 'faculty' : 'basic';
 };
 export const facultyMode = () => profile() === 'faculty';
-export const basicMode = () => profile() === 'basic' || profile() === 'logbook';
-export const logbookOnly = () => profile() === 'logbook';
+export const basicMode = () => profile() === 'basic';
 // Each switch (profiles.js SWITCHES; Add tab parts are 'case:<part>'): its saved value, else the profile's default.
 // They hide interface only, never a setting.
 export const shows = key => shownIn(settings(), profile(), key);

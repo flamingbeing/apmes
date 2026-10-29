@@ -550,7 +550,7 @@ function caseRow(c, flagsOf) {
           // to your own notes (paste into WhatsApp, Notes, Obsidian); off unless switched on (Layout, row-copy)
           !document.documentElement.classList.contains('row-copy') ? null : h('button', { class: 'small row-btn', title: 'Copy this case', 'aria-label': 'Copy this case', onclick: e => { e.stopPropagation(); copyText(shareCaseText(c), 'Case copied: paste it into your notes'); } }, rowIcon('copy'), h('span', { class: 'lbl' }, 'Copy')),
           // ✓ and filled once the case has a reflection (opens it); the same width either way, so the row never wraps.
-          // Basic: logbook only has no Reflect button (unless turned back on).
+          // none when the Reflect switch is off (Show or hide).
           basicHides('reflect') ? null : (S.reflections || []).some(r => r.caseId === c.id)
             ? h('button', { class: 'small row-btn has-refl', title: 'Open the reflection on this case', 'aria-label': 'Open the reflection on this case', onclick: e => { e.stopPropagation(); reflectOnCase(c); } }, rowIcon('done'), h('span', { class: 'lbl' }, 'Reflect'))
             : h('button', { class: 'small row-btn', title: 'Write a reflection on this case', 'aria-label': 'Write a reflection on this case', onclick: e => { e.stopPropagation(); reflectOnCase(c); } }, rowIcon('reflect'), h('span', { class: 'lbl' }, 'Reflect')))));

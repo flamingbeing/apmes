@@ -391,6 +391,8 @@ function list() {
     h('div', { class: 'bar refl-headbar' },
       h('h2', { style: 'margin:0' }, 'Reflections'),
       h('span', { class: 'refl-actions' },
+        // the portfolio export, one tap from here (owner, 29 Oct 2026); also in More → Export / Import
+        em || basicHides('portfolio') ? null : h('a', { class: 'btn', href: '#export', title: 'Choose reflections and export the APMES portfolio (Word)' }, 'Export'),
         h('button', { class: em ? 'primary' : '', 'aria-pressed': String(em), title: em ? null : 'Select reflections to edit, export or move to the bin together, or drag them between headings', onclick: () => { rv.editMode = !em; rv.sel.clear(); hooks.render(); } }, em ? 'Done' : 'Select'),
         em ? null : h('button', { class: 'primary', title: 'New reflection', 'aria-label': 'New reflection', onclick: () => openPicker() }, '+ New'))),
     h('p', { class: 'hint', style: 'margin:6px 0 0' }, `${p.totals.counted} / ${p.totals.min} counted · ${p.totals.done} complete · ${p.totals.drafts} draft${p.totals.drafts === 1 ? '' : 's'}`),
