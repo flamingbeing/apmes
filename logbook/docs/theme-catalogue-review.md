@@ -157,11 +157,11 @@ Browser runs used desktop Chromium with emulated viewports, demo data and blocke
 Reproduce from the repository root with `PORT`, `PLAYWRIGHT_PATH` and `CHROMIUM_PATH` pointing to the local server/browser:
 
 ```sh
-node logbook/test/themes.test.mjs
-node logbook/test/theme-engine.test.mjs
-node logbook/test/my-themes.test.mjs
-node logbook/test/e2e/inspired-themes.mjs
-node logbook/test/e2e/theme-catalogue.mjs
+node --import ./logbook/test/app-sync-hook.mjs logbook/test/themes.test.mjs
+node --import ./logbook/test/app-sync-hook.mjs logbook/test/theme-engine.test.mjs
+node --import ./logbook/test/app-sync-hook.mjs logbook/test/my-themes.test.mjs
+node --import ./logbook/test/app-sync-hook.mjs logbook/test/e2e/inspired-themes.mjs
+node --import ./logbook/test/app-sync-hook.mjs logbook/test/e2e/theme-catalogue.mjs
 node logbook/test/e2e/app-style.mjs
 node logbook/test/e2e/my-themes.mjs
 node logbook/test/e2e/a11y.mjs

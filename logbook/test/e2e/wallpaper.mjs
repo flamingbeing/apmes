@@ -145,14 +145,14 @@ try {
   await p.evaluate(() => { location.hash = '#themesadv'; });
   await p.locator('details.tab-icons').evaluate(d => { d.open = true; });
   await p.getByLabel('Icon for Logbook').selectOption('heart');
-  const { TAB_ICONS } = await import('../../js/theme-engine.js');
-  await p.waitForFunction(d => document.querySelector('.tabs [data-tab="logbook"] path')?.getAttribute('d') === d, TAB_ICONS.heart[1]);
+  const heart = await p.evaluate(async () => (await import('./js/theme-engine.js')).TAB_ICONS.heart[1]);   // (in the page: it imports the kit)
+  await p.waitForFunction(d => document.querySelector('.tabs [data-tab="logbook"] path')?.getAttribute('d') === d, heart);
 
   // a reload: the photo is still there (first paint has the class), the tab icon too
   await p.reload(); await p.waitForSelector('section.card.fine-tune');
   assert.ok(await p.evaluate(() => document.documentElement.classList.contains('wall')));
   await p.waitForFunction(() => /blob:/.test(getComputedStyle(document.documentElement, '::before').backgroundImage));
-  assert.equal(await p.locator('.tabs [data-tab="logbook"] path').getAttribute('d'), TAB_ICONS.heart[1]);
+  assert.equal(await p.locator('.tabs [data-tab="logbook"] path').getAttribute('d'), heart);
 
   // picking a theme keeps the photo (it is this device's); Remove deletes it
   await p.evaluate(async () => { const T = await import('./js/themes.js'), D = await import('./js/display.js'); D.applyDisplay(D.setDisplay(T.themePatch(T.themeById('soft'), D.display()))); });
