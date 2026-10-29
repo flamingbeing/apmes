@@ -1390,8 +1390,8 @@ label.check.reflect-tag:has(input:checked) .ico.i { fill: currentColor; color: v
 .flag .ico.i { width: 1em; height: 1em; margin-inline-end: .2em; }
 /* taps answer at once: buttons and chips dim while pressed, rows go grey (no hover on a phone to say "this is it") */
 :is(button, .btn, .chip, [role=button], summary):not(:disabled) { transition: opacity var(--dur) var(--ease), background-color var(--dur) var(--ease); }
-:is(button, .btn, .chip, [role=button]):not(:disabled):active { opacity: .6; transition-duration: 0s; }
-:is(ul.cases > li:not(.monthhead), .more-list a, .picker li, details > summary, ul.ready-list li, .notes-list li):active { background-color: color-mix(in srgb, var(--ink) 8%, transparent); }
+:is(button, .btn, .chip, [role=button]):not(:disabled):is(:active, [data-pressed]) { opacity: .6; transition-duration: 0s; }
+:is(ul.cases > li:not(.monthhead), .more-list a, .picker li, details > summary, ul.ready-list li, .notes-list li):is(:active, [data-pressed]) { background-color: color-mix(in srgb, var(--ink) 8%, transparent); }
 details:not(.quick-actions) > summary::after { transition: transform var(--dur) var(--ease); }
 /* an empty list: icon, one bold line, a grey hint, the button that fills it */
 .empty-state { display: grid; justify-items: center; gap: 6px; padding: 28px 16px; }

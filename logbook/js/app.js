@@ -12,6 +12,7 @@ import { gripDrag, moveIn } from './drag-list.js';
 import { tabIconPath, cleanTabIcons, pageMotion } from './theme-engine.js';
 import { createNavigation } from './navigation.js';
 import { syncStatus } from './app-sync.js';
+import { motion, loadMotion } from './kit.js';
 import { renderNotes, leaveNotes, openDayNote, renderNoteSettings } from './ui-notepad.js';
 import { fromQuery, keepShared, readInbox } from './share-in.js';
 import { purgeExpired } from './bin.js';
@@ -765,21 +766,31 @@ function slidePages(dir) {
 // Swipe from the left edge to go back (Accessibility; only in the app on an iPhone or iPad home screen, where the
 // phone has no Back gesture of its own; on unless switched off): the page follows the finger, and letting go past a
 // third of the screen (or after a quick flick) goes back.
-let edge = null;
+let edge = null, edgeGlide = null;   // edgeGlide: the page springing back, caught by a finger at the edge
 document.addEventListener('touchstart', e => {
   edge = null;
+  const g = edgeGlide;
+  if (g && g.glide.running() && e.touches.length === 1 && e.touches[0].clientX <= 20 + g.glide.at()) {
+    edgeGlide = null;
+    const at = g.glide.stop(), x = e.touches[0].clientX;
+    move(app, at);
+    edge = Object.assign(g.s, { x: x - at, y: e.touches[0].clientY, at: Date.now(), lock: true, dx: at, samples: [[e.timeStamp, x]] });
+    caught = true;
+    return;
+  }
   if (!S.user || display().edgeBack === false || !IPHONE_APP() || e.touches.length !== 1 || e.touches[0].clientX > 20) return;
   const tab = TABS.find(t => t.id === S.tab);
   if (!tab || !parentOf(tab) || e.target.closest('dialog, #tabs')) return;
-  edge = { x: e.touches[0].clientX, y: e.touches[0].clientY, at: Date.now(), lock: false, dx: 0, under: parentOf(tab) };
+  edge = { x: e.touches[0].clientX, y: e.touches[0].clientY, at: Date.now(), lock: false, dx: 0, under: parentOf(tab), samples: [[e.timeStamp, e.touches[0].clientX]] };
 }, { passive: true });
 document.addEventListener('touchmove', e => {
   const s = edge;
   if (!s || e.touches.length !== 1) return;
   const dx = e.touches[0].clientX - s.x, dy = e.touches[0].clientY - s.y;
+  track(s, e.timeStamp, e.touches[0].clientX);
   if (!s.lock) {
-    if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { edge = null; return; }
-    if (dx > 10) { s.lock = true; if (!reduceMotion()) pin(); } else return;
+    if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) { edge = null; return; }
+    if (dx > 8) { s.lock = true; if (!reduceMotion()) pin(); } else return;
   }
   e.preventDefault();
   s.dx = Math.max(0, dx);
@@ -788,17 +799,20 @@ document.addEventListener('touchmove', e => {
 const edgeEnd = (e, cancel) => {
   const s = edge; edge = null;
   if (!s || !s.lock) return;
-  const go = !cancel && (s.dx > innerWidth / 3 || (s.dx > 60 && Date.now() - s.at < 500));
+  const v = cancel ? 0 : speedOf(s, e.timeStamp);
+  const go = !cancel && v > -FLICK && (s.dx > innerWidth / 3 || v >= FLICK || (s.dx > 60 && Date.now() - s.at < 500));
   if (!go) {
-    const a = app.animate([{ transform: `translateX(${s.dx}px)` }, { transform: 'translateX(0)' }], { duration: 160, easing: 'ease-out' });
-    move(app, 0); a.finished.catch(() => {}).then(unpin);
+    if (reduceMotion()) { move(app, 0); unpin(); return; }
+    const glide = glideX([[app, 0]], s.dx, 0, v);
+    edgeGlide = { s, glide };
+    glide.done.then(landed => { if (!landed) return; if (edgeGlide?.glide === glide) edgeGlide = null; move(app, 0); glide.stop(); unpin(); });
     return;
   }
   move(app, 0); unpin();
   navigation.back(s.under);
 };
-document.addEventListener('touchend', e => edgeEnd(e, false), { passive: true });
-document.addEventListener('touchcancel', e => edgeEnd(e, true), { passive: true });
+document.addEventListener('touchend', e => { edgeEnd(e, false); uncatch(); }, { passive: true });
+document.addEventListener('touchcancel', e => { edgeEnd(e, true); uncatch(); }, { passive: true });
 hooks.render = render;
 hooks.paintTabs = () => paintTabs();
 
@@ -949,6 +963,20 @@ function makePeek(id, top) {
   return c;
 }
 const move = (el, x) => { el.style.transform = x ? `translateX(${x}px)` : ''; };
+// The finger's speed at the let-go (px/ms, its last ~100 ms; motion.js releaseVelocity), from the moves kept on s.
+const track = (s, t, x) => { s.samples.push([t, x]); if (s.samples.length > 12) s.samples.shift(); };
+const speedOf = (s, t) => motion ? motion.releaseVelocity(s.samples, t) : 0;
+// Glides parts ([element, offset]) from `from` to `to` on the kit's spring at the finger's speed v (motion.js glide:
+// transform only, run by the compositor, so a busy page can't stutter it; stop() catches it where it is). Without the
+// kit (core.anawj.com unreachable): the same move as a plain ease-out.
+function glideX(parts, from, to, v = 0) {
+  if (motion) return motion.glide(parts.map(([el, off]) => [el, x => ({ transform: `translateX(${x + off}px)` })]), from, to, v);
+  const anims = parts.map(([el, off]) => el.animate([{ transform: `translateX(${from + off}px)` }, { transform: `translateX(${to + off}px)` }], { duration: 300, easing: 'ease-out', fill: 'forwards' }));
+  let on = true;
+  const at = () => from + (to - from) * (anims[0]?.effect.getComputedTiming().progress ?? 1);
+  return { running: () => on, at, done: Promise.all(anims.map(a => a.finished)).then(() => on, () => false),
+    stop() { const x = on ? at() : to; on = false; anims.forEach(a => a.cancel()); return x; } };
+}
 // While swiping, the page is pinned where it is (position: fixed over a spacer of its height, so the scroll stays):
 // a fixed page sliding past the screen's edge doesn't widen the phone's layout viewport, which moved the tab bar.
 // (Clipping overflow on html/body instead stopped Chrome on Android scrolling to the very bottom.)
@@ -968,22 +996,42 @@ function endSwipe(s) {
   document.documentElement.classList.remove('swiping');
   move(app, 0); unpin();
 }
+// Let go: the finger's speed goes on into the kit's spring (glideX) and a finger landing on the gliding pages catches
+// them where they are. A quick flick (0.4 px/ms or faster) turns the page however short the move; a throw back cancels.
+let swipeGlide = null;   // { s, glide, off }: the slide finishing or springing back now (off: the copy's place beside)
+const FLICK = 0.4;
+// a touch that caught a glide presses nothing under it (its click is swallowed, as on iOS)
+let caught = false;
+document.addEventListener('click', e => { if (caught) { e.preventDefault(); e.stopPropagation(); } }, { capture: true });
+const uncatch = () => { if (caught) setTimeout(() => { caught = false; }, 400); };
 document.addEventListener('touchstart', e => {
   swipe = null;
   if (!S.user || !document.documentElement.classList.contains('swipe-tabs') || e.touches.length !== 1) return;
-  const t = e.target, x = e.touches[0].clientX;
-  if (x < 20 || x > innerWidth - 20) return;
+  const t = e.target, x = e.touches[0].clientX, y = e.touches[0].clientY;
+  const g = swipeGlide;
+  if (g && g.glide.running()) {   // caught: the pages stop where they are and follow this finger on from there
+    swipeGlide = null;
+    const at = g.glide.stop(), s = g.s;
+    move(app, at); if (s.peek) move(s.peek, at + g.off);
+    const dx = s.target ? at : at * 4;   // (held back where there's no tab: the page shows a quarter of the move)
+    Object.assign(s, { x: x - dx, y, at: Date.now(), lock: 'x', dx, samples: [[e.timeStamp, x]] });
+    swipe = s;
+    caught = true;
+    return;
+  }
+  if (edge || x < 20 || x > innerWidth - 20) return;   // (edge: a back swipe caught its page)
   // anywhere on the screen, the background under a short page included; not on the tab bar or a banner
   if (t.closest('#tabs, .banner, input, textarea, select, dialog, [contenteditable], .dragging, .te-pillitem, .te-handle, .refl-handle, li.refl-row.edit') || scrollsSideways(t)) return;
-  swipe = { x, y: e.touches[0].clientY, at: Date.now(), lock: '', dx: 0, target: null, peek: null };
+  swipe = { x, y, at: Date.now(), lock: '', dx: 0, target: null, peek: null, samples: [[e.timeStamp, x]] };
 }, { passive: true });
 document.addEventListener('touchmove', e => {
   const s = swipe;
   if (!s || e.touches.length !== 1) return;
   const dx = e.touches[0].clientX - s.x, dy = e.touches[0].clientY - s.y;
+  track(s, e.timeStamp, e.touches[0].clientX);
   if (!s.lock) {
-    if (Math.abs(dy) > 10 && Math.abs(dy) * 2 > Math.abs(dx)) { swipe = null; return; }   // scrolling: leave it alone
-    if (Math.abs(dx) > 10 && Math.abs(dx) > 2 * Math.abs(dy)) {
+    if (Math.abs(dy) > 8 && Math.abs(dy) * 2 > Math.abs(dx)) { swipe = null; return; }   // scrolling: leave it alone
+    if (Math.abs(dx) > 8 && Math.abs(dx) > 2 * Math.abs(dy)) {
       s.lock = 'x';
       s.top = app.getBoundingClientRect().top + window.scrollY;   // the page's top when scrolled to the top
       s.peekTop = Math.max(0, s.top - window.scrollY);   // where the new page will sit: no higher than the screen's top
@@ -999,39 +1047,38 @@ document.addEventListener('touchmove', e => {
   move(app, target ? dx : dx / 4);
   if (s.peek) move(s.peek, dx - (dx < 0 ? -innerWidth : innerWidth));
 }, { passive: false });
-const springBack = s => {
-  const opts = { duration: 160, easing: 'ease-out' }, from = parseFloat(app.style.transform.slice(11)) || 0;
-  const anims = [app.animate([{ transform: `translateX(${from}px)` }, { transform: 'translateX(0)' }], opts)];
-  if (s.peek) anims.push(s.peek.animate([{ transform: s.peek.style.transform }, { transform: `translateX(${from < 0 ? innerWidth : -innerWidth}px)` }], opts));
-  move(app, 0); if (s.peek) move(s.peek, from < 0 ? innerWidth : -innerWidth);
-  anims[0].finished.catch(() => {}).then(() => endSwipe(s));
+const springBack = (s, v = 0) => {
+  const from = parseFloat(app.style.transform.slice(11)) || 0, off = from < 0 ? innerWidth : -innerWidth;
+  const glide = glideX([[app, 0], ...(s.peek ? [[s.peek, off]] : [])], from, 0, s.target ? v : v / 4);
+  swipeGlide = { s, glide, off };
+  glide.done.then(landed => { if (!landed) return; if (swipeGlide?.glide === glide) swipeGlide = null; glide.stop(); endSwipe(s); });
 };
 document.addEventListener('touchcancel', () => { const s = swipe; swipe = null; if (s && s.lock) springBack(s); }, { passive: true });
 document.addEventListener('touchend', async e => {
   const s = swipe; swipe = null;
   if (!s || !e.changedTouches.length) return;
   const dx = e.changedTouches[0].clientX - s.x, dy = e.changedTouches[0].clientY - s.y;
-  const quick = Date.now() - s.at <= 700 && Math.abs(dx) >= 70 && Math.abs(dx) >= 2 * Math.abs(dy);
-  const far = s.lock === 'x' && Math.abs(dx) > innerWidth / 3;
-  const next = (quick || far) && swipeTarget(dx);
-  if (!next) { if (s.lock) springBack(s); return; }
+  const v = speedOf(s, e.timeStamp), back = Math.abs(v) >= FLICK && Math.sign(v) !== Math.sign(dx);
+  const flick = s.lock === 'x' && Math.abs(v) >= FLICK && !back;
+  const quick = Date.now() - s.at <= 700 && Math.abs(dx) >= 70 && Math.abs(dx) >= 2 * Math.abs(dy) && !back;
+  const far = s.lock === 'x' && Math.abs(dx) > innerWidth / 3 && !back;
+  const next = (flick || quick || far) && swipeTarget(dx);
+  if (!next) { if (s.lock) springBack(s, v); return; }
   if (reduceMotion() || !s.peek || s.target !== next) { endSwipe(s); go(next); return; }
-  // finish the slide: both cards on one clock, so they stay joined
-  const w = dx < 0 ? -innerWidth : innerWidth, ms = Math.max(120, Math.min(240, 240 * (1 - Math.abs(dx) / innerWidth)));
-  const opts = { duration: ms, easing: 'ease-out', fill: 'forwards' };
-  const anims = [app.animate([{ transform: `translateX(${dx}px)` }, { transform: `translateX(${w}px)` }], opts),
-    s.peek.animate([{ transform: `translateX(${dx - w}px)` }, { transform: 'translateX(0)' }], opts)];
-  const t0 = document.timeline.currentTime;
-  anims.forEach(an => { an.startTime = t0; });
-  await anims[1].finished.catch(() => {});
+  // finish the slide: both cards on one spring, so they stay joined
+  const w = dx < 0 ? -innerWidth : innerWidth;
+  const glide = glideX([[app, 0], [s.peek, -w]], dx, w, v);
+  swipeGlide = { s, glide, off: -w };
+  if (!await glide.done) return;   // caught by a finger: it carries on from there
+  if (swipeGlide?.glide === glide) swipeGlide = null;
   // the real page goes in underneath the copy, at the copy's height on the screen, then the copy goes
   const peek = s.peek, y = s.top - s.peekTop;
-  move(app, w); anims[0].cancel();
+  move(app, w); move(peek, 0); glide.stop();
   await go(next);
   requestAnimationFrame(() => {
     unpin(); move(app, 0);
     window.scrollTo(0, y);   // after the screen change's own scroll
-    peek.remove(); anims[1].cancel();
+    peek.remove();
     document.documentElement.classList.remove('swiping');
   });
 }, { passive: true });
@@ -1041,7 +1088,9 @@ document.addEventListener('touchend', async e => {
 // Settings pages that show no case data: drawing them again would only throw away what is half filled in there (a
 // sync place being added, a search being typed)
 const CASE_FREE = new Set(['settings', 'showhide', 'themes', 'themesadv', 'themesall', 'layout', 'access', 'logging', 'loggingadv', 'reflset', 'sendto', 'sync']);
-hooks.casesChanged = () => {
+// Held while a finger is down or a page is gliding (motion.js afterGesture): a sync landing mid-swipe draws once it ends.
+hooks.casesChanged = () => { if (motion) motion.afterGesture(casesChanged); else casesChanged(); };
+function casesChanged() {
   paintWho();
   if (S.tab === 'log') return logCasesChanged();
   // the Notes list repaints its rows in place (every note save comes through here too: drawing the page again 250 ms
@@ -1050,7 +1099,7 @@ hooks.casesChanged = () => {
   if (S.tab === 'account' || /^admin/.test(S.tab || '') || S.tab === 'totals' || CASE_FREE.has(S.tab)) return;
   pendingRender = true;
   setTimeout(flushRender, 250);
-};
+}
 // someone is typing in the page or has a dialog open (the note editor shows no case data: drawing it again would only
 // close its ⋯ menu mid-tap)
 function editingNow() {
@@ -1475,6 +1524,8 @@ else cloud.watchUser(onUser).catch(err => renderLanding('Could not start sign-in
 // is open, or a change is still sending (update-v0.2.0 canReload)
 const typingNow = () => !!document.activeElement && (/^(TEXTAREA|INPUT|SELECT)$/.test(document.activeElement.tagName) || document.activeElement.isContentEditable);
 startUpdates(() => !typingNow() && !document.querySelector('dialog[open]') && !writes.pending() && !S.pending && !(cloud.syncHealth?.().unsent));
+// the kit's finger physics for the swipes (glideX) and buttons shown pressed on the touch (data-pressed; style.css)
+loadMotion().then(m => m?.pressFeedback());
 // an update waiting for the typing or a dialog to finish is tried again then (retryUpdate does nothing when none waits)
 document.addEventListener('focusout', () => setTimeout(retryUpdate, 300));
 document.addEventListener('close', () => setTimeout(retryUpdate, 300), true);
