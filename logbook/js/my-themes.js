@@ -4,7 +4,7 @@
 // Pure (test/my-themes.test.mjs); the page is ui-settings.js renderThemes.// The engine is the UI kit's add-ons (savedThemes, themeLinks): this file passes the logbook's look settings, presets
 // and link lists, so saved themes, theme files and #t= links read and write exactly as before.
 
-import { savedThemes, themeLinks } from 'https://core.anawj.com/ui/1.0.0-rc.37/theme/addons/index.js';
+import { savedThemes, themeLinks } from 'https://core.anawj.com/ui/1.0.0-rc.42/theme/addons/index.js';
 import { THEME_KEYS, TINTS, keepKept, checkTheme, THEMES, themePatch } from './themes.js';
 import { foldCompact, TAB_ICONS } from './theme-engine.js';
 import { LOOK, lookField, cleanLook, keptKeys } from './look-schema.js';

@@ -8,4 +8,4 @@
 //   */
 //
 // The parser and the values are the UI kit's add-on (app-ui theme/addons/custom-css.js, ported from here).
-export { MAX_SETTINGS, parseSettings, cleanValue, cleanValues, valueOf, cssValue, settingsCss } from 'https://core.anawj.com/ui/1.0.0-rc.37/theme/addons/custom-css.js';
+export { MAX_SETTINGS, parseSettings, cleanValue, cleanValues, valueOf, cssValue, settingsCss } from 'https://core.anawj.com/ui/1.0.0-rc.42/theme/addons/custom-css.js';

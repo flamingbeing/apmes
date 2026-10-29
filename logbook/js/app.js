@@ -12,7 +12,7 @@ import { gripDrag, moveIn } from './drag-list.js';
 import { tabIconPath, cleanTabIcons, pageMotion } from './theme-engine.js';
 import { createNavigation } from './navigation.js';
 import { syncStatus } from './app-sync.js';
-import { motion, loadMotion } from './kit.js';
+import { motion, loadMotion, tabBack } from './kit.js';
 import { renderNotes, leaveNotes, openDayNote, renderNoteSettings } from './ui-notepad.js';
 import { fromQuery, keepShared, readInbox } from './share-in.js';
 import { purgeExpired } from './bin.js';
@@ -633,14 +633,22 @@ function changeScreen(id, scroll = 0) {
 }
 // Settings → Layout: the Add tab upside down, on a phone-width screen
 const invertedCase = () => document.documentElement.classList.contains('case-inverted') && matchMedia('(max-width: 600px)').matches;
+// the tab the app opens on: the one chosen in Settings → Layout; a start tab hidden from the bar gives way to the
+// first tab on it. Back on another tab goes here (navigation.js, app-ui tab-back.js)
+const barShown = () => arrangeTabs(barCandidates(), display()).shown;
+function startTab() {
+  const start = display().startTab || 'log', bar = barShown();
+  return START_TABS.some(([v]) => v === start) && bar.includes(start) ? start : bar.find(id => id !== 'more') || 'log';
+}
 const navigation = createNavigation({ history, location,
   parents: Object.fromEntries(TABS.filter(t => t.under).map(t => [t.id, t.under])),
   allowed: id => visibleTabs().some(t => t.id === id),
-  onNavigate: changeScreen, getScroll: () => window.scrollY });
+  onNavigate: changeScreen, getScroll: () => window.scrollY,
+  tabBack, events: window, isTab: id => barShown().includes(id), firstTab: startTab });
 async function go(id) {
   await transients.dismissAll();
-  if (S.tab === id) { if (id === 'log') focusLog(); return; }
-  navigation.go(id);
+  if (S.tab === id) { if (id === 'log') focusLog(); return true; }
+  return navigation.go(id);
 }
 hooks.navigate = go;
 // Native links, menu links and tab buttons use the same history policy. Modified
@@ -866,8 +874,7 @@ async function tryMode(on) {
   if (!on) { trying = null; document.documentElement.classList.remove('try-mode'); return; }
   if (hiding) hideMode(false);
   const from = S.tab, { themeSteps } = await import('./ui-settings.js');
-  await go('logbook');
-  if (hideFree(S.tab)) await go('log');   // (a profile without the Logbook tab)
+  if (!(await go('logbook'))) await go('log');   // (a profile without the Logbook tab; a tab may land a moment later)
   trying = from;
   document.documentElement.classList.add('try-mode');
   const bar = h('div', { class: 'hide-bar try-bar', role: 'region', 'aria-label': 'See it in action' });
@@ -1343,11 +1350,8 @@ async function onUser(user) {
     fill(app, h('p', { class: 'empty' }, 'Could not load your logbook: ' + err.message), h('p', { class: 'empty' }, h('button', { onclick: () => onUser(user) }, 'Try again')));
     return;
   }
-  // the tab chosen in Settings → Layout, unless the address names one (a link, a shortcut, a reload)
-  const start = display().startTab || 'log';
-  // a start tab hidden from the bar gives way to the first tab on it
-  const onBar = arrangeTabs(barCandidates(), display()).shown;
-  S.tab = tabFromHash() || (START_TABS.some(([v]) => v === start) && onBar.includes(start) ? start : onBar.find(id => id !== 'more') || 'log');
+  // the start tab, unless the address names one (a link, a shortcut, a reload)
+  S.tab = tabFromHash() || startTab();
   navigation.initialize(S.tab);
   if (wantToday) { wantToday = false; setTimeout(() => { if (S.user === user) openDayNote(); }, 0); }
   if (wantTheme) { const hash = wantTheme; wantTheme = null; setTimeout(() => { if (S.user === user) offerTheme(hash); }, 0); }
