@@ -60,6 +60,7 @@ jobs:
           - { name: CCC, cmd: "node ccc/test/e2e.mjs" }
           - { name: Home, cmd: "node home/test/e2e.mjs" }
           - { name: Update core, cmd: "PORT=8110 node logbook/test/e2e/update-core.mjs" }
+          - { name: Logbook swipe feel, cmd: "PORT=8110 node logbook/test/e2e/swipe-feel.mjs" }
     name: browser (${{ matrix.name }})
     steps:
       - uses: actions/checkout@v4
