@@ -141,7 +141,6 @@ export function render(md) {
 // ---- pages ----
 // the same pre-paint theme rules as home/index.html (home/js/theme.js): this page's switch, else the Logbook's look
 const HEAD_THEME = `<script>
-  addEventListener('beforeinstallprompt', e => e.preventDefault());   // installable, never prompted
   try {
     var own = localStorage.getItem('apmes-home-theme'), t = localStorage.getItem('apmes-logbook-theme'), de = document.documentElement;
     de.dataset.theme = own === 'light' || own === 'dark' ? own : t === 'dark' || t === 'oled' ? 'dark' : t === 'auto' ? 'auto' : 'light';
@@ -149,6 +148,7 @@ const HEAD_THEME = `<script>
     var css = localStorage.getItem('apmes-logbook-accent-css-v2');
     if (css && css.length < 8000) { var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); de.classList.add('lb-colours'); }
   } catch (e) {}
+  addEventListener('beforeinstallprompt', e => e.preventDefault());   // installable, never prompted
 </script>`;
 
 function page({ title, back, body }) {
