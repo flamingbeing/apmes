@@ -6,8 +6,8 @@
 // The engine is the UI kit's add-on (app-ui theme/addons/fonts.js, ported from here). The logbook adds its default
 // (Open Sans) and keeps its font files in IndexedDB 'apmes-logbook-fonts' (store 'files', keys 'ui' | 'log' and a saved
 // theme's own copies), so files chosen before are still there; applyFonts sets the logbook's --font-ui and --font-log.
-import * as kit from 'https://core.anawj.com/ui/1.0.0-rc.33/theme/addons/fonts.js';
-export { THEME_FONTS, MAX_FONT_BYTES, FONT_TYPES, cleanFontName, userFamily, logChoice, fontToFile, cleanFontFile, fontAvailable } from 'https://core.anawj.com/ui/1.0.0-rc.33/theme/addons/fonts.js';
+import * as kit from 'https://core.anawj.com/ui/1.0.0-rc.37/theme/addons/fonts.js';
+export { THEME_FONTS, MAX_FONT_BYTES, FONT_TYPES, cleanFontName, userFamily, logChoice, fontToFile, cleanFontFile, fontAvailable } from 'https://core.anawj.com/ui/1.0.0-rc.37/theme/addons/fonts.js';
 
 const OWN = { default: '"Open Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' };
 export const FONTS = kit.FONTS.map(([k, label]) => [k, k === 'default' ? 'Open Sans (default)' : label]);
