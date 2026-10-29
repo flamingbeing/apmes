@@ -178,7 +178,9 @@ export function renderSearch() {
     out, selBar);
   paintSaved();
   paint();
-  requestAnimationFrame(() => { if (box.isConnected && matchMedia('(pointer: fine)').matches && !sv.sel) box.focus(); });
+  // on a computer always; on a phone only when the header's magnifier opened it (its stand-in box holds the keyboard)
+  const keys = S.searchKeys; S.searchKeys = null;
+  requestAnimationFrame(() => { if (box.isConnected && (matchMedia('(pointer: fine)').matches || keys) && !sv.sel) box.focus(); if (keys) keys.remove(); });
   return wrap;
 }
 

@@ -6,7 +6,7 @@
 
 import { expandParts } from './logging.js';
 
-export const PROFILE_IDS = ['logbook', 'basic', 'advanced', 'personal', 'faculty'];
+export const PROFILE_IDS = ['basic', 'advanced', 'personal', 'faculty'];   // Basic: logbook only removed (owner, 29 Oct 2026)
 
 // [key, label, group]. Add tab parts are 'case:<part>' (CASE_PARTS in ui-log.js; their switches live there and in
 // the Add tab group; these labels are for the lists of changes); 'case:still' is an APMES one too. Groups: extras (what Basic leaves out), case, apmes.
@@ -39,11 +39,9 @@ const BASIC_ITEMS = EXTRAS;
 const APMES = SWITCHES.filter(s => s[2] === 'apmes').map(([k]) => k);
 
 // what each profile turns off (everything else is on). Basic: the extras and the optional Add tab parts;
-// logbook only: Basic without reflections; Personal: the APMES parts, with the extras on.
-// Full Analytics in every profile (owner, 15 Oct 2026): Personal still leaves out the APMES parts, and Basic: logbook
-// only the reflection parts, as their own switches.
+// Personal: the APMES parts, with the extras on.
+// Full Analytics in every profile (owner, 15 Oct 2026): Personal still leaves out the APMES parts as their own switches.
 const PRESET_OFF = {
-  logbook: EXTRAS.filter(k => k !== 'analytics'),
   basic: EXTRAS.filter(k => k !== 'reflect' && k !== 'analytics'),
   advanced: [],
   personal: APMES,
@@ -184,12 +182,12 @@ export function switchChanges(st, mode, to = mode) {
 // tabs off the bar until someone puts them there (they live in More by default); Analytics too since 15 Oct 2026
 // (owner: Case, Logbook, Totals, Reflections, More)
 export const OFF_BAR = ['caselogs', 'progress', 'notes', 'account', 'settings', 'recovery', 'data', 'admin'];
-// the Basic profiles keep Analytics in More, and Basic: logbook only Reflections; Faculty / PCs keeps the person's
+// Basic keeps Analytics in More; Faculty / PCs keeps the person's
 // own Case, Logbook and Reflections in More, with Case logs and Analytics (both also in OFF_BAR: listed here so a device
 // moving into the profile with its tabs arranged takes them off the bar), leaving Totals, the Admin portal and More
-export const PROFILE_OFF = { advanced: [], basic: ['progress'], logbook: ['progress', 'reflect'], personal: [], faculty: ['log', 'logbook', 'reflect', 'caselogs', 'progress'] };
+export const PROFILE_OFF = { advanced: [], basic: ['progress'], personal: [], faculty: ['log', 'logbook', 'reflect', 'caselogs', 'progress'] };
 // OFF_BAR tabs a profile puts on the bar: the Admin portal (admins only) in Faculty / PCs, Analytics in Advanced, and
-// Notes and Analytics in Personal (owner, 15 Oct 2026: logbook only Case · Logbook · Totals · More; Basic + Reflections;
+// Notes and Analytics in Personal (owner, 15 Oct 2026: Basic Case · Logbook · Totals · Reflections · More;
 // Advanced + Reflections · Analytics; Personal Case · Logbook · Notes · Reflections · Analytics · More)
 export const PROFILE_ON = { faculty: ['admin'], advanced: ['progress'], personal: ['notes', 'progress'] };
 export const offBar = mode => [...OFF_BAR.filter(id => !(PROFILE_ON[mode] || []).includes(id)), ...(PROFILE_OFF[mode] || [])];

@@ -21,7 +21,7 @@ Part of the logbook working notes; index of screens in [../screens.md](../screen
   (of the tabs, only the profile's own count). **Saving `show`:** the cloud merges the map key by key (`setDoc` with merge), so a patch sends
   only the changed keys, and a reset sends its keys as `null` (left out, they'd stay); `mergeSettings` merges the same
   way locally and in demo mode, and a settings file's `show` replaces the account's (`replaceShow`).
-  Body classes `basic`, `logbook-only`, `faculty-profile` stay. **Basic is the default for everyone** (owner, 12 Oct
+  Body classes `basic`, `faculty-profile` stay. **Basic is the default for everyone** (owner, 12 Oct
   2026: nothing saved = Basic). The e2e demo account starts in Advanced (`demoDoc` in demo-backend.js, when
   `apmes-logbook-demo-small` is set) since the tests check every feature.
   - **Profiles hide interface items only, never settings** (owner): every switch is visible on the Profile page and
@@ -45,9 +45,9 @@ Part of the logbook working notes; index of screens in [../screens.md](../screen
     group saving, Plan for later), the Logbook Grid, Analytics trends / forecasts / Gone quiet / to-dos / links,
     reflection Figures and References (shown anyway when a reflection has some); Analytics off the bar (in More).
     Search operators are not hidden (already off by default; a setting).
-  - **Basic: logbook only**: Basic without reflections, for residents allowed to submit reflections separately (the
-    PCs still need compiled case logs): Reflections off the bar (in More, for ones already written), no Reflect
-    buttons or row-menu item, no ☆ Interesting (edit dialog, Logbook filter), no reflection headings card.
+  - **Basic: logbook only** (Basic without reflections) was removed (owner, 29 Oct 2026): `profile()` reads a saved
+    `mode: 'logbook'` as Basic, and app.js `retireLogbookOnly` saves the account as Basic once and puts Reflections
+    back on that device's tab bar. Anyone wanting it can turn the Reflect switch off in Show or hide.
   - **Advanced**: hides nothing.
   - **Faculty / PCs** (`facultyMode()`; offered only to `facultyRole()`: admins, PDs and active faculty; their
     default when nothing is saved, outside the demo; owner, 12 Oct 2026: PCs are added as admins, no PC role; no

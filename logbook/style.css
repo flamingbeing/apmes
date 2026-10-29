@@ -334,6 +334,13 @@ table.totals tr.total td { font-weight: 700; }
 table.totals th.me { color: var(--accent); }
 /* Totals: the table scrolls inside its card, so the names row (and the tag column) stay frozen (owner, 15 Oct 2026) */
 .tscroll { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); overflow: auto; }
+.tscroll.paged { overflow-x: hidden; }   /* Totals: never sideways, ‹ › pages the people instead (owner, 29 Oct 2026) */
+.tscroll.paged table.totals td.cat .cat-in { overflow-x: visible; overflow-wrap: anywhere; }
+.tlegend { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.tlegend > .legend { flex: 1 1 auto; }
+.tlegend > [hidden] { display: none; }
+.tlegend > button { min-width: 40px; font-size: 1.2em; }
+.tlegend > .tpage { white-space: nowrap; margin: 0; }
 table.totals thead th { position: sticky; top: 0; background: var(--panel); z-index: 2; }
 table.totals thead th:first-child { left: 0; z-index: 3; }
 
@@ -998,7 +1005,7 @@ a.an-bar:focus-visible { outline-offset: 1px; }
 .group-save:empty { display: none; }
 .group-save { margin: 6px 0 2px; }
 .refl-actions { display: flex; gap: 8px; flex-wrap: nowrap; max-width: 100%; }
-.refl-actions > button { white-space: nowrap; }
+.refl-actions > button, .refl-actions > .btn { white-space: nowrap; }
 .refl-actions > button.primary { min-width: 0; }
 /* logbook search box with its own × (the browser's own clear button is hidden so there's only one) */
 .search-wrap { position: relative; min-width: 0; }

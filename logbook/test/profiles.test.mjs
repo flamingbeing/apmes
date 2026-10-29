@@ -5,13 +5,12 @@ const P = await import('../js/profiles.js');
 const { SWITCH_KEYS, OPT_IN, presetOn, shownIn, switchPatch, resetPatch, applyPatch, switchChanges, offBar, presetHidesTab, tabsAfter, mergeSettings, replaceShow, PROFILE_IDS } = P;
 const PARTS = ['interesting', 'parsed', 'sugg', 'recent', 'still', 'groupsave', 'plan'];
 
-// the presets: Basic leaves out the extras (not Reflect), logbook only Reflect too, Personal the APMES parts
+// the presets: Basic leaves out the extras (not Reflect), Personal the APMES parts
 {
   for (const k of ['grid', 'reflExtras', 'case:sugg', 'case:recent', 'case:still', 'case:plan']) assert.equal(presetOn('basic', k), false, k);
   // full Analytics in every profile (owner, 15 Oct 2026)
-  for (const m of ['logbook', 'basic', 'advanced', 'personal', 'faculty']) assert.equal(presetOn(m, 'analytics'), true, m);
+  for (const m of ['basic', 'advanced', 'personal', 'faculty']) assert.equal(presetOn(m, 'analytics'), true, m);
   assert.equal(presetOn('basic', 'reflect'), true);
-  assert.equal(presetOn('logbook', 'reflect'), false);
   for (const k of SWITCH_KEYS.filter(k => !OPT_IN.includes(k))) { assert.equal(presetOn('advanced', k), true, k); assert.equal(presetOn('faculty', k), true, k); }
   // opt-in switches (Request an evaluation): off in every profile until switched on, and saved like any switch
   assert.ok(OPT_IN.includes('evalRequest') && SWITCH_KEYS.includes('evalRequest'));
@@ -25,7 +24,7 @@ const PARTS = ['interesting', 'parsed', 'sugg', 'recent', 'still', 'groupsave', 
   }
   for (const k of ['grid', 'analytics', 'reflExtras', 'reflect', 'case:sugg', 'case:recent', 'case:plan', 'case:interesting']) assert.equal(presetOn('personal', k), true, k);
   assert.equal(presetOn('basic', 'case:parsed'), true, 'not governed: always on');
-  assert.deepEqual(PROFILE_IDS, ['logbook', 'basic', 'advanced', 'personal', 'faculty']);
+  assert.deepEqual(PROFILE_IDS, ['basic', 'advanced', 'personal', 'faculty'], 'Basic: logbook only removed (owner, 29 Oct 2026)');
 }
 
 // back-compat: an account with only `mode` saved looks as it did; caseHide and basicOn still count
@@ -113,7 +112,7 @@ const PARTS = ['interesting', 'parsed', 'sugg', 'recent', 'still', 'groupsave', 
   assert.deepEqual(switchChanges({ mode: 'personal', show: { targets: true } }, 'personal'), { on: [], off: ['targets'] });
 }
 
-// tabs (owner, 15 Oct 2026): logbook only Case · Logbook · Totals · More; Basic + Reflections; Advanced + Reflections ·
+// tabs (owner, 15 Oct 2026): Basic Case · Logbook · Totals · Reflections · More; Advanced + Reflections ·
 // Analytics; Personal Case · Logbook · Notes · Reflections · Analytics · More; Faculty / PCs Totals · Admin · More
 {
   assert.ok(!offBar('personal').includes('notes'));
@@ -122,11 +121,10 @@ const PARTS = ['interesting', 'parsed', 'sugg', 'recent', 'still', 'groupsave', 
   assert.ok(!offBar('advanced').includes('progress') && !offBar('advanced').includes('totals'));
   assert.ok(!offBar('personal').includes('progress') && !offBar('personal').includes('notes'));
   assert.ok(offBar('basic').includes('progress') && !offBar('basic').includes('reflect'));
-  assert.ok(offBar('logbook').includes('reflect'));
   assert.equal(presetHidesTab('faculty', 'log'), true);
   assert.equal(tabsAfter(null, 'advanced', 'basic'), null, 'a device with no saved tabs follows the profile by itself');
   assert.deepEqual(new Set(tabsAfter(['account'], 'advanced', 'basic')), new Set(['account', 'progress']));
-  const personal = new Set(tabsAfter(['progress', 'reflect', 'account', 'notes'], 'logbook', 'personal'));
+  const personal = new Set(tabsAfter(['progress', 'account', 'notes'], 'basic', 'personal'));
   assert.ok(!personal.has('notes') && !personal.has('progress') && !personal.has('reflect') && personal.has('account'), 'Personal puts Notes and Analytics on the bar');
   const fac = new Set(tabsAfter([], 'advanced', 'faculty'));
   assert.ok(fac.has('log') && fac.has('logbook') && fac.has('reflect') && fac.has('caselogs') && fac.has('progress') && !fac.has('totals') && !fac.has('admin'));
@@ -136,8 +134,6 @@ const PARTS = ['interesting', 'parsed', 'sugg', 'recent', 'still', 'groupsave', 
   assert.deepEqual(tabsAfter(hand, 'basic', 'basic'), hand, 'the same profile moves nothing');
   // Personal to Advanced takes Notes back into More (Personal put it on the bar)
   assert.ok(tabsAfter(['account'], 'personal', 'advanced').includes('notes'));
-  // Analytics put on the bar by hand in Basic goes back into More in Basic: logbook only (both profiles move it)
-  assert.ok(tabsAfter(['account'], 'basic', 'logbook').includes('progress'));
 }
 
 // the cloud's write paths: settings keys whole (a map like markdown too), `show` key by key (bug: Firestore's plain

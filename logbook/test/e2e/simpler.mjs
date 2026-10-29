@@ -105,20 +105,18 @@ try { for (const width of [390, 1280]) {
   await p.goBack(); await p.waitForFunction(() => !document.querySelector('.refl-editor'));
   { const s = (await st()).s.show; assert.ok(s['case:recent'] === true && s['case:sugg'] === true); }
 
-  // Basic: logbook only: Basic without reflections (picking a profile starts from its defaults)
-  await pickProfile('logbook');
-  await p.waitForFunction(() => document.body.classList.contains('logbook-only'));
-  assert.ok(!(await st()).s.show, 'picking a profile starts from its defaults');
-  assert.deepEqual(await tabsNow(), tabsAdvanced.filter(t => t !== 'reflect' && t !== 'progress'), 'Case, Logbook, Totals, More');
-  await p.locator('[role=tab][data-tab=logbook]').click();
-  await p.locator('main .seg button').filter({ hasText: /^List$/ }).click();
-  await p.locator('ul.cases li').first().waitFor();
-  assert.equal(await p.locator('main button[aria-label*="reflection on this case"]').count(), 0);
-  // Copy on each row is off by default (Layout), so a logbook-only row has no buttons
-  assert.equal(await p.locator('main button[aria-label="Copy this case"]').count(), 0);
-  await p.locator('[role=tab][data-tab=more]').click();
-  await p.locator('.more-list a[data-go=reflect]').click();
-  await p.locator('main h2').filter({ hasText: 'Reflections' }).first().waitFor();
+  // Basic: logbook only was removed (owner, 29 Oct 2026): not offered, and an account still saved with it becomes Basic,
+  // with Reflections back on this device's tab bar
+  await p.evaluate(() => { location.hash = '#showhide'; });
+  await p.locator('.profile-card input[value=basic]').waitFor();
+  assert.equal(await p.locator('.profile-card input[value=logbook]').count(), 0, 'no logbook only profile');
+  await p.evaluate(async () => {
+    const { patchLogbook, hooks } = await import('./js/ui-core.js'); const { setDisplay, display } = await import('./js/display.js');
+    setDisplay({ tabHidden: [...new Set([...(display().tabHidden || []), 'reflect'])] });
+    await patchLogbook({ settings: { mode: 'logbook', show: null } }); hooks.render();
+  });
+  await p.waitForFunction(async () => { const { settings } = await import('./js/ui-core.js'); return settings().mode === 'basic'; });
+  await p.waitForFunction(() => document.body.classList.contains('basic') && document.querySelector('[role=tab][data-tab=reflect]'));
   // everything back on, one by one, is Advanced again
   await p.evaluate(() => { location.hash = '#showhide'; });
   for (const el of await p.locator('.showhide input[data-extra]').all()) await el.check();
@@ -128,11 +126,12 @@ try { for (const width of [390, 1280]) {
   await group('bar').getByLabel('Analytics on the tab bar').check();
   await p.waitForFunction(() => document.querySelector('[role=tab][data-tab=reflect]') && document.querySelector('[role=tab][data-tab=progress]'));
   await p.locator('[role=tab][data-tab=logbook]').click();
+  await p.locator('main .seg button').filter({ hasText: /^List$/ }).click();
   await p.locator('main button[aria-label*="reflection on this case"]').first().waitFor();
   await p.locator('main .seg button').filter({ hasText: /^Grid$/ }).waitFor();
 
   await pickProfile('advanced');
-  await p.waitForFunction(() => !document.body.classList.contains('basic') && !document.body.classList.contains('logbook-only'));
+  await p.waitForFunction(() => !document.body.classList.contains('basic'));
   assert.equal((await st()).s.mode, 'advanced');
   await p.locator('.profile-now', { hasText: 'Now: Advanced' }).waitFor();
   assert.deepEqual(new Set(await tabsNow()), new Set(tabsAdvanced));

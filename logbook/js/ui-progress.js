@@ -22,8 +22,9 @@ const casesLink = (label, opts, title) => advanced()
 // open: the sections you have expanded (they start folded, showing a one-line summary)
 const pview = { open: new Set() };
 
+// the totals tables' key: no On track (plain cells; owner, 29 Oct 2026), and Due for short
 export const legend = () => h('div', { class: 'legend' },
-  ['late', 'due', 'ontrack', 'done'].map(s => h('span', {}, h('i', { class: `dot ${s}` }), STATUS_TEXT[s])));
+  [['late', STATUS_TEXT.late], ['due', 'Due'], ['done', STATUS_TEXT.done]].map(([s, t]) => h('span', {}, h('i', { class: `dot ${s}` }), t)));
 
 // ---------- Progress ----------
 
@@ -422,7 +423,10 @@ function progList(items, fc = {}) {
 
 // ---------- Totals ----------
 
-const tview = { summaries: null, loading: false, year: null, error: '' };
+const tview = { summaries: null, loading: false, year: null, error: '', col: 0, colYear: null, fit: null };   // col: first person shown
+// the Totals table re-fits its columns when the width changes (turning the phone)
+let tvW = 0;
+if (typeof window !== 'undefined') addEventListener('resize', () => { if (innerWidth !== tvW) { tvW = innerWidth; tview.fit?.(); } });
 // "R3 / SMO" when the R3 group has SMOs in it; residents with no year known are "Year unknown"
 const groupName = (y, all) => !y ? 'Year unknown' : y === 3 && all.some(s => s.smo) ? 'R3 / SMO' : yearName(y);
 // gen: bumped on sign-out, so a load still running for the last person is dropped
@@ -456,6 +460,38 @@ export function renderTotals() {
   const nameBar = h('p', { class: 'hint tname', 'aria-live': 'polite', style: 'margin:6px 0 0;min-height:1.2em' });
   const table = totalsTable(people, { compact, targets, onName: (p, short) => { nameBar.textContent = `${short} = ${p.name} · ${p.smo ? 'SMO' : p.rYear ? yearName(p.rYear) : '?'}`; } });
   const flip = (k, on) => () => { setDisplay({ [k]: on ? null : false }); hooks.render(); };
+  // Never scrolls sideways, so a sideways swipe on it changes tab (owner, 29 Oct 2026): as many people as fit the
+  // width, ‹ › for the next ones. The Category column stays. The downloads keep everyone.
+  const wrap = h('div', { class: 'scroll tscroll paged', style: 'margin-top:8px', tabindex: '0', role: 'region', 'aria-label': 'Totals table' }, table.el);
+  const label = h('span', { class: 'hint tpage', 'aria-live': 'polite' });
+  const step = d => () => { tview.col += d * per; show(); };
+  const prev = h('button', { type: 'button', class: 'small', 'aria-label': 'Previous people', onclick: step(-1) }, '‹');
+  const next = h('button', { type: 'button', class: 'small', 'aria-label': 'Next people', onclick: step(1) }, '›');
+  const pager = [prev, next, label];
+  if (tview.colYear !== tview.year) { tview.colYear = tview.year; tview.col = 0; }
+  let per = people.length;
+  const cells = () => [...table.el.rows].map(r => [...r.cells]);
+  function show() {
+    const n = people.length;
+    tview.col = Math.max(0, Math.min(tview.col, n - 1)); tview.col -= tview.col % per;   // whole pages; the last may be short
+    const a = tview.col, b = Math.min(n, a + per);
+    for (const row of cells()) row.forEach((c, i) => { if (i) c.hidden = i - 1 < a || i - 1 >= b; });
+    for (const el of pager) el.hidden = per >= n;
+    label.textContent = `${a + 1}–${b} of ${n}`;
+    prev.disabled = a === 0; next.disabled = b >= n;
+  }
+  // how many fit: every column shown, the widest person's column against the room left beside Category
+  function fit() {
+    if (!wrap.isConnected) return;
+    const rows = cells();
+    rows.forEach(row => row.forEach(c => { c.hidden = false; }));
+    const head = rows[0], w = c => c.getBoundingClientRect().width;
+    const col = Math.max(1, ...rows.map(row => Math.max(0, ...row.slice(1).map(w))));
+    per = Math.max(1, Math.min(people.length, Math.floor((wrap.clientWidth - w(head[0]) - 2) / col)));
+    show();
+  }
+  tview.fit = fit;
+  requestAnimationFrame(fit);
 
   add(card, 
     h('div', { class: 'bar' },
@@ -467,11 +503,12 @@ export function renderTotals() {
       h('button', { class: 'small', onclick: () => { tview.summaries = null; hooks.render(); } }, 'Refresh'),
       h('button', { class: 'small', onclick: () => downloadTotals(table.data) }, 'Download Excel'),
       h('button', { class: 'small', onclick: () => downloadAllYears(all) }, 'Download all years (zip)')),
-    legend(),
-    // scrolls both ways inside the card (focusable and named so the keyboard can reach it), so the names row and the
-    // category column stay put (owner, 15 Oct 2026)
+    // ‹ and › either side of the key, just above the table (owner, 29 Oct 2026)
+    h('div', { class: 'tlegend' }, prev, legend(), label, next),
+    // scrolls down inside the card (focusable and named so the keyboard can reach it), so the names row stays put
+    // (owner, 15 Oct 2026)
     compact ? nameBar : null,
-    h('div', { class: 'scroll tscroll', style: 'margin-top:8px', tabindex: '0', role: 'region', 'aria-label': 'Totals table' }, table.el),
+    wrap,
     table.key ? h('p', { class: 'hint tkey', style: 'margin:6px 0 0' }, table.key.map(([sh, n]) => `${sh} = ${n}`).join(' · ')) : null,
     // how the counts add up, below the table (owner, 15 Oct 2026); and the target lines
     h('div', { class: 'bar', style: 'margin-top:10px;align-items:center' }, countSwitch(),

@@ -76,8 +76,8 @@ Part of the logbook working notes; index of screens in [../screens.md](../screen
 - **Reset all settings** (Settings, last card; owner, 15 Oct 2026): this device only, or the account too
   (`settings-file.js` `resetAccountPatch`: your year, profile, saved searches, send and sync places and the app's
   bookkeeping stay; tags and shorthand only when ticked). Saves a settings file first by default; Undo in the toast.
-- **Default tab bars** (owner, 15 Oct 2026; `profiles.js` PROFILE_ON / PROFILE_OFF): logbook only Case · Logbook ·
-  Totals · More; Basic + Reflections; Advanced + Reflections · Analytics; Personal Case · Logbook · Notes · Reflections ·
+- **Default tab bars** (owner, 15 Oct 2026; `profiles.js` PROFILE_ON / PROFILE_OFF): Basic Case · Logbook ·
+  Totals · Reflections · More; Advanced + Reflections · Analytics; Personal Case · Logbook · Notes · Reflections ·
   Analytics · More; Faculty / PCs Totals · Admin · More. Devices arranged by hand keep their arrangement.
 - **More page:** two groups (More's pages with Settings last; Account and help), privacy and credits as fine print. Its
   Edit mode (per device) drags the tab bar and More's own list (`display().moreOrder`), Pin / Take off (a full bar asks
