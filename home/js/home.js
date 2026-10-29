@@ -1,5 +1,6 @@
-// The APMES home page (apmes.anawj.com/): the live apps, MedHub and the guidebook (/guide/), from links.js;
-// the counts card (counts.js, off unless turned on on this device) and a Light / Dark switch (theme.js).
+// The APMES home page (apmes.anawj.com/, and /home/ as the installed app): the live apps, MedHub and the guidebook
+// (/guide/), from links.js; the counts card (counts.js, off unless turned on on this device) and a Light / Dark switch
+// (theme.js).
 import { visibleSections } from './links.js';
 import * as theme from './theme.js';
 import * as counts from './counts.js';
@@ -86,3 +87,9 @@ const main = document.getElementById('main');
 main.append(...sections(), countsSection(), themeSection(),
   h('p', { class: 'a-footnote h-foot' }, 'Unofficial programme tools. They do not replace the official record.'));
 paintCounts();
+
+// ---- the installable app: keep this page offline (/home/sw.js, scope /home/, never the Logbook's or the others') ----
+// through the shared update core (app-update, the exact version sw.js loads); import() so the page still works when
+// the core's site can't be reached
+if ('serviceWorker' in navigator && isSecureContext && !new URLSearchParams(location.search).has('nosw'))
+  import('https://core.anawj.com/update/0.2.0/register.js').then(m => m.register({ app: 'home', sw: '/home/sw.js' })).catch(() => {});
