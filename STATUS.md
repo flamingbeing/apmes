@@ -17,6 +17,9 @@
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 30 Oct 2026: home page as an installable app (manifest id `/home/`, start `/home/`, scope `/`, grid icon in
+  `home/icons/`); `home/sw.js` (scope `/home/` only, so it never answers the Logbook's or other apps' pages) keeps it
+  offline; e2e step 7. Install from apmes.anawj.com (Share › Add to Home Screen, or Chrome's Install).
 - 25 Oct 2026: app-sync 0.7.3 in all apps (was 0.6.3; #52-#55), pin only. Precaches the new `src/cache.js`;
   held unchanged (logbook by field; evals and CCC inert). Since 0.7.2 a save shows in the lists as soon as it is made.
 - 25 Oct 2026: app-sync 0.6.3 in all apps. Logbook saves now merge by field (held conflicts): only the same field

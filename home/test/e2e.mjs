@@ -295,6 +295,44 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   server.close();
 }
 
+// 7. the home page as an installable app: a manifest and icons, and its own worker (scope /home/ only) saves the
+//    page, so the installed app (start /home/) opens offline; the Logbook and the other apps are left to their own
+{
+  const http = await import('node:http');
+  const server = http.createServer((req, res) => {
+    const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
+    let f = path.join(root, rel);
+    if (!f.startsWith(root) || !fs.existsSync(f)) { res.writeHead(404); return res.end('not found'); }
+    if (fs.statSync(f).isDirectory()) f = path.join(f, 'index.html');
+    res.writeHead(200, { 'Content-Type': MIME[f.split('.').pop()] || 'application/octet-stream' });
+    res.end(fs.readFileSync(f));
+  });
+  await new Promise(ok => server.listen(0, '127.0.0.1', ok));
+  const base = `http://localhost:${server.address().port}/home/`;
+  const c3 = await b.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await c3.newPage();
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(base);
+  const href = await page.locator('link[rel="manifest"]').getAttribute('href');
+  const m = JSON.parse(fs.readFileSync(path.join(root, href.replace(/^\//, '')), 'utf8'));
+  assert.equal(m.id, '/home/', 'manifest id is fixed');
+  assert.equal(m.start_url, '/home/', 'the installed app starts where its worker is');
+  for (const i of m.icons) assert.ok(fs.existsSync(path.join(root, 'home', i.src)), i.src);
+  assert.ok(fs.existsSync(path.join(root, (await page.locator('link[rel="apple-touch-icon"]').getAttribute('href')).slice(1))), 'apple-touch-icon');
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.waitForFunction(async () => {
+    const k = (await caches.keys()).find(x => x.startsWith('home-') && !x.startsWith('home-rt-'));
+    return k && (await (await caches.open(k)).keys()).some(r => r.url.endsWith('/home/js/home.js'));
+  }, null, { timeout: 15000 });
+  assert.deepEqual(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).map(r => new URL(r.scope).pathname)), ['/home/'], 'one worker, for /home/ only');
+  await c3.setOffline(true);
+  await page.reload();
+  await page.getByRole('heading', { name: 'Apps' }).waitFor();
+  await page.getByRole('link', { name: 'Open Logbook' }).waitFor();
+  await c3.close();
+  server.close();
+}
+
 assert.deepEqual(errors, [], 'no page errors');
 await b.close();
 console.log('home e2e: ok');
