@@ -15,6 +15,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>
+  addEventListener('beforeinstallprompt', e => e.preventDefault());   // installable, never prompted
   try {
     var own = localStorage.getItem('apmes-home-theme'), t = localStorage.getItem('apmes-logbook-theme'), de = document.documentElement;
     de.dataset.theme = own === 'light' || own === 'dark' ? own : t === 'dark' || t === 'oled' ? 'dark' : t === 'auto' ? 'auto' : 'light';
