@@ -3,7 +3,9 @@
 // memory in node). The same engine runs on Firestore in the app and on the demo backend in the browser tests; the
 // emulator test (test/e2e/reads.emulator.mjs) counts real Firestore reads.
 import assert from 'node:assert/strict';
-import { plan, applyChanges, replaceAll, applyTombs, pruneGone, binTombs, eachSettled, createCollectionSync, createSyncHub, replanOnWake, SKEW, FULL_EVERY, GONE_KEEP, REPLAN_EVERY } from '../js/app-sync.js';
+import { eachSettled, createSyncHub, replanOnWake, SKEW } from '../js/app-sync.js';
+// the engine's internals (not in index.js since 1.0; same version as js/app-sync.js)
+import { plan, applyChanges, replaceAll, applyTombs, pruneGone, binTombs, createCollectionSync, FULL_EVERY, GONE_KEEP, REPLAN_EVERY } from 'https://core.anawj.com/sync/1.5.4/src/internal.js';
 import { openStore, wipeStores, storeName } from '../js/store.js';
 
 // the logbook's bin entry kinds (cloud.js passes the same to the hub)
