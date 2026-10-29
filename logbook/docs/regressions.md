@@ -65,7 +65,7 @@ Run `logbook/test/e2e/recovery.mjs` beside the full E2E suite for rejected write
 
 ### Back, search and everyday logging (Codex usability review)
 
-Dialogs and reflection editors/pickers/heading choices use finite, opaque history entries. Browser Back dismisses the top view before leaving its screen; manual closes consume the same entry. Dialogs restore focus/caret. Back-dismissed reflection and case-edit drafts remain in More → Recent changes / Recover drafts, including learning-point-only and legacy drafts. Sign-out clears pending toast actions and drops transient callbacks before cleanup; direct account changes clear the old screen immediately. Undo waits for its durable delete and preserves text entered while it is finishing.
+Tabs go back as Android apps do (29 Oct 2026, app-ui `ui/tab-back.js` in `js/navigation.js`): switching tabs adds at most one history entry (it used to push one per tab, so Back walked through every tab), Back on another tab goes to the start tab, and Back there leaves the app. Pages under a tab (Settings, its pages, More's pages) still push; a tab tap from one unwinds them first, and a `location.hash = '#tab'` change becomes a tab switch. Dialogs and reflection editors/pickers/heading choices use finite, opaque history entries. Browser Back dismisses the top view before leaving its screen; manual closes consume the same entry. Dialogs restore focus/caret. Back-dismissed reflection and case-edit drafts remain in More → Recent changes / Recover drafts, including learning-point-only and legacy drafts. Sign-out clears pending toast actions and drops transient callbacks before cleanup; direct account changes clear the old screen immediately. Undo waits for its durable delete and preserves text entered while it is finishing.
 
 Natural-language date search protects quoted phrases, field operands and exclusions before recognizing dates; literal whitespace is preserved. Category-name revisions invalidate search haystacks alongside personal tag changes. List and Pills use a multiselect listbox, roving option focus and a labelled combobox; empty-query ArrowDown+Enter works. The collapsed list reports its actual expanded state.
 
@@ -94,6 +94,7 @@ Unit tests run with `for f in logbook/test/*.test.mjs; do node "$f"; done`; e2e 
 | App version and "Get the latest version" | `test/e2e/app-version.mjs` |
 | Device recovery | `test/e2e/recovery.mjs`, `writes.test.mjs` |
 | Back, search and everyday logging | `test/e2e/usability.mjs` |
+| Back with tabs | `test/navigation.test.mjs`, `test/e2e/back-tabs.mjs` |
 | Same as last keeps line 1 | `logging.test.mjs`, `test/e2e/logging-speed.mjs` |
 
 Not practical as unit tests (UI or timing; covered only by the full e2e run or by hand): case rows have no swipe

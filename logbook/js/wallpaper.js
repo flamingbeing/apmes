@@ -12,8 +12,8 @@
 //
 // The engine is the UI kit's add-on (app-ui theme/addons/wallpaper.js, ported from here); the photo stays in this
 // device's IndexedDB 'apmes-logbook-wall' (store 'files', key 'photo'), so a photo chosen before is still there.
-import { photoStore } from 'https://core.anawj.com/ui/1.0.0-rc.37/theme/addons/wallpaper.js';
-export * from 'https://core.anawj.com/ui/1.0.0-rc.37/theme/addons/wallpaper.js';
+import { photoStore } from 'https://core.anawj.com/ui/1.0.0-rc.42/theme/addons/wallpaper.js';
+export * from 'https://core.anawj.com/ui/1.0.0-rc.42/theme/addons/wallpaper.js';
 
 const photo = photoStore('apmes-logbook-wall');
 export const getPhoto = photo.get, putPhoto = photo.put, deletePhoto = photo.remove, savePhoto = photo.save;

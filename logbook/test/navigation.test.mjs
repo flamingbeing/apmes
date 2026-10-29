@@ -50,6 +50,69 @@ function browser(hash = '#log') {
   b.nav.sync('account'); assert.equal(b.visited.length, 1, 'popstate/hashchange pair renders once');
   b.nav.back('more'); b.nav.sync('log'); assert.equal(b.visited.at(-1)[0], 'log');
 }
+// Back with tabs (app-ui tab-back.js): switching tabs adds at most one entry; Back on another tab goes to the first
+// tab, Back there leaves; pages over a tab still push, and a tab tap from one unwinds them
+{
+  const { tabBack } = await import('../js/kit.js');
+  const tick = () => new Promise(r => setTimeout(r, 0));
+  function tabbed(hash = '#log', first = 'log') {
+    const location = { pathname: '/logbook/', search: '', hash };
+    const entries = [{ state: null, url: '/logbook/' + hash }];
+    let index = 0;
+    const listeners = [];
+    const events = { addEventListener: (t, f) => t === 'popstate' && listeners.push(f), removeEventListener() {} };
+    const moved = () => { location.hash = entries[index].url.slice(entries[index].url.indexOf('#')); setTimeout(() => listeners.forEach(f => f())); };
+    const history = {
+      get state() { return structuredClone(entries[index].state); },
+      replaceState(state, _, url = entries[index].url) { entries[index] = { state: structuredClone(state), url }; location.hash = url.slice(url.indexOf('#')); },
+      pushState(state, _, url = entries[index].url) { entries.splice(++index); entries.push({ state: structuredClone(state), url }); location.hash = url.slice(url.indexOf('#')); },
+      back() { history.go(-1); },
+      go(d) { const to = index + d; if (to < 0) { index = -1; return; } if (to < entries.length) { index = to; moved(); } },
+    };
+    const visited = [];
+    const nav = createNavigation({ history, location, parents: { settings: 'more', layout: 'settings' },
+      allowed: id => ['log', 'logbook', 'reflect', 'more', 'settings', 'layout'].includes(id),
+      onNavigate: tab => visited.push(tab), tabBack, events,
+      isTab: id => ['log', 'logbook', 'reflect', 'more'].includes(id), firstTab: () => first });
+    events.addEventListener('popstate', () => { if (index >= 0) nav.sync(location.hash.slice(1)); });
+    return { nav, entries, visited, history, location, at: () => index };
+  }
+  const b = tabbed();
+  b.nav.initialize('log');
+  b.nav.go('logbook'); b.nav.go('reflect'); b.nav.go('more');
+  assert.equal(b.entries.length, 2, 'tab A -> B -> C -> D adds one entry');
+  assert.equal(b.location.hash, '#more');
+  b.history.back(); await tick();
+  assert.equal(b.location.hash, '#log'); assert.equal(b.visited.at(-1), 'log', 'Back on another tab: the first tab');
+  b.history.back();
+  assert.equal(b.at(), -1, 'Back on the first tab leaves');
+
+  const c = tabbed(); c.nav.initialize('log');
+  c.nav.go('logbook'); c.nav.go('log'); await tick();
+  assert.equal(c.at(), 0, 'tapping the first tab takes its entry away'); assert.equal(c.visited.at(-1), 'log');
+  c.nav.go('more'); c.nav.go('settings'); c.nav.go('layout');
+  assert.equal(c.entries.length, 4, 'pages over a tab push');
+  c.history.back(); await tick(); assert.equal(c.visited.at(-1), 'settings', 'Back closes a pushed page first');
+  c.nav.go('layout'); c.nav.go('reflect'); await tick();
+  assert.equal(c.location.hash, '#reflect'); assert.equal(c.at(), 1, 'a tab tap from a pushed page unwinds it');
+  assert.equal(c.visited.at(-1), 'reflect');
+  c.history.back(); await tick(); assert.equal(c.visited.at(-1), 'log');
+
+  // opened on a link to another tab: that entry becomes the first tab's once Back comes down to it
+  const d = tabbed('#reflect'); d.nav.initialize('reflect');
+  d.nav.go('logbook'); assert.equal(d.entries.length, 2);
+  d.history.back(); await tick();
+  assert.equal(d.location.hash, '#log'); assert.equal(d.visited.at(-1), 'log', 'Back from a tab lands on the first tab');
+  // a native hash change to a tab (location.hash = '#logbook', state copied) is kept as a base tab entry: the first
+  // tab replaces it, never steps back below it
+  d.nav.go('more'); d.nav.go('settings');
+  d.history.pushState(d.history.state, '', '/logbook/#logbook'); d.nav.sync('logbook');
+  assert.equal(d.visited.at(-1), 'logbook'); const at = d.at();
+  d.nav.go('log'); await tick();
+  assert.equal(d.at(), at, 'replaced in place'); assert.equal(d.location.hash, '#log'); assert.equal(d.visited.at(-1), 'log');
+  d.nav.go('reflect'); d.history.back(); await tick();
+  assert.equal(d.location.hash, '#log', 'Back from a tab over it: the first tab');
+}
 // theme-revamp S3: Display and Advanced display are gone; old links and copied links to a setting land on its new page
 {
   assert.deepEqual(movedSetting('display', ''), ['layout', '']);

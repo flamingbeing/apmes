@@ -7,7 +7,7 @@
 // How to write themes with it: docs/theme-engine.md. Pure, unit-tested (test/theme-engine.test.mjs).
 
 import { cleanAccent, lightPalette, darkPalette } from './colors.js';
-import { iconSetPath } from 'https://core.anawj.com/ui/1.0.0-rc.37/theme/addons/icon-sets.js';
+import { iconSetPath } from 'https://core.anawj.com/ui/1.0.0-rc.42/theme/addons/icon-sets.js';
 
 // the fields every rule below restyles (the app's text boxes, dropdowns and case box)
 const FIELDS = ['input[type="text"]', 'input[type="password"]', 'input[type="search"]', 'input[type="email"]', 'input:not([type])', 'input[type="date"]', 'input[type="number"]', 'select', 'textarea'];
