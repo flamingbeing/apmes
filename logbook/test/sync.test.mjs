@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { eachSettled, createSyncHub, replanOnWake, SKEW } from '../js/app-sync.js';
 // the engine's internals (not in index.js since 1.0; same version as js/app-sync.js)
-import { plan, applyChanges, replaceAll, applyTombs, pruneGone, binTombs, createCollectionSync, FULL_EVERY, GONE_KEEP, REPLAN_EVERY } from 'https://core.anawj.com/sync/1.5.4/src/internal.js';
+import { plan, applyChanges, replaceAll, applyTombs, pruneGone, binTombs, createCollectionSync, FULL_EVERY, GONE_KEEP, REPLAN_EVERY } from 'https://core.anawj.com/sync/1.5.5/src/internal.js';
 import { openStore, wipeStores, storeName } from '../js/store.js';
 
 // the logbook's bin entry kinds (cloud.js passes the same to the hub)
