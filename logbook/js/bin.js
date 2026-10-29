@@ -63,8 +63,10 @@ export async function moveToBin(kind, item, extra = {}) {
   // in parallel: offline, each write waits up to ACK_WAIT before it counts as queued. A Google Form case is also listed
   // for good (form-inbox.js), so its response doesn't bring it back once the bin entry has gone; if that fails, the bin
   // entry still stops it, and the list is written again before the entry goes (keepFormGone)
-  await Promise.all([...entries.map(e => cloud.saveBinEntry(owner, e)),
-    kind === 'case' ? cloud.addFormGone(owner, entries.map(e => e.data.id)).catch(err => console.warn('Deleted Form case not listed yet', err)) : null]);
+  // a copy refused at once stops it (the originals stay) and is set aside, so Retry can't bin a record never deleted
+  await Promise.all([...entries.map(e => writes.save('bin', owner, e)),
+    kind === 'case' ? cloud.addFormGone(owner, entries.map(e => e.data.id)).catch(err => console.warn('Deleted Form case not listed yet', err)) : null])
+    .catch(async err => { await Promise.all(entries.map(e => dropBinEntry(owner, e.id).catch(() => {}))); throw err; });
   if (S.user?.email !== owner) throw new Error('Account changed; the original record has not been deleted');
   binCache = [...entries, ...binCache];
   // if deleting an original fails it is still there: its copy leaves the bin again, or other devices would hide the
@@ -118,7 +120,7 @@ export async function moveToBin(kind, item, extra = {}) {
 async function rollBack(owner, kind, entries) {
   if (S.user?.email !== owner) return;   // (signed out or switched: the old account's bin can't be reached)
   for (const e of entries) {
-    try { await cloud.deleteBinEntry(owner, e.id); binCache = binCache.filter(x => x.id !== e.id); }
+    try { await dropBinEntry(owner, e.id); binCache = binCache.filter(x => x.id !== e.id); }
     catch (err) { console.warn('Bin entry left after a failed delete', e.id, err); }
     const job = writes.entries().find(x => x.kind === kind && x.record.id === e.data.id && (x.state === 'failed' || x.state === 'conflict'));
     if (job) await writes.archive(job.key).catch(() => {});
@@ -163,9 +165,25 @@ function watchDeletes(owner, kind, entries) {
   check();
 }
 
+// Bin entries are saved and removed through the write queue (kind 'bin', cloud.commitRecord), so they work offline and
+// a record's delete goes after its copy. A copy not sent yet (failed, or still waiting) is set aside before its removal
+// is queued, or the removal would wait behind it.
+async function dropBinEntry(owner, id) {
+  for (const x of writes.entries()) if (x.kind === 'bin' && x.record.id === id && !x.record._deleted && (x.state === 'pending' || x.state === 'failed')) await writes.archive(x.key).catch(() => {});
+  await writes.save('bin', owner, { id, _deleted: true });
+}
+// this device's bin saves not sent yet show in its list (as the SDK's own cache did): a copy waiting is there, an
+// entry restored or deleted is gone
+function withQueued(entries) {
+  const latest = new Map();   // entries(): newest first
+  for (const x of writes.entries()) if (x.kind === 'bin' && x.state === 'pending' && !latest.has(x.record.id)) latest.set(x.record.id, x.record);
+  if (!latest.size) return entries;
+  return [...entries.filter(e => !latest.has(e.id)), ...[...latest.values()].filter(r => !r._deleted)].sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+}
+
 async function findEntry(id) {
   let e = binCache.find(x => x.id === id);
-  if (!e) { binCache = await cloud.listBin(mine()); e = binCache.find(x => x.id === id); }
+  if (!e) { binCache = withQueued(await cloud.listBin(mine())); e = binCache.find(x => x.id === id); }
   return e || null;
 }
 
@@ -213,7 +231,7 @@ export async function restoreFromBin(id) {
       out = await writes.save('reflection', mine(), out, null);
     }
   }
-  await cloud.deleteBinEntry(mine(), e.id);
+  await dropBinEntry(mine(), e.id);
   binCache = binCache.filter(x => x.id !== e.id);
   return out;
 }
@@ -225,7 +243,7 @@ const keepFormGone = (who, entries) => cloud.addFormGone(who, entries.filter(e =
 export async function deleteForever(id) {
   const e = await findEntry(id);
   if (e) await keepFormGone(mine(), [e]);
-  await cloud.deleteBinEntry(mine(), id);
+  await dropBinEntry(mine(), id);
   binCache = binCache.filter(x => x.id !== id);
   if (e) await dropImages([e]);
 }
@@ -256,7 +274,7 @@ export async function purgeExpired({ now = Date.now(), force = false } = {}) {
   const old = binCache.filter(e => isExpired(e, now));
   if (!old.length) return 0;
   await keepFormGone(who, old);
-  for (const e of old) await cloud.deleteBinEntry(who, e.id);
+  for (const e of old) await dropBinEntry(who, e.id);
   binCache = binCache.filter(e => !old.includes(e));
   await dropImages(old);
   return old.length;
@@ -301,19 +319,25 @@ export function renderBin({ title = true } = {}) {
     h('p', { class: 'hint' }, `Deleted cases, reflections and notes are kept for ${BIN_DAYS} days, then removed for good.`),
     list);
   if (!S.user) { fill(list, h('p', { class: 'empty' }, 'Sign in to see your recycle bin.')); return el; }
-  let seen = false, stop = null;
-  stop = cloud.watchBin(mine(), entries => {
-    if (seen && !el.isConnected) { if (stop) stop(); return; }
-    seen = true;
-    binCache = entries;
-    const live = entries.filter(e => !isExpired(e));
+  let seen = false, stop = null, offQueue = null, last = null;
+  const draw = () => {
+    binCache = withQueued(last);
+    const live = binCache.filter(e => !isExpired(e));
     fill(list, live.length
       ? h('ul', { class: 'bin-list' }, live.map(row))
       : h('p', { class: 'empty' }, 'The recycle bin is empty.'));
+  };
+  const quit = () => { if (stop) stop(); if (offQueue) offQueue(); };
+  stop = cloud.watchBin(mine(), entries => {
+    if (seen && !el.isConnected) { quit(); return; }
+    seen = true; last = entries;
+    draw();
   });
+  // a bin save made or sent on this device shows at once
+  offQueue = writes.onChange(() => { if (seen && el.isConnected) draw(); });
   // stop listening when the view goes away
   const mo = typeof MutationObserver === 'function' ? new MutationObserver(() => {
-    if (seen && !el.isConnected) { if (stop) stop(); mo.disconnect(); }
+    if (seen && !el.isConnected) { quit(); mo.disconnect(); }
   }) : null;
   if (mo) setTimeout(() => mo.observe(document.body, { childList: true, subtree: true }), 0);
   return el;

@@ -19,13 +19,14 @@ try { for (const width of [390, 1280]) {
   await p.goto(base + '?demo#log'); await p.waitForSelector('textarea.details');
 
   // ---- the recycle bin: a delete that fails leaves no copy in the bin ----
+  // (the fakes fail only the record's delete: bin entries go through the same write queue since app-sync 1.x)
   const binHas = id => p.evaluate(async id => { const { cloud, S } = await import('./js/ui-core.js'); return (await cloud.listBin(S.user.email)).some(e => e.data.id === id); }, id);
   const hasCase = id => p.evaluate(async id => (await import('./js/ui-core.js')).S.cases.some(c => c.id === id), id);
   const ids = await p.evaluate(async () => (await import('./js/ui-core.js')).S.cases.slice(0, 2).map(c => c.id));
   // refused at once (a rules error): the move throws, the case stays, its bin entry goes
   const quick = await p.evaluate(async id => {
     const { writes, cloud, S } = await import('./js/ui-core.js'), { moveToBin } = await import('./js/bin.js');
-    writes.configure({ backend: async (email, kind, rec, bs) => { if (rec._deleted) throw Object.assign(new Error('Fake refusal'), { code: 'permission-denied' }); return cloud.commitRecord(email, kind, rec, bs); } });
+    writes.configure({ backend: async (email, kind, rec, bs) => { if (rec._deleted && kind !== 'bin') throw Object.assign(new Error('Fake refusal'), { code: 'permission-denied' }); return cloud.commitRecord(email, kind, rec, bs); } });
     try { await moveToBin('case', S.cases.find(c => c.id === id)); return 'moved'; } catch (err) { return err.message; } finally { writes.configure({ backend: cloud.commitRecord }); }
   }, ids[0]);
   assert.match(quick, /Fake refusal/);
@@ -34,7 +35,7 @@ try { for (const width of [390, 1280]) {
   // accepted, then failing (a connection that only looks online): the copy leaves the bin when it fails
   await p.evaluate(async id => {
     const { writes, cloud, S } = await import('./js/ui-core.js'), { moveToBin } = await import('./js/bin.js');
-    writes.configure({ backend: async (email, kind, rec, bs) => { if (!rec._deleted) return cloud.commitRecord(email, kind, rec, bs); await new Promise(r => setTimeout(r, 600)); throw new Error('Fake: the client is offline'); } });
+    writes.configure({ backend: async (email, kind, rec, bs) => { if (!rec._deleted || kind === 'bin') return cloud.commitRecord(email, kind, rec, bs); await new Promise(r => setTimeout(r, 600)); throw new Error('Fake: the client is offline'); } });
     await moveToBin('case', S.cases.find(c => c.id === id));
   }, ids[1]);
   assert.equal(await binHas(ids[1]), true, 'in the bin while the delete is under way');
@@ -43,7 +44,9 @@ try { for (const width of [390, 1280]) {
   await poll(() => hasCase(ids[1]), 'the case shows again');
   // the failed delete is set aside (no Retry without a copy in the bin), and the case saved again after the binned
   // version, so devices whose bin feed hid it show it again
-  const jobs = await p.evaluate(async id => (await import('./js/ui-core.js')).writes.entries().filter(x => x.record.id === id).map(x => [x.state, !!x.record._deleted]), ids[1]);
+  const jobsOf = id => p.evaluate(async id => (await import('./js/ui-core.js')).writes.entries().filter(x => x.record.id === id).map(x => [x.state, !!x.record._deleted]), id);
+  await poll(async () => (await jobsOf(ids[1]))[0]?.[0] === 'synced', 'the case saved again');
+  const jobs = await jobsOf(ids[1]);
   assert.deepEqual(jobs[0], ['synced', false]); assert.ok(jobs.some(([s, del]) => s === 'archived' && del), JSON.stringify(jobs));
 
   // ---- the response sheet's outbox: a new case deleted and brought back is queued again ----
@@ -65,7 +68,7 @@ try { for (const width of [390, 1280]) {
     const { S, createCase, writes, cloud } = await import('./js/ui-core.js'), { moveToBin } = await import('./js/bin.js');
     const c = await createCase({ details: 'ST 50M fake hernia repair', cats: ['13'] });
     writes.configure({ backend: async (email, kind, rec, bs) => {
-      if (!rec._deleted) return cloud.commitRecord(email, kind, rec, bs);
+      if (!rec._deleted || kind === 'bin') return cloud.commitRecord(email, kind, rec, bs);
       await new Promise(r => setTimeout(r, 600));
       const remote = await cloud.saveCase(email, { ...c, details: 'fake hernia repair, edited on another device', updatedAt: Date.now() });
       throw Object.assign(new Error('This record changed elsewhere. Both versions are kept in Recover'), { code: 'write-conflict', remote });

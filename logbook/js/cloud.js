@@ -31,6 +31,7 @@ import { mergePaths } from './profiles.js';
 import { cleanNote } from './notepad.js';
 import { createSyncHub, createFirestoreBackend, createWatchdog, replanOnWake, persistGuard, forgetDevice, eachSettled, SKEW } from './app-sync.js';
 import { openStore, wipeStores } from './store.js';
+import { queue } from './sync-app.js';
 import { plain, cleanCase, cleanSummary, cleanResident, cleanTemplate, importDocId, defaultLogbook, cleanReflection, cleanImage, cleanCategoryNames, cleanSubmission } from './clean.js';
 export { cleanSubmission };
 
@@ -512,14 +513,17 @@ export async function saveCase(email, c) {
 // The recovery queue supplies durable offline storage. On reconnect, a transaction
 // checks the version the editor started from before replacing an existing record.
 // No new document fields/permissions are needed; history remains private to this device.
-const CLEAN = { case: cleanCase, reflection: cleanReflection, note: cleanNote };
+const CLEAN = { case: cleanCase, reflection: cleanReflection, note: cleanNote, bin: e => cleanBinEntry(e) };
 const COLLECTION = { case: 'cases', reflection: 'reflections', note: 'notes' };
 export function cleanWrite(kind, input) { return input._deleted ? { id: String(input.id), _deleted: true } : CLEAN[kind](input); }
 // Every note write comes through here too (notes: saved after a pause in typing, ui-notepad.js)
+// Recycle-bin entries come through here too (kind 'bin', bin.js): commitBin.
 export async function commitRecord(email, kind, input, base) {
+  if (kind === 'bin') return commitBin(email, input);
   const collection = COLLECTION[kind];
   const deleted = input._deleted === true;
   const doc = cleanWrite(kind, input);
+  if (deleted) await binFirst(kind, doc.id);
   const canonical = value => value ? CLEAN[kind](value, 0) : null;
   const compare = current => checkWrite(canonical(current), deleted ? null : doc, canonical(base));
   if (demo) {
@@ -538,6 +542,34 @@ export async function commitRecord(email, kind, input, base) {
   // a delete for good: off this device's copy too (other devices: see sync.js, Limits)
   if (deleted) await hub.drop(lc(email), collection, [doc.id]);
   return out;
+}
+
+// A record's delete goes after its recycle-bin copy (bin.js saves that first, both through the write queue): a copy
+// still being sent is waited for a little, then the delete tries again later; a copy that failed stops the delete too
+// (bin.js puts the record back). No copy waiting (sent, or not deleted through the bin) is fine.
+async function binFirst(kind, id) {
+  const open = () => queue.entries().filter(x => x.kind === 'bin' && !x.record._deleted && x.record.kind === kind && x.record.data?.id === id && x.state !== 'synced' && x.state !== 'archived');
+  let jobs = open();
+  if (jobs.some(x => x.state === 'pending')) { await queue.settle('bin', jobs.map(x => x.record.id), 8000); jobs = open(); }
+  if (jobs.some(x => x.state === 'failed' || x.state === 'conflict')) throw new Error('Its recycle bin copy was not saved, so it has not been deleted');
+  if (jobs.length) throw Object.assign(new Error('Waiting for its recycle bin copy'), { code: 'unavailable' });
+}
+// A bin entry through the write queue (kept on this device until the server has it): a plain write, never merged. One
+// sent more than SKEW/2 after the delete is stamped now, so other devices' "changed since" reads still find it (as the
+// late restamp did when bin entries went straight to the SDK).
+async function commitBin(email, input) {
+  if (input._deleted === true) {
+    const id = String(input.id);
+    if (demo) await D.deleteBinEntry(email, id);
+    else { const { db, F } = await sdk(); await F.deleteDoc(F.doc(db, 'logbooks', lc(email), 'bin', id)); }
+    return { id, _deleted: true };
+  }
+  const doc = cleanBinEntry(input), now = Date.now();
+  if (now - doc.deletedAt > SKEW / 2) doc.deletedAt = now;
+  if (demo) return D.saveBinEntry(email, doc);
+  const { db, F } = await sdk();
+  await F.setDoc(F.doc(db, 'logbooks', lc(email), 'bin', doc.id), { ...doc, ...await serverStamp() });
+  return doc;
 }
 
 export async function deleteCase(email, id) {
