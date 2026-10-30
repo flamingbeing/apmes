@@ -65,8 +65,9 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
   `warmUp`), never in `index.html`'s modulepreloads or a static import from the Add tab. Why: a phone on hospital
   Wi-Fi waits for every startup file. Over the cap means move code off startup, not raise the cap.
 - **Logbook bundle** (deploy only, `tools/bundle-logbook.mjs`; Checks "Logbook bundle"): the deploy joins the
-  logbook's startup files into a few (282 KiB / 62 requests → 160 KiB / 20, 30 Oct 2026). Keep every `import()` of a
-  logbook file literal (`import('./x.js')`): a built path loads the source file as a second copy of that module.
+  logbook's startup files into a few, with the core's modules at their exact pins (about 60 scripts → 23, 30 Oct
+  2026). Keep every `import()` of a logbook or core file literal (`import('./x.js')`, the full core address): a built
+  path loads a second copy of that module, with its own state.
   Tests and local runs use the source; the bundle is never committed.
 
 ## Checks before merging

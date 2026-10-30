@@ -33,13 +33,14 @@ export { holdKeyboard } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/keep-keyb
 export { watchKeyboard } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/keyboard.js';
 export { LABELS } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/labels.js';
 
+// (a literal address each, at KIT_VERSION, so the deploy bundle (tools/bundle-logbook.mjs) can take them in)
 let theme = null, modal = null;
-const loadTheme = () => (theme ||= import(KIT + 'theme/index.js'));
-const loadModal = () => (modal ||= import(KIT + 'ui/modal.js'));
+const loadTheme = () => (theme ||= import('https://core.anawj.com/ui/1.0.0-rc.63/theme/index.js'));
+const loadModal = () => (modal ||= import('https://core.anawj.com/ui/1.0.0-rc.63/ui/modal.js'));
 const missing = (e) => console.warn('UI kit not loaded', e);
 
 export let motion = null;
-export const loadMotion = () => import(KIT + 'ui/motion.js').then(m => { motion = m; return m; }, e => { missing(e); return null; });
+export const loadMotion = () => import('https://core.anawj.com/ui/1.0.0-rc.63/ui/motion.js').then(m => { motion = m; return m; }, e => { missing(e); return null; });
 
 export async function startKit({ accent } = {}) {
   if (typeof document === 'undefined') return;   // (node tests)
