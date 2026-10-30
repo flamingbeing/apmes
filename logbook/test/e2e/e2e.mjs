@@ -988,11 +988,12 @@ async function run(label, ctxOpts) {
     // Totals: SMOs sit with the R3s
     // the summary is written 4 s after a change; the demo lets the test write it now
     await p.evaluate(() => window.__logbookTest.flushSummary());
+    // totals loaded earlier would be the old ones (no Refresh button: they reload when 5 minutes old)
+    await p.evaluate(async () => (await import(new URL('js/ui-progress.js', location.href).href)).forgetTotals());
     await tab('totals'); await p.waitForSelector('table.totals');
     // Compact off (full names across the top) for the steps that read them; the 'totals' step checks Compact
     const compactBtn = p.locator('main button', { hasText: /^Compact$/ });
     if (await compactBtn.getAttribute('aria-pressed') === 'true') { await compactBtn.click(); await p.waitForSelector('table.totals th.rot'); }
-    await p.locator('main button', { hasText: 'Refresh' }).click(); await p.waitForSelector('table.totals');
     const groupsT = await p.locator('main select[aria-label="Residency year"] option').allInnerTexts();
     assert(groupsT.includes('R3 / SMO'), 'no R3 / SMO group: ' + groupsT);
     await p.locator('main select[aria-label="Residency year"]').selectOption({ label: 'R3 / SMO' });
@@ -1478,7 +1479,7 @@ async function run(label, ctxOpts) {
     const behind = await p.locator('table.totals td.late, table.totals td.due').count();
     assert(behind >= 0 && await p.locator('table.totals td .gap').count() === 0, 'shortfall numbers should be gone');
     await shot('totals');
-    const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('button', { hasText: 'Download Excel' }).click()]);
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'Download Excel' }).click()]);
     return dl.suggestedFilename();
   });
 

@@ -336,6 +336,12 @@ table.totals th.me { color: var(--accent); }
 .tscroll { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); overflow: auto; }
 .tscroll.paged { overflow-x: hidden; }   /* Totals: never sideways, ‹ › pages the people instead (owner, 29 Oct 2026) */
 .tscroll.paged table.totals td.cat .cat-in { overflow-x: visible; overflow-wrap: anywhere; }
+/* Totals: the header (title, year, Excel, All years) on one line; Show targets and Compact together */
+.tbar { flex-wrap: nowrap; }
+.tbar > .grow { min-width: 0; }
+.tbar > * { white-space: nowrap; flex-shrink: 0; }
+.tbar > .grow { flex-shrink: 1; }
+.tview-opts { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .tlegend { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .tlegend > .legend { flex: 1 1 auto; }
 .tlegend > [hidden] { display: none; }

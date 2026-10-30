@@ -439,9 +439,11 @@ export const forgetTotals = () => { tview.summaries = null; };
 export function programme() { if (!tview.summaries && !tview.loading) loadSummaries(); return tview; }
 export const groupYearName = groupName;
 
+const STALE_MS = 5 * 60 * 1000;
 export function renderTotals() {
   const card = h('section', { class: 'card' });
-  if (!tview.summaries && !tview.loading) loadSummaries();
+  // no Refresh button (owner, 30 Oct 2026): counts older than STALE_MS reload in the background, the old ones showing meanwhile
+  if ((!tview.summaries || Date.now() - (tview.at || 0) > STALE_MS) && !tview.loading) loadSummaries();
   if (tview.loading && !tview.summaries) { add(card, h('p', { class: 'empty' }, 'Loading totals…')); return card; }
   if (tview.error) add(card, h('p', { class: 'tip' }, tview.error));
   // your own column is live (like the Analytics comparison), not the copy loaded when the page opened
@@ -494,15 +496,14 @@ export function renderTotals() {
   requestAnimationFrame(fit);
 
   add(card, 
-    h('div', { class: 'bar' },
-      h('h2', { style: 'margin:0' }, 'Programme totals'),
+    h('div', { class: 'bar tbar' },
+      // one header row on a phone (owner, 30 Oct 2026): Compact sits by Show targets at the bottom
+      h('h2', { style: 'margin:0' }, 'Totals'),
       h('select', { 'aria-label': 'Residency year', onchange: e => { tview.year = Number(e.target.value); hooks.render(); } },
         years.map(y => h('option', { value: String(y), selected: y === tview.year }, groupName(y, all)))),
-      h('button', { type: 'button', class: 'small', 'aria-pressed': String(compact), onclick: flip('totalsCompact', !compact) }, 'Compact'),
       h('span', { class: 'grow' }),
-      h('button', { class: 'small', onclick: () => { tview.summaries = null; hooks.render(); } }, 'Refresh'),
-      h('button', { class: 'small', onclick: () => downloadTotals(table.data) }, 'Download Excel'),
-      h('button', { class: 'small', onclick: () => downloadAllYears(all) }, 'Download all years (zip)')),
+      h('button', { class: 'small', 'aria-label': 'Download Excel', onclick: () => downloadTotals(table.data) }, 'Excel'),
+      h('button', { class: 'small', 'aria-label': 'Download all years (zip)', onclick: () => downloadAllYears(all) }, 'All (zip)')),
     // ‹ and › either side of the key, just above the table (owner, 29 Oct 2026)
     h('div', { class: 'tlegend' }, prev, legend(), label, next),
     // scrolls down inside the card (focusable and named so the keyboard can reach it), so the names row stays put
@@ -511,8 +512,11 @@ export function renderTotals() {
     wrap,
     table.key ? h('p', { class: 'hint tkey', style: 'margin:6px 0 0' }, table.key.map(([sh, n]) => `${sh} = ${n}`).join(' · ')) : null,
     // how the counts add up, below the table (owner, 15 Oct 2026); and the target lines
-    h('div', { class: 'bar', style: 'margin-top:10px;align-items:center' }, countSwitch(),
-      h('label', { class: 'check', style: 'margin:0' }, h('input', { type: 'checkbox', checked: targets, onchange: flip('totalsTargets', !targets) }), 'Show targets')),
+    h('div', { class: 'bar tfoot', style: 'margin-top:10px;align-items:center' }, countSwitch(),
+      // Show targets and Compact stay together on one line
+      h('span', { class: 'tview-opts' },
+        h('label', { class: 'check', style: 'margin:0' }, h('input', { type: 'checkbox', checked: targets, onchange: flip('totalsTargets', !targets) }), 'Show targets'),
+        h('button', { type: 'button', class: 'small', 'aria-pressed': String(compact), onclick: flip('totalsCompact', !compact) }, 'Compact'))),
     h('p', { class: 'hint help' }, countMode() === 'min'
       ? 'Towards minimums: each category counts up to its last target, so extra cases past it don’t add (categories without a target show –).'
       : 'All tags: every case with that category, all years added up. A case with 3 tags adds 3 to Total tags.'));
@@ -546,7 +550,7 @@ async function loadSummaries() {
     });
   }
   catch (err) { if (gen !== tview.gen) return; tview.summaries = []; tview.error = 'Could not load totals: ' + err.message; }
-  tview.loading = false;
+  tview.loading = false; tview.at = Date.now();
   if (['totals', 'admintotals', 'caselogs', 'caselog', 'progress'].includes(S.tab)) hooks.render();
 }
 
