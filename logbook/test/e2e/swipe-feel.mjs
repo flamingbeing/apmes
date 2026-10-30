@@ -81,6 +81,25 @@ try {
     await p.waitForFunction(() => !document.querySelector('#app.is-paging'));
     assert.equal(await page(), 'logbook');
   });
+
+  await step('quick flicks in a row never show a blank page (each catches the glide and goes on)', async () => {
+    // each frame: of three points across the screen, at most one misses a drawn page (a visible screen with something
+    // in it; one may fall in the gutter between two pages)
+    await p.evaluate(() => {
+      window.__blank = []; window.__probe = true;
+      const drawn = x => [...document.querySelectorAll('#app > .ui-screen')].some(s => {
+        if (!s.firstElementChild || getComputedStyle(s).display === 'none' || getComputedStyle(s).visibility === 'hidden') return false;
+        const r = s.getBoundingClientRect(); return r.left <= x && r.right > x;
+      });
+      const f = () => { if ([0.15, 0.5, 0.85].filter(k => !drawn(innerWidth * k)).length > 1) window.__blank.push(location.hash + " " + [...document.querySelectorAll("#app > .ui-screen")].map(s => s.id.slice(3) + (s.hidden ? "-h" : "") + (s.classList.contains("is-beside") ? "-b" : "") + (s.classList.contains("is-ahead") ? "-a" : "") + ":" + s.childElementCount + "@" + s.getBoundingClientRect().left.toFixed(0)).join(",")); if (window.__probe) requestAnimationFrame(f); };
+      requestAnimationFrame(f);
+    });
+    for (let k = 0; k < 3; k++) { await stroke(330, -14, 6); await nap(120); }   // left, three times, each catching the last
+    await p.waitForFunction(() => !document.querySelector('#app.is-paging'));
+    const blank = await p.evaluate(() => { window.__probe = false; return window.__blank; });
+    assert.equal(await page(), 'more', 'three flicks from Logbook');
+    assert.deepEqual(blank, [], `frames with a blank side: ${blank.length}\n${blank.join("\n")}`);
+  });
   assert.deepEqual(errors, [], 'page errors');
 } finally { await b.close(); }
 const failed = results.filter(r => r[0] === 'FAIL');
