@@ -14,7 +14,7 @@ const FIELDS = ['input[type="text"]', 'input[type="password"]', 'input[type="sea
 const fields = (suffix = '') => FIELDS.map(f => `:root ${f}${suffix}`).join(', ');
 // tick boxes, but not the on / off switches on the settings pages (style.css draws those)
 const TICK = ':root input[type="checkbox"]:not(.set-page label.check > *)';
-const TABS_SEL = '.tabs button[aria-selected="true"], html.tabs-top .tabs button[aria-selected="true"], html.tabs-bottom .tabs button[aria-selected="true"]';
+const TABS_SEL = '.tabs button[aria-current="page"], html.tabs-top .tabs button[aria-current="page"], html.tabs-bottom .tabs button[aria-current="page"]';
 const SWITCH = ':root .set-page label.check > input[type=checkbox]';
 const blur = 'backdrop-filter: saturate(1.8) blur(20px); -webkit-backdrop-filter: saturate(1.8) blur(20px);';
 
@@ -89,7 +89,7 @@ export const tabIconPath = (id, fallback, chosen = {}) => (Object.hasOwn(TAB_ICO
 // unset = 100), apart from the current tab and icons on filled buttons. The colour is first made readable as text
 // is (colors.js: 4.5:1 on light pages, 7:1 on dark ones), so a pale or dark pick still shows in both.
 export const cleanTintStrength = v => (Number.isInteger(v) && v >= 10 && v <= 100 && v % 10 === 0 ? v : null);
-const TINTED = ':root .ico:not(.tabs [aria-selected="true"] .ico, :is(.primary, .danger, .swatch) .ico, .more-list .ico)';
+const TINTED = ':root .ico:not(.tabs [aria-current="page"] .ico, :is(.primary, .danger, .swatch) .ico, .more-list .ico)';
 export function iconTintCss(d = {}) {
   const c = cleanAccent(d.iconTint);
   if (!c) return '';
@@ -130,7 +130,7 @@ export const FACETS = [
   { key: 'tabStyle', group: 'shape', label: 'Tab bar style', line: 'How the tab you’re on is marked.', choices: [['underline', 'Underline (default)'], ['pill', 'Pill'], ['plain', 'Plain (colour only)'], ['indicator', 'Icon pill (Material)']], css: {
     pill: `${TABS_SEL} { border-color: transparent; background: var(--accent-soft); color: var(--accent); border-radius: 999px; }`,
     plain: `${TABS_SEL} { border-color: transparent; color: var(--accent); }`,
-    indicator: `${TABS_SEL} { border-color: transparent; background: var(--accent-soft); color: var(--accent); border-radius: 999px; } @media (max-width: 600px) { :root:not(.tabs-top) .tabs button[aria-selected="true"] { background: none; border-radius: 0; } :root:not(.tabs-top) .tabs button[aria-selected="true"] .ico { box-sizing: content-box; padding: 4px 18px; margin: -4px 0 0; border-radius: 999px; background: var(--accent-soft); } }` } },
+    indicator: `${TABS_SEL} { border-color: transparent; background: var(--accent-soft); color: var(--accent); border-radius: 999px; } @media (max-width: 600px) { :root:not(.tabs-top) .tabs button[aria-current="page"] { background: none; border-radius: 0; } :root:not(.tabs-top) .tabs button[aria-current="page"] .ico { box-sizing: content-box; padding: 4px 18px; margin: -4px 0 0; border-radius: 999px; background: var(--accent-soft); } }` } },
 
   // Header and status bar
   { key: 'statusBar', group: 'header', label: 'Phone status bar', js: true, line: 'The strip above the app on Android and in browsers (display.js paintStatusBar).', choices: [['accent', 'My colour (default)'], ['header', 'Match the header'], ['page', 'Match the page']] },
@@ -144,11 +144,11 @@ export const FACETS = [
 
   // Tab bar
   { key: 'tabActiveLabel', group: 'tabs', label: 'Name only the tab you’re on', bool: true, line: 'The other tabs show just their icon (phone width, bottom bar).',
-    css: '@media (max-width: 600px) { .tabs button:not([aria-selected="true"]) .lbl { display: none; } }' },
+    css: '@media (max-width: 600px) { .tabs button:not([aria-current="page"]) .lbl { display: none; } }' },
   { key: 'tabIconFill', group: 'tabs', label: 'Fill the current tab’s icon', bool: true, line: 'As iPhone and Android tab bars do.',
-    css: ':root .tabs button[aria-selected="true"] .ico { fill: color-mix(in srgb, currentColor 28%, transparent); }' },
+    css: ':root .tabs button[aria-current="page"] .ico { fill: color-mix(in srgb, currentColor 28%, transparent); }' },
   { key: 'tabTone', wins: true, group: 'tabs', label: 'Active tab colour', choices: [['accent', 'My colour (default)'], ['ink', 'Text colour']],
-    css: { ink: ':root .tabs button[aria-selected="true"] { color: var(--ink); }' } },
+    css: { ink: ':root .tabs button[aria-current="page"] { color: var(--ink); }' } },
 
   // Lists and type
   { key: 'listStyle', group: 'lists', label: 'List style', line: 'How Logbook rows sit on the page.', choices: [['default', 'Cards (default)'], ['inset', 'Inset grouped (iOS)'], ['edge', 'Edge to edge (Material, chat apps)']], css: {

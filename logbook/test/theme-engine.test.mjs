@@ -44,7 +44,7 @@ assert.match(lookCss({ toastStyle: 'material' }), /#313033/);
 assert.match(lookCss({ fieldStyle: 'filled' }), /inset 0 -2px 0 var\(--accent\)/);
 assert.match(lookCss({ checkStyle: 'round' }), /border-radius: 50%/);
 assert.match(lookCss({ headingTone: 'ink' }), /color: var\(--header-ink, var\(--ink\)\)/);
-assert.match(lookCss({ tabTone: 'ink' }), /aria-selected="true".*color: var\(--ink\)/);
+assert.match(lookCss({ tabTone: 'ink' }), /aria-current="page".*color: var\(--ink\)/);
 assert.equal(lookCss({ headingTone: 'accent', tabTone: 'accent' }), '');
 assert.match(lookCss({ listStyle: 'edge' }), /body\.compact section\.card \{ margin-left: -8px; margin-right: -8px;/);
 assert.match(lookCss({ pageMotion: 'ios' }), /--dur: 350ms/);
