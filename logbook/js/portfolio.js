@@ -516,7 +516,7 @@ function plainProfileXml(profile, H) {
 
 // ---------- fallback: a clean docx without the template ----------
 
-const CELL_W = [1300, 1300, 2300, 4700];
+const CELL_W = [1300, 850, 2300, 5150];   // date as narrow as the template's (it reads vertically)
 const HEAD = ['Patient’s Initials', 'Date', 'Diagnosis/ Operations', 'Case details and Learning points'];
 function plainTable(list, min, media) {
   const borders = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(s => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`).join('');
