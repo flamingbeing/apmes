@@ -17,6 +17,9 @@
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 30 Oct 2026: Logbook tabs no longer blank mid-swipe: app-ui rc.68 (pager reads no layout in touchstart) and each
+  bar tab is drawn ahead, hidden but laid out (`layAhead` in `js/app.js`, cut to the first screen). Also keyboard
+  resizes the page (`interactive-widget`) and a dark Android system bar (`background_color`).
 - 30 Oct 2026: Home covers only its own pages (manifest scope `/home/`, shortcuts dropped), like every other APMES
   app; Settings › Install lists Home (the browser's prompt where it has one), Logbook and Guidebook. Installed Home
   users may need to remove and re-add it for the new scope.
