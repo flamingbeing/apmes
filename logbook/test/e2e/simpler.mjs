@@ -142,7 +142,7 @@ try { for (const width of [390, 1280]) {
   await p.waitForFunction(() => document.body.classList.contains('faculty-profile'));
   assert.deepEqual(await tabsNow(), ['totals', 'admin', 'more'], 'admins get the Admin portal left of More');
   await p.locator('[role=tab][data-tab=totals]').click();
-  await p.getByRole('heading', { name: 'Programme totals' }).waitFor();
+  await p.getByRole('heading', { name: 'Totals', exact: true }).waitFor();
   await p.locator('table.totals td.n').first().waitFor();
   // Totals: Category column, names row frozen, no tap-and-hold tooltips, the count switch below the table, every year as a zip
   assert.equal(await p.locator('table.totals thead th').first().innerText(), 'Category');
@@ -182,7 +182,7 @@ try { for (const width of [390, 1280]) {
   // the Year comparison: each target tag's median in the year (log2 5b)
   await p.getByRole('heading', { name: 'Year comparison' }).waitFor();
   assert.ok(await p.locator('.yc-table tbody tr').count() > 10, 'a row per target tag');
-  assert.equal(await p.getByRole('heading', { name: 'Programme totals' }).count(), 0, 'no totals in Analytics');
+  assert.equal(await p.getByRole('heading', { name: 'Totals', exact: true }).count(), 0, 'no totals in Analytics');
   await pickProfile('advanced');
   await p.waitForFunction(() => !document.body.classList.contains('faculty-profile'));
   assert.deepEqual(new Set(await tabsNow()), new Set(tabsAdvanced));
