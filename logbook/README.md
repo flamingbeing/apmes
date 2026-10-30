@@ -4,7 +4,7 @@ A case logbook for APMES (NUH anaesthesia) residents, at <https://apmes.anawj.co
 
 Logging a case takes three things: the date, free text (patient initials and case details), and one or more categories. Leading patient initials ("AB 34F LSCS spinal") are stored in a field of their own (`initials`); Enter adds a new line in the details box, and Ctrl+Enter (Cmd+Enter) saves. As you type, the page suggests categories from the text (age, BMI and keywords learnt from past logs). Progress against the APMES targets for your residency year is worked out from your counts.
 
-It is a static page (vanilla ES modules, no build step) that installs to the home screen and works offline. Cases are stored in Cloud Firestore under your Google account and sync when you are back online.
+It is a static page (vanilla ES modules, no build step to run it; the deploy joins its files into a few, `tools/bundle-logbook.mjs`) that installs to the home screen and works offline. Cases are stored in Cloud Firestore under your Google account and sync when you are back online.
 
 Try it without signing in: <https://apmes.anawj.com/logbook/?demo> (made-up data, kept in your browser only; `?demo=empty` starts blank, `?demo=reset` wipes the demo data).
 
