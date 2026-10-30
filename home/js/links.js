@@ -20,6 +20,14 @@ export const LINKS = [
   { section: 'medhub', label: 'Evaluations', url: 'https://nuhs.medhub.com/functions/apps/mobile/evaluations.mh', note: 'Your MedHub evaluations', live: true, external: true },
 ];
 
+// The installed Home app (manifest scope /) would open the Logbook and the others inside its own window. Like the
+// tailnet app's tiles, it opens every link in a new window instead, so Android hands it to that app when it is
+// installed (or to the browser). In a browser tab links stay in the tab.
+export function isInstalled(w = globalThis) {
+  return !!(w.navigator?.standalone || ['standalone', 'fullscreen', 'minimal-ui'].some(m => w.matchMedia?.(`(display-mode: ${m})`).matches));
+}
+export const openAttrs = (url, installed) => (installed ? { href: url, target: '_blank', rel: 'noopener' } : { href: url });
+
 // [{ ...section, links }] for the sections that have at least one live link, in SECTIONS order
 export function visibleSections(links = LINKS, sections = SECTIONS) {
   return sections.map(s => ({ ...s, links: links.filter(l => l.live && l.section === s.id) })).filter(s => s.links.length);
