@@ -749,7 +749,11 @@ export function renderExportPage(onChoose = false) {
       h('button', { class: 'small', onclick: async () => { if (await confirmBox('Untick all?', 'Nothing will be exported until you tick some again.', 'Untick all', true)) setMany(complete, false); } }, 'Untick all')));
   const choose = h('section', { class: 'card' },
     h('div', { class: 'bar', style: 'align-items:center' }, h('h2', { style: 'margin:0' }, 'Choose reflections'), h('span', { class: 'grow' }), complete.length ? quick : null),
-    h('p', { class: 'hint', style: 'margin:6px 0 0' }, `${ex.total} of ${complete.length} included. Untick any you’d rather leave out; your choice is kept for next time.`));
+    h('p', { class: 'hint', style: 'margin:6px 0 0' }, `${ex.total} of ${complete.length} included. Untick any you’d rather leave out; your choice is kept for next time.`),
+    // same setting as Settings → Reflections; reflections already written keep their own tick
+    h('label', { class: 'check', style: 'margin-top:8px' },
+      h('input', { type: 'checkbox', role: 'switch', checked: settings().reflExport !== false, onchange: e => patchLogbook({ settings: { reflExport: e.target.checked } }).then(() => toast('Saved')) }),
+      'Auto tick new reflections for export'));
   const body = h('section', { class: 'card' });
   for (const hd of REFLECTION_HEADINGS) {
     const rs = complete.filter(r => r.headingId === hd.id).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
