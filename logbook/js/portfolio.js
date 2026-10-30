@@ -275,12 +275,14 @@ export function vertical(tcPr) {
   const at = t.search(/<w:(?:tcFitText|vAlign|hideMark|headers|cellIns|cellDel|cellMerge|tcPrChange)\b/);
   return at < 0 ? t.replace('</w:tcPr>', td + '</w:tcPr>') : t.slice(0, at) + td + t.slice(at);
 }
-const pPrRight = pPr => {
-  const jc = '<w:jc w:val="right"/>';
-  if (!pPr) return `<w:pPr>${jc}</w:pPr>`;
-  if (/<w:jc\b/.test(pPr)) return pPr.replace(/<w:jc\b[^>]*\/>/, jc);
-  const at = pPr.search(/<w:(?:textDirection|textAlignment|textboxTightWrap|outlineLvl|divId|cnfStyle|rPr|sectPr|pPrChange)\b/);
-  return at < 0 ? pPr.replace('</w:pPr>', jc + '</w:pPr>') : pPr.slice(0, at) + jc + pPr.slice(at);
+// Rotated, the template's space before/after a paragraph turns sideways and covers the cell's side borders
+// (LibreOffice): drop it and inset the text as Word does for rotated cells.
+const datePPr = pPr => {
+  const add = '<w:ind w:left="113" w:right="113"/><w:jc w:val="right"/>';
+  if (!pPr) return `<w:pPr>${add}</w:pPr>`;
+  const t = pPr.replace(/<w:(?:spacing|ind|jc)\b[^>]*\/>/g, '');
+  const at = t.search(/<w:(?:contextualSpacing|mirrorIndents|suppressOverlap|textDirection|textAlignment|textboxTightWrap|outlineLvl|divId|cnfStyle|rPr|sectPr|pPrChange)\b/);
+  return at < 0 ? t.replace('</w:pPr>', add + '</w:pPr>') : t.slice(0, at) + add + t.slice(at);
 };
 export function minHeight(tr) {
   const h = `<w:trHeight w:val="${DATE_H}" w:hRule="atLeast"/>`;
@@ -300,7 +302,7 @@ function fillRow(proto, r, n, media) {
   const tr = proto.replace(/<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g, tc => {
     const k = i++;
     if (k !== DATE_COL) return fillCell(tc, cells[k] || [], media);
-    const out = fillCell(tc, cells[k] || [], media, pPrRight);
+    const out = fillCell(tc, cells[k] || [], media, datePPr);
     return out.replace(/^(<w:tc(?:\s[^>]*)?>)(<w:tcPr>[\s\S]*?<\/w:tcPr>)?/, (_, o, p) => o + vertical(p));
   });
   return r ? minHeight(tr) : tr;
@@ -521,7 +523,7 @@ function plainTable(list, min, media) {
   const tc = (i, body, shade) => `<w:tc><w:tcPr><w:tcW w:w="${CELL_W[i]}" w:type="dxa"/>${shade ? '<w:shd w:val="clear" w:color="auto" w:fill="D9D9D9"/>' : ''}${!shade && i === DATE_COL ? '<w:textDirection w:val="btLr"/>' : ''}</w:tcPr>${body}</w:tc>`;
   const head = `<w:tr><w:trPr><w:tblHeader/></w:trPr>${HEAD.map((t, i) => tc(i, para('', run(t, true)), true)).join('')}</w:tr>`;
   const n = Math.max(min, list.length);
-  const rows = Array.from({ length: n }, (_, k) => `<w:tr><w:trPr><w:cantSplit/>${list[k] ? `<w:trHeight w:val="${DATE_H}" w:hRule="atLeast"/>` : ''}</w:trPr>${rowCells(list[k], list[k] ? k + 1 : 0).map((c, i) => tc(i, paras(i === DATE_COL ? pPrRight('') : '', c, media))).join('')}</w:tr>`).join('');
+  const rows = Array.from({ length: n }, (_, k) => `<w:tr><w:trPr><w:cantSplit/>${list[k] ? `<w:trHeight w:val="${DATE_H}" w:hRule="atLeast"/>` : ''}</w:trPr>${rowCells(list[k], list[k] ? k + 1 : 0).map((c, i) => tc(i, paras(i === DATE_COL ? datePPr('') : '', c, media))).join('')}</w:tr>`).join('');
   return `<w:tbl><w:tblPr><w:tblW w:w="9600" w:type="dxa"/><w:tblBorders>${borders}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${CELL_W.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>${head}${rows}</w:tbl>`;
 }
 

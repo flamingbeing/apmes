@@ -49,7 +49,7 @@ const total = REFLECTION_HEADINGS.reduce((n, hd) => n + 1 + Math.max(hd.min, ref
 assert.equal(rowsOf(xml), total, 'min rows per table, more when needed; transplant table untouched');
 { // the date cell of a filled row reads bottom to top, from the top of the cell; filled rows are tall enough for it
   const dateTcs = (xml.match(/<w:tr>[\s\S]*?<\/w:tr>/g) || []).filter(tr => tr.includes('Mar 2025')).map(tr => tr.match(/<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g)[1]);
-  assert.ok(dateTcs.length && dateTcs.every(tc => /<w:tcW [^>]*\/><w:textDirection w:val="btLr"\/><\/w:tcPr>/.test(tc) && /<w:jc w:val="right"\/>/.test(tc)), 'vertical date');
+  assert.ok(dateTcs.length && dateTcs.every(tc => /<w:tcW [^>]*\/><w:textDirection w:val="btLr"\/><\/w:tcPr>/.test(tc) && /<w:ind w:left="113" w:right="113"\/><w:jc w:val="right"\/>/.test(tc) && !/<w:spacing\b/.test(tc)), 'vertical date');
   assert.ok(/<w:trPr><w:trHeight w:val="1500" w:hRule="atLeast"\/><\/w:trPr>[\s\S]*?Mar 2025/.test(xml), 'filled row min height');
 }
 assert.ok(xml.indexOf('CD') < xml.indexOf('AB'), 'rows in date order');
