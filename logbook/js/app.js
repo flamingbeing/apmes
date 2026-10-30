@@ -667,6 +667,9 @@ function leaveScreen(s) {
   // left mid-swipe (a finger caught the glide): the page stays beside, under the finger, as its own still copy (its
   // nodes kept: a touch whose target leaves the page gets no more moves); tabPages hides it once the pages land
   if (live && app.classList.contains('is-paging') && !s.hidden) { s.childNodes.forEach(noIds); s.inert = true; return; }
+  // a page tabPages laid out beside (after a caught glide, the new page's: emptied, a flick in a row slid in a blank
+  // page) and a copy drawn ahead stay as they are
+  if (!live && (s.classList.contains('is-beside') || s.classList.contains('is-ahead'))) return;
   s.replaceChildren(); s.hidden = true; s.inert = false; s.classList.remove('is-ahead');
 }
 // where the pages beside go: as the page on screen (read all, then set only what changed: a custom property set on #app
@@ -682,7 +685,11 @@ document.addEventListener('touchstart', e => {
   const { shown, sel } = barTabOf(S.tab), i = shown.indexOf(sel), cur = screenOf(sel);
   if (!cur || cur.hidden) return;
   placeBeside(cur);
-  for (const id of [shown[i - 1], shown[i + 1]]) {
+  // a finger catching a glide: the page it was going to (the tab lit at the let-go) becomes the current one, so its
+  // pages beside slide in next
+  const lit = app.classList.contains('is-paging') && tabsEl.querySelector('[aria-current="page"]')?.dataset.tab;
+  const j = lit ? shown.indexOf(lit) : -1;
+  for (const id of new Set([shown[i - 1], shown[i + 1], ...(j >= 0 ? [shown[j - 1], shown[j + 1]] : [])])) {
     const s = id && screenOf(id);
     if (!s || s.dataset.live || s.firstChild) continue;
     s.append(...(snaps.get(id) || [loadingCard()]).map(n => n.cloneNode(true)));
@@ -690,39 +697,43 @@ document.addEventListener('touchstart', e => {
   }
 }, { passive: true, capture: true });
 
-// The tabs beside get a still copy drawn ahead, in an idle moment after each drawing of the page, so a swipe never
-// brings in an empty loading card or an out-of-date copy (owner, 30 Oct 2026: tabs not opened since the app started
-// went blank as they slid in). Never the Add tab or Notes (drawing them takes what was shared in and holds the
-// editor: they keep the copy taken as they were left), Reflections only at its list, and a tab whose code hasn't
-// loaded keeps what it had. Drawn off the page: the page on screen is left as it is (Totals' column fit, kept by its
-// module, is drawn again when Totals is opened).
+// The other tabs get a still copy drawn ahead, in idle moments after each drawing of the page, the tabs beside first,
+// so a swipe never brings in an empty loading card or an out-of-date copy (owner, 30 Oct 2026: tabs not opened since
+// the app started went blank as they slid in), nor do quick flicks in a row (each catches the glide and goes on from
+// the page it was going to: owner, 30 Oct 2026, a blank page flashed). Never the Add tab or Notes (drawing them takes
+// what was shared in and holds the editor: they keep the copy taken as they were left), Reflections only at its list,
+// and a tab whose code hasn't loaded keeps what it had. Drawn off the page: the page on screen is left as it is
+// (Totals' column fit, kept by its module, is drawn again when Totals is opened).
 const NOT_AHEAD = new Set(['log', 'notes']);
-let aheadQueued = false;
+let aheadRun = 0;
 hooks.drawAhead = () => drawAhead();
 function drawAhead() {
-  if (aheadQueued || !touchScreen()) return;
-  aheadQueued = true;
-  // in an idle moment, and never under a finger or a glide (motion.js afterGesture): drawing a page takes a few frames
+  if (!touchScreen()) return;
+  const run = ++aheadRun;   // (a newer drawing of the page starts the list again)
+  // in idle moments, one page each, and never under a finger or a glide (motion.js afterGesture): drawing a page takes
+  // a few frames
   const idle = fn => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 2000 }) : setTimeout(fn, 300));
-  idle(() => (motion ? motion.afterGesture(ahead) : ahead()));
-  function ahead() {
-    aheadQueued = false;
-    if (!S.user || app.classList.contains('is-paging')) return;
-    const { shown, sel } = barTabOf(S.tab), i = shown.indexOf(sel), was = S.tab;
-    for (const id of [shown[i - 1], shown[i + 1]]) {
-      if (!id || NOT_AHEAD.has(id)) continue;
-      if (id === 'reflect' && !mod.reflect?.reflectAtList()) continue;
-      const t = visibleTabs().find(x => x.id === id);
-      if (!t) continue;
-      let node = null;
-      S.tab = id; hooks.ahead = true;   // (a page reads which tab it is drawn for, and that it is drawn ahead)
-      try { node = t.render(); } catch (err) { console.warn(err); } finally { S.tab = was; hooks.ahead = false; }
-      if (!node || node.classList?.contains('lazy-wait')) continue;
-      const s = screenOf(id);
-      noIds(node);
-      if (s && s.hidden && !s.dataset.live) layAhead(s, node);
-      snaps.set(id, [node.cloneNode(true)]);
-    }
+  const later = () => idle(() => (motion ? motion.afterGesture(step) : step()));
+  let todo = null;
+  later();
+  function step() {
+    if (run !== aheadRun || !S.user || app.classList.contains('is-paging')) return;
+    const { shown, sel } = barTabOf(S.tab), i = shown.indexOf(sel), far = id => Math.abs(shown.indexOf(id) - i);
+    todo ??= shown.filter(id => id !== sel && !NOT_AHEAD.has(id)).sort((a, b) => far(a) - far(b));
+    const id = todo.shift();
+    if (!id) return;
+    if (todo.length) later();
+    if (id === 'reflect' && !mod.reflect?.reflectAtList()) return;
+    const t = visibleTabs().find(x => x.id === id), was = S.tab;
+    if (!t) return;
+    let node = null;
+    S.tab = id; hooks.ahead = true;   // (a page reads which tab it is drawn for, and that it is drawn ahead)
+    try { node = t.render(); } catch (err) { console.warn(err); } finally { S.tab = was; hooks.ahead = false; }
+    if (!node || node.classList?.contains('lazy-wait')) return;
+    const s = screenOf(id);
+    noIds(node);
+    if (s && s.hidden && !s.dataset.live) layAhead(s, node);
+    snaps.set(id, [node.cloneNode(true)]);
   }
 }
 // A copy drawn ahead stays in its screen, laid out while hidden (.is-ahead, style.css: fixed, out of sight), so a
