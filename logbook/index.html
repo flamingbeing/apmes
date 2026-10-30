@@ -38,8 +38,8 @@
      the logbook only reads with a fallback (var(--fill, var(--accent))) unset, so the logbook looks as it did and its
      themes, saved themes, theme links and custom CSS work unchanged. early.js puts back this device's kit marks and
      palette (in `kit`) before the first paint. -->
-<script src="https://core.anawj.com/ui/1.0.0-rc.62/theme/early.js"></script>
-<style>@layer kit, kitoff, base, facets, theme, tune, custom; @import url("https://core.anawj.com/ui/1.0.0-rc.62/theme/theme.css") layer(kit); @import url("style.css") layer(base);
+<script src="https://core.anawj.com/ui/1.0.0-rc.63/theme/early.js"></script>
+<style>@layer kit, kitoff, base, facets, theme, tune, custom; @import url("https://core.anawj.com/ui/1.0.0-rc.63/theme/theme.css") layer(kit); @import url("style.css") layer(base);
 @layer kitoff {
   :root, body, h1, h2, h3, button, input, select, textarea, a, :focus-visible, ::selection { all: revert; }
   :root { --danger: initial; --fill: initial; --on-fill: initial; --focus: initial; --link: initial; --selection: initial;
@@ -129,7 +129,7 @@
 <nav class="tabs" id="tabs" role="tablist" hidden></nav>
 
 <div id="banner" class="banner" hidden></div>
-<main id="app"><section class="card skeleton" aria-label="Loading"><div class="sk-row"><i></i><i></i><i></i></div><div class="sk-box"></div><div class="sk-line"></div><div class="sk-row"><i></i><i></i></div><div class="sk-btn"></div></section></main>
+<main id="app" class="ui-screens"><section class="card skeleton" aria-label="Loading"><div class="sk-row"><i></i><i></i><i></i></div><div class="sk-box"></div><div class="sk-line"></div><div class="sk-row"><i></i><i></i></div><div class="sk-btn"></div></section></main>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script type="module" src="js/app.js"></script>

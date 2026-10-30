@@ -703,7 +703,7 @@ function renderOne(card) {
   const selExtra = h('div', { class: 'sel-extra' });
   // "Save as tag group" sits under the tag list, not in the pinned bar (keeps the bar slim)
   const groupSave = h('div', { class: 'group-save' });
-  const savebar = h('div', { class: 'savebar' }, selected, selExtra, tip, enterHint, actions);
+  const savebar = h('div', { class: 'savebar', 'data-over-keyboard': '' }, selected, selExtra, tip, enterHint, actions);
   // Two panes on wide screens (style.css .log-card.panes): the case, quick picks and Save on the left,
   // all tags on the right, scrolling on their own. On phones the wrappers vanish (display: contents).
   card.classList.add('panes');

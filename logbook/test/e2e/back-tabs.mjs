@@ -34,8 +34,9 @@ try { for (const width of [390, 1280]) {
   await tapTab(a);
   assert.ok(await len() - start <= 2, `a tab tap from Settings unwinds it (${await len() - start})`);
   await p.goBack(); await shows(first, 'Back from a tab after Settings');
-  // Back on the first tab leaves the app (to the blank page it was opened from)
-  await p.goBack(); await until(async () => p.url() === 'about:blank', `Back on the first tab leaves (at ${p.url()})`);
+  // Back on the first tab stays (a toast says Back again closes); Back again within 2 s leaves the app
+  await p.goBack(); await p.waitForTimeout(300); await shows(first, 'first Back on the first tab stays');
+  await p.goBack(); await until(async () => p.url() === 'about:blank', `Back again on the first tab leaves (at ${p.url()})`);
   assert.deepEqual(errors, []);
   console.log(`PASS back with tabs (${engine} ${width})`);
   await ctx.close();

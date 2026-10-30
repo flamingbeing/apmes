@@ -15,16 +15,23 @@
 // kitConfirm(text, { title, danger, yes }): the kit's confirm dialog (ui/modal.js), or null when the kit isn't there.
 // loadMotion(): the kit's finger physics (ui/motion.js: glide, afterGesture, pressFeedback) into `motion`, which stays
 //   null without the kit; the logbook's swipes then fall back to a plain ease-out (app.js glideX).
-// tabBack: the kit's Back with tabs (ui/tab-back.js), for navigation.js.
+// tabBack: the kit's Back with tabs (ui/tab-back.js), for navigation.js; tabPages: its tab pages and their swipe
+//   (ui/tab-pages.js), for app.js; holdKeyboard: keeps the phone keyboard for a field drawn after the tap
+//   (ui/keep-keyboard.js); watchKeyboard: sets --ui-keyboard-bar-h, the Save bar's height over the keyboard
+//   (ui/keyboard.js, the bar marked data-over-keyboard); LABELS: the kit's words (ui/labels.js).
 // KIT_SHELL: every kit file the page loads (early.js, theme.css, the modules and what they import), for sw.js SHELL;
 //   test/kit.test.mjs checks sw.js holds them.
-export const KIT_VERSION = '1.0.0-rc.62';
+export const KIT_VERSION = '1.0.0-rc.63';
 export const KIT = `https://core.anawj.com/ui/${KIT_VERSION}/`;
 export const KIT_CSS = ['theme/theme.css'];
-export const KIT_MODULES = ['theme/addons/colour-grid.js', 'theme/addons/custom-css.js', 'theme/addons/fonts.js', 'theme/addons/icon-sets.js', 'theme/addons/index.js', 'theme/addons/saved-themes.js', 'theme/addons/store.js', 'theme/addons/theme-link.js', 'theme/addons/wallpaper.js', 'theme/choice.js', 'theme/colour.js', 'theme/grid.js', 'theme/guard.js', 'theme/index.js', 'theme/looks.js', 'theme/looks/a.js', 'theme/looks/b.js', 'theme/looks/c.js', 'theme/looks/d.js', 'theme/looks/e.js', 'theme/looks/ios.js', 'theme/looks/m.js', 'theme/m3.js', 'theme/motion.js', 'theme/palette-css.js', 'theme/presets.js', 'theme/schema.js', 'theme/switch.js', 'ui/dom.js', 'ui/gesture.js', 'ui/labels.js', 'ui/modal.js', 'ui/motion.js', 'ui/steps.js', 'ui/tab-back.js'];
+export const KIT_MODULES = ['icons/lucide.js', 'theme/addons/colour-grid.js', 'theme/addons/custom-css.js', 'theme/addons/fonts.js', 'theme/addons/icon-sets.js', 'theme/addons/index.js', 'theme/addons/saved-themes.js', 'theme/addons/store.js', 'theme/addons/theme-link.js', 'theme/addons/wallpaper.js', 'theme/choice.js', 'theme/colour.js', 'theme/grid.js', 'theme/guard.js', 'theme/index.js', 'theme/looks.js', 'theme/looks/a.js', 'theme/looks/b.js', 'theme/looks/c.js', 'theme/looks/d.js', 'theme/looks/e.js', 'theme/looks/ios.js', 'theme/looks/m.js', 'theme/m3.js', 'theme/motion.js', 'theme/palette-css.js', 'theme/presets.js', 'theme/schema.js', 'theme/switch.js', 'ui/dom.js', 'ui/gesture.js', 'ui/keep-keyboard.js', 'ui/keyboard.js', 'ui/labels.js', 'ui/modal.js', 'ui/motion.js', 'ui/screens.js', 'ui/shell/shell.js', 'ui/steps.js', 'ui/tab-back.js', 'ui/tab-pages.js', 'ui/toast.js'];
 export const KIT_SHELL = ['theme/early.js', ...KIT_CSS, ...KIT_MODULES].map(f => KIT + f);
-// Back with tabs (navigation.js): a static import, as the theme add-ons are, at the same version
-export { tabBack } from 'https://core.anawj.com/ui/1.0.0-rc.62/ui/tab-back.js';
+// Back with tabs (navigation.js), tab pages, the keyboard: static imports, as the theme add-ons are, at the same version
+export { tabBack } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/tab-back.js';
+export { tabPages } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/tab-pages.js';
+export { holdKeyboard } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/keep-keyboard.js';
+export { watchKeyboard } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/keyboard.js';
+export { LABELS } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/labels.js';
 
 let theme = null, modal = null;
 const loadTheme = () => (theme ||= import(KIT + 'theme/index.js'));
