@@ -20,13 +20,18 @@ export const LINKS = [
   { section: 'medhub', label: 'Evaluations', url: 'https://nuhs.medhub.com/functions/apps/mobile/evaluations.mh', note: 'Your MedHub evaluations', live: true, external: true },
 ];
 
-// The installed Home app (manifest scope /) would open the Logbook and the others inside its own window. Like the
-// tailnet app's tiles, it opens every link in a new window instead, so Android hands it to that app when it is
-// installed (or to the browser). In a browser tab links stay in the tab.
+// Each APMES app (Home included) covers only its own pages (manifest scope), so a link to another app leaves the
+// installed Home. Like the tailnet app's tiles, the installed Home opens every link in a new window, so Android hands
+// it to that app when it is installed (or to the browser). In a browser tab links stay in the tab.
 export function isInstalled(w = globalThis) {
   return !!(w.navigator?.standalone || ['standalone', 'fullscreen', 'minimal-ui'].some(m => w.matchMedia?.(`(display-mode: ${m})`).matches));
 }
 export const openAttrs = (url, installed) => (installed ? { href: url, target: '_blank', rel: 'noopener' } : { href: url });
+
+// The apps the settings' Install list offers: Home itself, then each live app on this site (not MedHub)
+export function installable(links = LINKS) {
+  return [{ label: 'APMES Home', url: '/home/', home: true }, ...links.filter(l => l.live && !l.external).map(l => ({ label: l.label.replace(/^Open /, ''), url: l.url }))];
+}
 
 // [{ ...section, links }] for the sections that have at least one live link, in SECTIONS order
 export function visibleSections(links = LINKS, sections = SECTIONS) {

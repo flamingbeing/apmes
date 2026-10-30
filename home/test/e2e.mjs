@@ -69,7 +69,11 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   assert.equal(await page.locator('a[href="https://nuhs.medhub.com/functions/apps/mobile/dutyhours.mh"]').count(), 1);
   assert.equal(await page.locator('a[href="https://nuhs.medhub.com/functions/apps/mobile/evaluations.mh"]').count(), 1);
   for (const hidden of ['/evals/', '/people/', '/ccc/', '/applicants/']) assert.equal(await page.locator(`a[href="${hidden}"]`).count(), 0, hidden);
-  assert.equal(await page.locator('a[href="/guide/"]').count(), 1, 'the guidebook');
+  assert.equal(await page.locator('section[aria-labelledby="h-apps"] a[href="/guide/"]').count(), 1, 'the guidebook');
+  // Settings › Install: on / the Home row opens /home/ (the app's own pages), the others open their app
+  const inst = page.locator('section[aria-labelledby="h-install"] .a-row');
+  assert.deepEqual(await inst.allTextContents(), ['Install APMES HomeOpens its app page; then install it there', 'Install LogbookOpens it; then install it there', 'Install GuidebookOpens it; then install it there']);
+  assert.deepEqual(await inst.evaluateAll(els => els.map(e => e.getAttribute('href'))), ['/home/', '/logbook/', '/guide/']);
   assert.equal(await page.locator('.h-counts').isHidden(), true);
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');
   await axe(page, 'signed out');
@@ -142,7 +146,7 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
 //    and the Logbook's dark theme carried over
 {
   const page = await open({ 'apmes-logbook-theme': 'dark' });
-  await page.locator('a[href="/guide/"]').click();
+  await page.locator('section[aria-labelledby="h-apps"] a[href="/guide/"]').click();
   await page.getByRole('heading', { name: 'Programme guidebook' }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
   assert.ok(await page.locator('.a-list a.a-row').count() >= 6, 'one row per document');
@@ -330,7 +334,14 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   const m = JSON.parse(fs.readFileSync(path.join(root, href.replace(/^\//, '')), 'utf8'));
   assert.equal(m.id, '/home/', 'manifest id is fixed');
   assert.equal(m.start_url, '/home/', 'the installed app starts where its worker is');
+  assert.equal(m.scope, '/home/', 'covers only its own pages: the Logbook and the others are apps of their own');
+  assert.equal(m.shortcuts, undefined, 'no shortcuts (they would sit outside its scope)');
   for (const i of m.icons) assert.ok(fs.existsSync(path.join(root, 'home', i.src)), i.src);
+  // Settings › Install: the browser's install prompt (Chrome) becomes the Home row's button; after it, Installed
+  await page.evaluate(() => { const e = new Event('beforeinstallprompt', { cancelable: true }); e.prompt = () => { window.__prompted = true; }; e.userChoice = Promise.resolve({ outcome: 'accepted' }); dispatchEvent(e); });
+  await page.getByRole('button', { name: /^Install APMES Home/ }).click();
+  await page.getByText('Installed').waitFor();
+  assert.equal(await page.evaluate(() => window.__prompted), true);
   assert.ok(fs.existsSync(path.join(root, (await page.locator('link[rel="apple-touch-icon"]').getAttribute('href')).slice(1))), 'apple-touch-icon');
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.waitForFunction(async () => {

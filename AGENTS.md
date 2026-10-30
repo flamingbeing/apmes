@@ -54,6 +54,8 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - **Home page** (`home/`, served at `/`): lists only links with `live: true` in `home/js/links.js` (an app goes on it by
   flipping its flag). It reads the Logbook's theme and sign-in, never writes them, never writes Firestore, and has no
   service worker (one at `/` would cover the apps below it; the guidebook's own worker sits at `/guide/`).
+  Installed, it is the app at `/home/` (manifest scope `/home/`): every app covers only its own pages and installs
+  from them; Home's Settings lists Install rows for each, and the installed Home opens links in a new window.
 - NUH Junior Monthly (People's roster import) lives in the rosters repo at nuhjuniormonthly.anawj.com.
 - **App icons** come from anawj-site `tools/app-icons/` (one SVG per app, rendered there): copy its output into each
   app's `icons/` (`icon-maskable-512.png` is saved as `maskable-512.png`), never redraw here. Each manifest's `id` is
