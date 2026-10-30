@@ -21,26 +21,26 @@
 //   (ui/keyboard.js, the bar marked data-over-keyboard); LABELS: the kit's words (ui/labels.js).
 // KIT_SHELL: every kit file the page loads (early.js, theme.css, the modules and what they import), for sw.js SHELL;
 //   test/kit.test.mjs checks sw.js holds them.
-export const KIT_VERSION = '1.0.0-rc.63';
+export const KIT_VERSION = '1.0.0-rc.68';
 export const KIT = `https://core.anawj.com/ui/${KIT_VERSION}/`;
 export const KIT_CSS = ['theme/theme.css'];
 export const KIT_MODULES = ['icons/lucide.js', 'theme/addons/colour-grid.js', 'theme/addons/custom-css.js', 'theme/addons/fonts.js', 'theme/addons/icon-sets.js', 'theme/addons/index.js', 'theme/addons/saved-themes.js', 'theme/addons/store.js', 'theme/addons/theme-link.js', 'theme/addons/wallpaper.js', 'theme/choice.js', 'theme/colour.js', 'theme/grid.js', 'theme/guard.js', 'theme/index.js', 'theme/looks.js', 'theme/looks/a.js', 'theme/looks/b.js', 'theme/looks/c.js', 'theme/looks/d.js', 'theme/looks/e.js', 'theme/looks/ios.js', 'theme/looks/m.js', 'theme/m3.js', 'theme/motion.js', 'theme/palette-css.js', 'theme/presets.js', 'theme/schema.js', 'theme/switch.js', 'ui/dom.js', 'ui/gesture.js', 'ui/keep-keyboard.js', 'ui/keyboard.js', 'ui/labels.js', 'ui/modal.js', 'ui/motion.js', 'ui/screens.js', 'ui/shell/shell.js', 'ui/steps.js', 'ui/tab-back.js', 'ui/tab-pages.js', 'ui/toast.js'];
 export const KIT_SHELL = ['theme/early.js', ...KIT_CSS, ...KIT_MODULES].map(f => KIT + f);
 // Back with tabs (navigation.js), tab pages, the keyboard: static imports, as the theme add-ons are, at the same version
-export { tabBack } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/tab-back.js';
-export { tabPages } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/tab-pages.js';
-export { holdKeyboard } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/keep-keyboard.js';
-export { watchKeyboard } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/keyboard.js';
-export { LABELS } from 'https://core.anawj.com/ui/1.0.0-rc.63/ui/labels.js';
+export { tabBack } from 'https://core.anawj.com/ui/1.0.0-rc.68/ui/tab-back.js';
+export { tabPages } from 'https://core.anawj.com/ui/1.0.0-rc.68/ui/tab-pages.js';
+export { holdKeyboard } from 'https://core.anawj.com/ui/1.0.0-rc.68/ui/keep-keyboard.js';
+export { watchKeyboard } from 'https://core.anawj.com/ui/1.0.0-rc.68/ui/keyboard.js';
+export { LABELS } from 'https://core.anawj.com/ui/1.0.0-rc.68/ui/labels.js';
 
 // (a literal address each, at KIT_VERSION, so the deploy bundle (tools/bundle-logbook.mjs) can take them in)
 let theme = null, modal = null;
-const loadTheme = () => (theme ||= import('https://core.anawj.com/ui/1.0.0-rc.63/theme/index.js'));
-const loadModal = () => (modal ||= import('https://core.anawj.com/ui/1.0.0-rc.63/ui/modal.js'));
+const loadTheme = () => (theme ||= import('https://core.anawj.com/ui/1.0.0-rc.68/theme/index.js'));
+const loadModal = () => (modal ||= import('https://core.anawj.com/ui/1.0.0-rc.68/ui/modal.js'));
 const missing = (e) => console.warn('UI kit not loaded', e);
 
 export let motion = null;
-export const loadMotion = () => import('https://core.anawj.com/ui/1.0.0-rc.63/ui/motion.js').then(m => { motion = m; return m; }, e => { missing(e); return null; });
+export const loadMotion = () => import('https://core.anawj.com/ui/1.0.0-rc.68/ui/motion.js').then(m => { motion = m; return m; }, e => { missing(e); return null; });
 
 export async function startKit({ accent } = {}) {
   if (typeof document === 'undefined') return;   // (node tests)

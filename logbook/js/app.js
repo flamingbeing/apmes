@@ -667,7 +667,7 @@ function leaveScreen(s) {
   // left mid-swipe (a finger caught the glide): the page stays beside, under the finger, as its own still copy (its
   // nodes kept: a touch whose target leaves the page gets no more moves); tabPages hides it once the pages land
   if (live && app.classList.contains('is-paging') && !s.hidden) { s.childNodes.forEach(noIds); s.inert = true; return; }
-  s.replaceChildren(); s.hidden = true; s.inert = false;
+  s.replaceChildren(); s.hidden = true; s.inert = false; s.classList.remove('is-ahead');
 }
 // where the pages beside go: as the page on screen (read all, then set only what changed: a custom property set on #app
 // restyles the whole page, so it is set as a page is drawn, not as a finger lands)
@@ -689,6 +689,60 @@ document.addEventListener('touchstart', e => {
     s.inert = true;
   }
 }, { passive: true, capture: true });
+
+// The tabs beside get a still copy drawn ahead, in an idle moment after each drawing of the page, so a swipe never
+// brings in an empty loading card or an out-of-date copy (owner, 30 Oct 2026: tabs not opened since the app started
+// went blank as they slid in). Never the Add tab or Notes (drawing them takes what was shared in and holds the
+// editor: they keep the copy taken as they were left), Reflections only at its list, and a tab whose code hasn't
+// loaded keeps what it had. Drawn off the page: the page on screen is left as it is (Totals' column fit, kept by its
+// module, is drawn again when Totals is opened).
+const NOT_AHEAD = new Set(['log', 'notes']);
+let aheadQueued = false;
+hooks.drawAhead = () => drawAhead();
+function drawAhead() {
+  if (aheadQueued || !touchScreen()) return;
+  aheadQueued = true;
+  // in an idle moment, and never under a finger or a glide (motion.js afterGesture): drawing a page takes a few frames
+  const idle = fn => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 2000 }) : setTimeout(fn, 300));
+  idle(() => (motion ? motion.afterGesture(ahead) : ahead()));
+  function ahead() {
+    aheadQueued = false;
+    if (!S.user || app.classList.contains('is-paging')) return;
+    const { shown, sel } = barTabOf(S.tab), i = shown.indexOf(sel), was = S.tab;
+    for (const id of [shown[i - 1], shown[i + 1]]) {
+      if (!id || NOT_AHEAD.has(id)) continue;
+      if (id === 'reflect' && !mod.reflect?.reflectAtList()) continue;
+      const t = visibleTabs().find(x => x.id === id);
+      if (!t) continue;
+      let node = null;
+      S.tab = id; hooks.ahead = true;   // (a page reads which tab it is drawn for, and that it is drawn ahead)
+      try { node = t.render(); } catch (err) { console.warn(err); } finally { S.tab = was; hooks.ahead = false; }
+      if (!node || node.classList?.contains('lazy-wait')) continue;
+      const s = screenOf(id);
+      noIds(node);
+      if (s && s.hidden && !s.dataset.live) layAhead(s, node);
+      snaps.set(id, [node.cloneNode(true)]);
+    }
+  }
+}
+// A copy drawn ahead stays in its screen, laid out while hidden (.is-ahead, style.css: fixed, out of sight), so a
+// finger landing only shows it: laid out and painted in the frame after the touch, a whole page made the swipe's moves
+// late. It keeps only what a swipe shows: what fits on the screen from its top, and in a box that scrolls, what fits in
+// the box (Totals' tables: 535 nodes → 157).
+function layAhead(s, node) {
+  s.replaceChildren(node);
+  s.classList.add('is-ahead'); s.inert = true;
+  const cut = [];
+  (function walk(el, limit) {
+    for (const c of el.children) {
+      const r = c.getBoundingClientRect();
+      if (r.top > limit) { cut.push(c); continue; }
+      if (r.bottom <= limit && c.scrollHeight <= c.clientHeight) continue;
+      walk(c, getComputedStyle(c).overflowY === 'visible' ? limit : Math.min(limit, r.bottom));
+    }
+  })(node, innerHeight);
+  cut.forEach(c => c.remove());
+}
 
 function changeScreen(id, scroll = 0) {
   if (S.tab === 'account') mod.account?.flush();
@@ -806,10 +860,10 @@ function render() {
   const dir = slideDirection(lastRendered, tab.id);
   const scr = screenOf(barTabOf(tab.id).sel) || app.firstElementChild;
   for (const s of app.children) if (s !== scr) leaveScreen(s);
-  scr.hidden = false; scr.inert = false; scr.dataset.live = '1';
+  scr.hidden = false; scr.inert = false; scr.dataset.live = '1'; scr.classList.remove('is-ahead');
   fill(scr, inHeader ? null : back, tab.render());
   syncPager(scr);
-  if (touchScreen()) requestAnimationFrame(() => { if (!scr.hidden) placeBeside(scr); });
+  if (touchScreen()) { requestAnimationFrame(() => { if (!scr.hidden) placeBeside(scr); }); drawAhead(); }
   if (tab.id !== 'log') window.scrollTo(0, y);
   // the page on screen, once drawn (not while its code loads); read by tests
   const drawn = !scr.querySelector('.lazy-wait');

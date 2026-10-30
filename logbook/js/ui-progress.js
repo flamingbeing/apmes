@@ -443,7 +443,9 @@ const STALE_MS = 5 * 60 * 1000;
 export function renderTotals() {
   const card = h('section', { class: 'card' });
   // no Refresh button (owner, 30 Oct 2026): counts older than STALE_MS reload in the background, the old ones showing meanwhile
-  if ((!tview.summaries || Date.now() - (tview.at || 0) > STALE_MS) && !tview.loading) loadSummaries();
+  // (drawn ahead for the tab swipe, hooks.ahead: the first load only, never the 5-minute refresh, so a resting Logbook
+  // tab doesn't read every summary again)
+  if ((!tview.summaries || (!hooks.ahead && Date.now() - (tview.at || 0) > STALE_MS)) && !tview.loading) loadSummaries();
   if (tview.loading && !tview.summaries) { add(card, h('p', { class: 'empty' }, 'Loading totals…')); return card; }
   if (tview.error) add(card, h('p', { class: 'tip' }, tview.error));
   // your own column is live (like the Analytics comparison), not the copy loaded when the page opened
@@ -552,6 +554,7 @@ async function loadSummaries() {
   catch (err) { if (gen !== tview.gen) return; tview.summaries = []; tview.error = 'Could not load totals: ' + err.message; }
   tview.loading = false; tview.at = Date.now();
   if (['totals', 'admintotals', 'caselogs', 'caselog', 'progress'].includes(S.tab)) hooks.render();
+  else hooks.drawAhead?.();   // (the tab swipe's copy of Totals)
 }
 
 // Totals' counts (this device): every tag logged, all years (default), or only what counts towards the minimums

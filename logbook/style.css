@@ -1177,6 +1177,9 @@ html.lw-full main:not(:has(.log-card.panes)) { max-width: none; }
    finger lands; main's padding differs by look) and #app clips them, so nothing widens the phone's layout */
 .ui-screens { position: relative; }
 .ui-screen[hidden] { display: none; }
+/* a tab beside drawn ahead (app.js layAhead) stays laid out while hidden, out of the page's flow and scroll, so a finger
+   landing only shows it (same width as when beside, so its layout is kept; !important: over the global [hidden]) */
+.ui-screens > .ui-screen.is-ahead[hidden] { display: block !important; position: fixed; top: 0; left: var(--pg-x, 0); width: var(--pg-w, 100%); visibility: hidden; pointer-events: none; }
 .ui-screens.is-pager { touch-action: pan-y; }
 .ui-screens:is(.is-paging, .is-sliding) { overflow-x: clip; }
 .ui-screens.is-paging > .ui-screen.is-beside { position: absolute; left: var(--pg-x, 0); width: var(--pg-w, 100%); margin-top: var(--pg-y, 0); pointer-events: none; }
