@@ -256,19 +256,54 @@ export function headingFor(between) {
   return null;
 }
 
-function fillCell(tc, list, media) {
+function fillCell(tc, list, media, fixPPr = x => x) {
   const open = tc.match(/^<w:tc(?:\s[^>]*)?>/)[0];
   const tcPr = (tc.match(/<w:tcPr>[\s\S]*?<\/w:tcPr>/) || [''])[0];
   const p0 = parasOf(tc)[0] || '';
   let pPr = (p0.match(/<w:pPr>[\s\S]*?<\/w:pPr>/) || [''])[0];
-  pPr = pPr.replace(/<w:rPr>[\s\S]*?<\/w:rPr>/, '');
+  pPr = fixPPr(pPr.replace(/<w:rPr>[\s\S]*?<\/w:rPr>/, ''));
   return `${open}${tcPr}${paras(pPr, list, media)}</w:tc>`;
+}
+
+// The date reads bottom to top from the top of the cell, as in the template's "Example of a Good Case
+// Reflection"; a filled row is at least DATE_H tall so "21st Dec 2024" fits on one line.
+export const DATE_COL = 1, DATE_H = 1500;
+export function vertical(tcPr) {
+  const td = '<w:textDirection w:val="btLr"/>';
+  if (!tcPr) return `<w:tcPr>${td}</w:tcPr>`;
+  const t = tcPr.replace(/<w:textDirection\b[^>]*\/>/, '');
+  const at = t.search(/<w:(?:tcFitText|vAlign|hideMark|headers|cellIns|cellDel|cellMerge|tcPrChange)\b/);
+  return at < 0 ? t.replace('</w:tcPr>', td + '</w:tcPr>') : t.slice(0, at) + td + t.slice(at);
+}
+const pPrRight = pPr => {
+  const jc = '<w:jc w:val="right"/>';
+  if (!pPr) return `<w:pPr>${jc}</w:pPr>`;
+  if (/<w:jc\b/.test(pPr)) return pPr.replace(/<w:jc\b[^>]*\/>/, jc);
+  const at = pPr.search(/<w:(?:textDirection|textAlignment|textboxTightWrap|outlineLvl|divId|cnfStyle|rPr|sectPr|pPrChange)\b/);
+  return at < 0 ? pPr.replace('</w:pPr>', jc + '</w:pPr>') : pPr.slice(0, at) + jc + pPr.slice(at);
+};
+export function minHeight(tr) {
+  const h = `<w:trHeight w:val="${DATE_H}" w:hRule="atLeast"/>`;
+  const m = /<w:trHeight\b[^>]*\/>/.exec(tr);
+  if (m) return Number((/w:val="(\d+)"/.exec(m[0]) || [])[1] || 0) >= DATE_H ? tr.replace(/w:hRule="exact"/, 'w:hRule="atLeast"') : tr.replace(m[0], h);
+  const pr = (/<w:trPr>[\s\S]*?<\/w:trPr>/.exec(tr) || [])[0];
+  if (pr) {
+    const at = pr.search(/<w:(?:tblHeader|tblCellSpacing|jc|hidden|ins|del|trPrChange)\b/);
+    return tr.replace(pr, at < 0 ? pr.replace('</w:trPr>', h + '</w:trPr>') : pr.slice(0, at) + h + pr.slice(at));
+  }
+  return tr.replace(/^(<w:tr(?:\s[^>]*)?>)(<w:tblPrEx>[\s\S]*?<\/w:tblPrEx>)?/, (_, o, x) => `${o}${x || ''}<w:trPr>${h}</w:trPr>`);
 }
 
 function fillRow(proto, r, n, media) {
   const cells = rowCells(r, n);
   let i = 0;
-  return proto.replace(/<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g, tc => fillCell(tc, cells[i++] || [], media));
+  const tr = proto.replace(/<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g, tc => {
+    const k = i++;
+    if (k !== DATE_COL) return fillCell(tc, cells[k] || [], media);
+    const out = fillCell(tc, cells[k] || [], media, pPrRight);
+    return out.replace(/^(<w:tc(?:\s[^>]*)?>)(<w:tcPr>[\s\S]*?<\/w:tcPr>)?/, (_, o, p) => o + vertical(p));
+  });
+  return r ? minHeight(tr) : tr;
 }
 
 // The template's rows carry pre-printed prompts ("JR" in the date cell, a sub-type such as "On pump
@@ -483,10 +518,10 @@ const CELL_W = [1300, 1300, 2300, 4700];
 const HEAD = ['Patient’s Initials', 'Date', 'Diagnosis/ Operations', 'Case details and Learning points'];
 function plainTable(list, min, media) {
   const borders = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(s => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`).join('');
-  const tc = (i, body, shade) => `<w:tc><w:tcPr><w:tcW w:w="${CELL_W[i]}" w:type="dxa"/>${shade ? '<w:shd w:val="clear" w:color="auto" w:fill="D9D9D9"/>' : ''}</w:tcPr>${body}</w:tc>`;
+  const tc = (i, body, shade) => `<w:tc><w:tcPr><w:tcW w:w="${CELL_W[i]}" w:type="dxa"/>${shade ? '<w:shd w:val="clear" w:color="auto" w:fill="D9D9D9"/>' : ''}${!shade && i === DATE_COL ? '<w:textDirection w:val="btLr"/>' : ''}</w:tcPr>${body}</w:tc>`;
   const head = `<w:tr><w:trPr><w:tblHeader/></w:trPr>${HEAD.map((t, i) => tc(i, para('', run(t, true)), true)).join('')}</w:tr>`;
   const n = Math.max(min, list.length);
-  const rows = Array.from({ length: n }, (_, k) => `<w:tr><w:trPr><w:cantSplit/></w:trPr>${rowCells(list[k], list[k] ? k + 1 : 0).map((c, i) => tc(i, paras('', c, media))).join('')}</w:tr>`).join('');
+  const rows = Array.from({ length: n }, (_, k) => `<w:tr><w:trPr><w:cantSplit/>${list[k] ? `<w:trHeight w:val="${DATE_H}" w:hRule="atLeast"/>` : ''}</w:trPr>${rowCells(list[k], list[k] ? k + 1 : 0).map((c, i) => tc(i, paras(i === DATE_COL ? pPrRight('') : '', c, media))).join('')}</w:tr>`).join('');
   return `<w:tbl><w:tblPr><w:tblW w:w="9600" w:type="dxa"/><w:tblBorders>${borders}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${CELL_W.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>${head}${rows}</w:tbl>`;
 }
 
