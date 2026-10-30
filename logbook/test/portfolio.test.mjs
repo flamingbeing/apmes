@@ -51,6 +51,9 @@ assert.equal(rowsOf(xml), total, 'min rows per table, more when needed; transpla
   const dateTcs = (xml.match(/<w:tr>[\s\S]*?<\/w:tr>/g) || []).filter(tr => tr.includes('Mar 2025')).map(tr => tr.match(/<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g)[1]);
   assert.ok(dateTcs.length && dateTcs.every(tc => /<w:tcW [^>]*\/><w:textDirection w:val="btLr"\/><\/w:tcPr>/.test(tc) && /<w:ind w:left="113" w:right="113"\/><w:jc w:val="right"\/>/.test(tc) && !/<w:spacing\b/.test(tc)), 'vertical date');
   assert.ok(/<w:trPr><w:trHeight w:val="1500" w:hRule="atLeast"\/><\/w:trPr>[\s\S]*?Mar 2025/.test(xml), 'filled row min height');
+  const cdDate = (xml.match(/<w:tr>[\s\S]*?<\/w:tr>/g) || []).find(tr => tr.includes('Dec 2024')).match(/<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g)[1];
+  const ps = cdDate.match(/<w:p>[\s\S]*?<\/w:p>/g);
+  assert.ok(ps.length === 2 && !/<w:t[ >]/.test(ps[0]), 'no JR: empty first line keeps the date in line with JR rows');
 }
 assert.ok(xml.indexOf('CD') < xml.indexOf('AB'), 'rows in date order');
 

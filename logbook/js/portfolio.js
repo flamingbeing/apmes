@@ -296,8 +296,11 @@ export function minHeight(tr) {
   return tr.replace(/^(<w:tr(?:\s[^>]*)?>)(<w:tblPrEx>[\s\S]*?<\/w:tblPrEx>)?/, (_, o, x) => `${o}${x || ''}<w:trPr>${h}</w:trPr>`);
 }
 
+// Without JR the date cell keeps an empty first line, so every date sits on the same line.
+const dateLines = (cells, r) => { if (r && !r.jr) cells[DATE_COL] = [[], ...cells[DATE_COL]]; return cells; };
+
 function fillRow(proto, r, n, media) {
-  const cells = rowCells(r, n);
+  const cells = dateLines(rowCells(r, n), r);
   let i = 0;
   const tr = proto.replace(/<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g, tc => {
     const k = i++;
@@ -523,7 +526,7 @@ function plainTable(list, min, media) {
   const tc = (i, body, shade) => `<w:tc><w:tcPr><w:tcW w:w="${CELL_W[i]}" w:type="dxa"/>${shade ? '<w:shd w:val="clear" w:color="auto" w:fill="D9D9D9"/>' : ''}${!shade && i === DATE_COL ? '<w:textDirection w:val="btLr"/>' : ''}</w:tcPr>${body}</w:tc>`;
   const head = `<w:tr><w:trPr><w:tblHeader/></w:trPr>${HEAD.map((t, i) => tc(i, para('', run(t, true)), true)).join('')}</w:tr>`;
   const n = Math.max(min, list.length);
-  const rows = Array.from({ length: n }, (_, k) => `<w:tr><w:trPr><w:cantSplit/>${list[k] ? `<w:trHeight w:val="${DATE_H}" w:hRule="atLeast"/>` : ''}</w:trPr>${rowCells(list[k], list[k] ? k + 1 : 0).map((c, i) => tc(i, paras(i === DATE_COL ? datePPr('') : '', c, media))).join('')}</w:tr>`).join('');
+  const rows = Array.from({ length: n }, (_, k) => `<w:tr><w:trPr><w:cantSplit/>${list[k] ? `<w:trHeight w:val="${DATE_H}" w:hRule="atLeast"/>` : ''}</w:trPr>${dateLines(rowCells(list[k], list[k] ? k + 1 : 0), list[k]).map((c, i) => tc(i, paras(i === DATE_COL ? datePPr('') : '', c, media))).join('')}</w:tr>`).join('');
   return `<w:tbl><w:tblPr><w:tblW w:w="9600" w:type="dxa"/><w:tblBorders>${borders}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${CELL_W.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>${head}${rows}</w:tbl>`;
 }
 
