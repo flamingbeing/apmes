@@ -667,7 +667,7 @@ function leaveScreen(s) {
   // left mid-swipe (a finger caught the glide): the page stays beside, under the finger, as its own still copy (its
   // nodes kept: a touch whose target leaves the page gets no more moves); tabPages hides it once the pages land
   if (live && app.classList.contains('is-paging') && !s.hidden) { s.childNodes.forEach(noIds); s.inert = true; return; }
-  s.replaceChildren(); s.hidden = true; s.inert = false;
+  s.replaceChildren(); s.hidden = true; s.inert = false; s.classList.remove('is-ahead');
 }
 // where the pages beside go: as the page on screen (read all, then set only what changed: a custom property set on #app
 // restyles the whole page, so it is set as a page is drawn, not as a finger lands)
@@ -719,29 +719,28 @@ function drawAhead() {
       try { node = t.render(); } catch (err) { console.warn(err); } finally { S.tab = was; hooks.ahead = false; }
       if (!node || node.classList?.contains('lazy-wait')) continue;
       const s = screenOf(id);
-      if (s && s.hidden && !s.dataset.live) { s.replaceChildren(); trimToScreen(s, node); }   // (an older copy, left from a touch: the next touch takes this one)
-      snaps.set(id, [noIds(node)]);
+      noIds(node);
+      if (s && s.hidden && !s.dataset.live) layAhead(s, node);
+      snaps.set(id, [node.cloneNode(true)]);
     }
   }
 }
-// A copy drawn ahead keeps only what a swipe shows (what fits on the screen from its top): a whole long page laid out
-// and painted in the frame after a finger lands makes the swipe's first move late. Laid out here, once, hidden and out
-// of the flow, in the same idle moment.
-function trimToScreen(s, node) {
-  const cur = screenOf(barTabOf(S.tab).sel);
-  s.append(node);
-  s.style.cssText = `position:fixed;top:0;left:0;width:${cur?.offsetWidth || innerWidth}px;visibility:hidden`;
-  s.hidden = false;
-  const limit = innerHeight, cut = [];
-  (function walk(el) {
+// A copy drawn ahead stays in its screen, laid out while hidden (.is-ahead, style.css: fixed, out of sight), so a
+// finger landing only shows it: laid out and painted in the frame after the touch, a whole page made the swipe's moves
+// late. It keeps only what a swipe shows: what fits on the screen from its top, and in a box that scrolls, what fits in
+// the box (Totals' tables: 535 nodes → 157).
+function layAhead(s, node) {
+  s.replaceChildren(node);
+  s.classList.add('is-ahead'); s.inert = true;
+  const cut = [];
+  (function walk(el, limit) {
     for (const c of el.children) {
       const r = c.getBoundingClientRect();
-      if (r.top > limit) cut.push(c);
-      else if (r.bottom > limit) walk(c);
+      if (r.top > limit) { cut.push(c); continue; }
+      if (r.bottom <= limit && c.scrollHeight <= c.clientHeight) continue;
+      walk(c, getComputedStyle(c).overflowY === 'visible' ? limit : Math.min(limit, r.bottom));
     }
-  })(node);
-  s.hidden = true; s.style.cssText = '';
-  node.remove();
+  })(node, innerHeight);
   cut.forEach(c => c.remove());
 }
 
@@ -861,7 +860,7 @@ function render() {
   const dir = slideDirection(lastRendered, tab.id);
   const scr = screenOf(barTabOf(tab.id).sel) || app.firstElementChild;
   for (const s of app.children) if (s !== scr) leaveScreen(s);
-  scr.hidden = false; scr.inert = false; scr.dataset.live = '1';
+  scr.hidden = false; scr.inert = false; scr.dataset.live = '1'; scr.classList.remove('is-ahead');
   fill(scr, inHeader ? null : back, tab.render());
   syncPager(scr);
   if (touchScreen()) { requestAnimationFrame(() => { if (!scr.hidden) placeBeside(scr); }); drawAhead(); }
