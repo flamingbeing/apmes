@@ -150,6 +150,9 @@ export const openReflection = r => openEditor(r);
 const caseById = id => (id && (S.cases || []).find(c => c.id === id)) || null;
 const caseDate = c => (c.date ? fmtDate(c.date) : c.dateText || '—');
 
+// the list is what Reflections shows (no editor, case picker or sub-page open, no draft to bring back): app.js draws
+// it ahead for the tab swipe only then, as drawing the others takes focus or opens a draft
+export const reflectAtList = () => !rv.view && !rv.picking && !rv.editing && !lsGet()?.restore;
 export function renderReflect() {
   if (rv.view) return subView();
   if (rv.picking) return picker();
