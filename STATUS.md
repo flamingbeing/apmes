@@ -17,6 +17,9 @@
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 30 Oct 2026: Home covers only its own pages (manifest scope `/home/`, shortcuts dropped), like every other APMES
+  app; Settings › Install lists Home (the browser's prompt where it has one), Logbook and Guidebook. Installed Home
+  users may need to remove and re-add it for the new scope.
 - 30 Oct 2026: the installed Home app opens its links in a new window (`target=_blank`, like the tailnet app's tiles),
   so the Logbook and Guidebook open as their own installed apps instead of inside Home's window (scope `/`); in a
   browser tab links stay in the tab. Not yet tried on a phone.

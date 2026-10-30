@@ -1,7 +1,7 @@
 // Home page data and helpers (no browser). Run: node home/test/home.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LINKS, SECTIONS, visibleSections, isInstalled, openAttrs } from '../js/links.js';
+import { LINKS, SECTIONS, visibleSections, isInstalled, openAttrs, installable } from '../js/links.js';
 import { themeFor, switchState, setTheme, followLogbook, HOME_KEY, LOGBOOK_THEME_KEY } from '../js/theme.js';
 import { countRows, hasSignIn, isOn, setOn } from '../js/counts.js';
 import { CATEGORIES } from '../../logbook/js/categories.js';
@@ -34,6 +34,11 @@ test('installed app: links open in a new window (so the Logbook opens as its own
   assert.equal(isInstalled({}), false);
   assert.deepEqual(openAttrs('/logbook/', false), { href: '/logbook/' });
   assert.deepEqual(openAttrs('/logbook/', true), { href: '/logbook/', target: '_blank', rel: 'noopener' });
+});
+
+test('install list: Home first, then each live app on this site, never MedHub', () => {
+  assert.deepEqual(installable().map(a => a.url), ['/home/', '/logbook/', '/guide/']);
+  assert.deepEqual(installable().map(a => a.label), ['APMES Home', 'Logbook', 'Guidebook']);
 });
 
 test('theme follows the Logbook until this page picks one', () => {

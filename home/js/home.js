@@ -1,7 +1,7 @@
 // The APMES home page (apmes.anawj.com/, and /home/ as the installed app): the live apps, MedHub and the guidebook
 // (/guide/), from links.js; the counts card (counts.js, off unless turned on on this device) and a Light / Dark switch
-// (theme.js).
-import { visibleSections, isInstalled, openAttrs } from './links.js';
+// (theme.js), and Settings: the theme and an Install list (each app installs from its own pages).
+import { visibleSections, isInstalled, openAttrs, installable } from './links.js';
 import * as theme from './theme.js';
 import * as counts from './counts.js';
 
@@ -17,6 +17,11 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 const installed = isInstalled();
+
+// the browser's own install prompt for this app (Chrome and Edge; only on /home/, the app's scope), kept for the button
+let deferred = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; paintInstall(); });
+addEventListener('appinstalled', () => { deferred = null; paintInstall(true); });
 
 function row(link) {
   return h('li', {}, h('a', { class: 'a-row', ...openAttrs(link.url, installed) },
@@ -76,7 +81,7 @@ function themeSection() {
   };
   paint();
   return h('section', { 'aria-labelledby': 'h-theme' },
-    h('h2', { class: 'a-section', id: 'h-theme' }, 'This page'),
+    h('h2', { class: 'a-section', id: 'h-theme' }, 'Settings'),
     h('ul', { class: 'a-list' },
       h('li', {}, h('div', { class: 'a-row' }, h('span', { class: 'a-row-text', id: 'h-theme-l' }, 'Theme'), group)),
       h('li', {}, h('button', { type: 'button', class: 'a-row', onclick: () => { theme.followLogbook(store); theme.apply(document, store); paint(); } },
@@ -84,8 +89,31 @@ function themeSection() {
     h('p', { class: 'a-footnote' }, 'Follows the Logbook’s theme on this device until you pick one here.'));
 }
 
+// ---- Install: each app is its own installable app and installs from its own pages ----
+const installList = h('ul', { class: 'a-list' });
+const inHome = location.pathname.startsWith('/home/');
+function paintInstall(done = false) {
+  installList.replaceChildren(...installable().map(app => {
+    if (!app.home) return h('li', {}, h('a', { class: 'a-row', ...openAttrs(app.url, installed) },
+      h('span', { class: 'a-row-text' }, 'Install ' + app.label, h('small', {}, 'Opens it; then install it there')), h('span', { class: 'a-chev', 'aria-hidden': 'true' })));
+    if (installed || done) return h('li', {}, h('div', { class: 'a-row' }, h('span', { class: 'a-row-text' }, app.label, h('small', {}, 'Installed'))));
+    if (deferred) return h('li', {}, h('button', { type: 'button', class: 'a-row', onclick: async () => { const d = deferred; deferred = null; d.prompt(); const r = await d.userChoice.catch(() => null); paintInstall(r?.outcome === 'accepted'); } },
+      h('span', { class: 'a-row-text' }, 'Install ' + app.label, h('small', {}, 'On this phone or computer'))));
+    if (!inHome) return h('li', {}, h('a', { class: 'a-row', href: app.url }, h('span', { class: 'a-row-text' }, 'Install ' + app.label, h('small', {}, 'Opens its app page; then install it there')), h('span', { class: 'a-chev', 'aria-hidden': 'true' })));
+    return h('li', {}, h('div', { class: 'a-row' }, h('span', { class: 'a-row-text' }, 'Install ' + app.label, h('small', {}, 'See how below'))));
+  }));
+}
+paintInstall();
+
+function installSection() {
+  return h('section', { 'aria-labelledby': 'h-install' },
+    h('h2', { class: 'a-section', id: 'h-install' }, 'Install'),
+    installList,
+    h('p', { class: 'a-footnote' }, 'Each app installs on its own and opens only its own pages. Safari: Share › Add to Home Screen. Chrome or Firefox: menu ⋮ › Install (or Add to Home screen).'));
+}
+
 const main = document.getElementById('main');
-main.append(...sections(), countsSection(), themeSection(),
+main.append(...sections(), countsSection(), themeSection(), installSection(),
   h('p', { class: 'a-footnote h-foot' }, 'Unofficial programme tools. They do not replace the official record.'));
 paintCounts();
 
