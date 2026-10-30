@@ -17,6 +17,9 @@
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 30 Oct 2026: the installed Home app opens its links in a new window (`target=_blank`, like the tailnet app's tiles),
+  so the Logbook and Guidebook open as their own installed apps instead of inside Home's window (scope `/`); in a
+  browser tab links stay in the tab. Not yet tried on a phone.
 - 30 Oct 2026: home page as an installable app (manifest id `/home/`, start `/home/`, scope `/`, grid icon in
   `home/icons/`); `home/sw.js` (scope `/home/` only, so it never answers the Logbook's or other apps' pages) keeps it
   offline; e2e step 7. Install from apmes.anawj.com (Share › Add to Home Screen, or Chrome's Install).

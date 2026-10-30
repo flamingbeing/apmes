@@ -1,7 +1,7 @@
 // Home page data and helpers (no browser). Run: node home/test/home.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LINKS, SECTIONS, visibleSections } from '../js/links.js';
+import { LINKS, SECTIONS, visibleSections, isInstalled, openAttrs } from '../js/links.js';
 import { themeFor, switchState, setTheme, followLogbook, HOME_KEY, LOGBOOK_THEME_KEY } from '../js/theme.js';
 import { countRows, hasSignIn, isOn, setOn } from '../js/counts.js';
 import { CATEGORIES } from '../../logbook/js/categories.js';
@@ -24,6 +24,16 @@ test('only live links show; Logbook first; beta apps hidden; the guidebook shown
 
 test('links: inside this site or https only', () => {
   for (const l of LINKS) assert.match(l.url, l.external ? /^https:\/\// : /^\/[a-z0-9]+\/$/, l.label);
+});
+
+test('installed app: links open in a new window (so the Logbook opens as its own app); a browser tab keeps them', () => {
+  const win = (mode, standalone) => ({ navigator: { standalone }, matchMedia: q => ({ matches: q === `(display-mode: ${mode})` }) });
+  assert.equal(isInstalled(win('browser')), false);
+  assert.equal(isInstalled(win('standalone')), true);
+  assert.equal(isInstalled(win('browser', true)), true, "iOS home-screen app");
+  assert.equal(isInstalled({}), false);
+  assert.deepEqual(openAttrs('/logbook/', false), { href: '/logbook/' });
+  assert.deepEqual(openAttrs('/logbook/', true), { href: '/logbook/', target: '_blank', rel: 'noopener' });
 });
 
 test('theme follows the Logbook until this page picks one', () => {

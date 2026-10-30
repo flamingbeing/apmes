@@ -62,6 +62,7 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   const first = page.locator('#main a').first();
   assert.equal(await first.textContent(), 'Open Logbook');
   assert.equal(await first.getAttribute('href'), '/logbook/');
+  assert.equal(await page.locator('#main a[target]').count(), 0, 'in a browser tab links stay in the tab');
   assert.ok((await first.boundingBox()).height >= 48, 'big tap target');
   assert.equal(await page.getByRole('heading', { name: 'MedHub' }).count(), 1);
   assert.equal(await page.locator('a[href^="https://nuhs.medhub.com/"]').count(), 3);
@@ -81,6 +82,18 @@ const shot = (page, name) => SHOTS && page.screenshot({ path: path.join(SHOTS, `
   await page.close();
 }
 
+
+// 1b. as the installed app: every link opens in a new window, so the Logbook (and the others) open as their own app
+{
+  const page = await open({}, "Object.defineProperty(navigator, 'standalone', { value: true });");
+  const links = page.locator('#main a');
+  assert.ok(await links.count() >= 5);
+  for (const a of await links.all()) {
+    assert.equal(await a.getAttribute('target'), '_blank', await a.getAttribute('href'));
+    assert.equal(await a.getAttribute('rel'), 'noopener');
+  }
+  await page.close();
+}
 // 2. the Logbook's dark theme and colours carry over; the page's switch wins and leaves the Logbook's choice alone
 {
   const page = await open({ 'apmes-logbook-theme': 'dark', 'apmes-logbook-accent-css-v2': '@layer theme { :root { --accent: #7a1f5c; --accent-ink: #fff; --accent-soft: #eee; --bg: #fff; --panel: #fff; --ink: #222; --muted: #555; --line: #ddd; } :root[data-theme="dark"] { --accent: #ff9ad5; --accent-ink: #000; --accent-soft: #333; --bg: #000; --panel: #1c1c1e; --ink: #eee; --muted: #bbb; --line: #444; } }' });

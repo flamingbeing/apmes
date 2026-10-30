@@ -1,7 +1,7 @@
 // The APMES home page (apmes.anawj.com/, and /home/ as the installed app): the live apps, MedHub and the guidebook
 // (/guide/), from links.js; the counts card (counts.js, off unless turned on on this device) and a Light / Dark switch
 // (theme.js).
-import { visibleSections } from './links.js';
+import { visibleSections, isInstalled, openAttrs } from './links.js';
 import * as theme from './theme.js';
 import * as counts from './counts.js';
 
@@ -16,9 +16,10 @@ function h(tag, attrs, ...kids) {
   el.append(...kids.flat().filter(x => x != null && x !== false));
   return el;
 }
+const installed = isInstalled();
 
 function row(link) {
-  return h('li', {}, h('a', { class: 'a-row', href: link.url },
+  return h('li', {}, h('a', { class: 'a-row', ...openAttrs(link.url, installed) },
     h('span', { class: 'a-row-text' }, link.label, link.note ? h('small', {}, link.note) : null),
     link.external ? h('span', { class: 'h-ext', 'aria-label': '(another site)' }, '↗') : h('span', { class: 'a-chev', 'aria-hidden': 'true' })));
 }
@@ -28,7 +29,7 @@ function sections() {
     const first = s.links.find(l => l.primary), rest = s.links.filter(l => !l.primary);
     return h('section', { 'aria-labelledby': 'h-' + s.id },
       h('h2', { class: 'a-section', id: 'h-' + s.id }, s.title),
-      first ? h('a', { class: 'a-btn a-btn--block h-primary', href: first.url }, first.label) : null,
+      first ? h('a', { class: 'a-btn a-btn--block h-primary', ...openAttrs(first.url, installed) }, first.label) : null,
       rest.length ? h('ul', { class: 'a-list' }, rest.map(row)) : null,
       s.note ? h('p', { class: 'a-footnote' }, s.note) : null);
   });
@@ -36,7 +37,7 @@ function sections() {
 
 // ---- counts card ----
 const card = h('div', { class: 'a-card h-counts', 'aria-live': 'polite' });
-const msg = (text, link) => [h('p', { class: 'h-msg' }, text), link ? h('a', { class: 'a-btn a-btn--tinted a-btn--block', href: '/logbook/' }, link) : null];
+const msg = (text, link) => [h('p', { class: 'h-msg' }, text), link ? h('a', { class: 'a-btn a-btn--tinted a-btn--block', ...openAttrs('/logbook/', installed) }, link) : null];
 
 async function paintCounts() {
   if (!counts.isOn(store)) { card.hidden = true; return; }
