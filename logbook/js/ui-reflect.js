@@ -259,15 +259,17 @@ async function newCaseForReflection() {
 // ---------- recycle bin / Word upload sub-views ----------
 
 // The bin and Word-upload modules load on first use; a friendly message if they can't.
-async function loadMod(path) {
-  try { return await import(path); } catch (err) { console.warn(err); return null; }
+// (a literal import() each, so the deploy bundle (tools/bundle-logbook.mjs) can find them)
+const MODS = { bin: () => import('./bin.js'), import: () => import('./ui-reflect-import.js') };
+async function loadMod(name) {
+  try { return await MODS[name](); } catch (err) { console.warn(err); return null; }
 }
 function subView() {
   const which = rv.view;
   if (!subTransient?.active) subTransient = transients.open(() => { if (rv.view !== which) return; rv.view = null; hooks.render(); });
   const back = () => subTransient.close();
   const wrap = h('div', {}, h('section', { class: 'card' }, h('p', { class: 'hint' }, 'Loading…')));
-  loadMod(which === 'bin' ? './bin.js' : './ui-reflect-import.js').then(m => {
+  loadMod(which === 'bin' ? 'bin' : 'import').then(m => {
     if (rv.view !== which) return;
     const fn = m && (which === 'bin' ? m.renderBin : m.renderImport);
     let el = null;
@@ -283,7 +285,7 @@ const openView = v => { rv.view = v; rv.editMode = false; rv.sel.clear(); hooks.
 // Move reflections to the recycle bin (restorable for 30 days). Returns how many moved. extra: moveToBin's ({ base }
 // from the editor)
 async function binReflections(list, extra = {}) {
-  const m = await loadMod('./bin.js');
+  const m = await loadMod('bin');
   if (!m || !m.moveToBin) { toast('The recycle bin isn’t available yet, so nothing was deleted.'); return 0; }
   let n = 0;
   for (const r of list) {

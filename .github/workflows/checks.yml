@@ -70,6 +70,8 @@ jobs:
           - { name: Home, cmd: "node home/test/e2e.mjs" }
           - { name: Update core, cmd: "PORT=8110 node logbook/test/e2e/update-core.mjs" }
           - { name: Logbook swipe feel, cmd: "PORT=8110 node logbook/test/e2e/swipe-feel.mjs" }
+          # the deploy bundle (tools/bundle-logbook.mjs), built here the way the deploy builds it
+          - { name: Logbook bundle, cmd: "node tools/bundle-logbook.mjs && PORT=8110 node logbook/test/e2e/bundle-smoke.mjs" }
     name: browser (${{ matrix.name }})
     steps:
       - uses: actions/checkout@v4
