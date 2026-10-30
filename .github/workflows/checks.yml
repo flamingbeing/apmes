@@ -28,9 +28,18 @@ jobs:
         run: node tools/check.mjs
       - name: Unit tests
         run: for f in evals/test/*.test.mjs logbook/test/*.test.mjs people/test/*.test.mjs ccc/test/*.test.mjs home/test/*.test.mjs; do echo "== $f"; node --import ./logbook/test/app-sync-hook.mjs "$f" || exit 1; done
-      - uses: flamingbeing/app-devkit/setup-tools@v1.6.0
+      - uses: flamingbeing/app-devkit/setup-tools@v1.15.0
       - name: Proof-read (pages and documents)
         run: node .devkit/tools/proofread.mjs
+      # What each page loads before it can draw, gzipped (30 Oct 2026: logbook 282 KiB / 62 requests, people 110,
+      # ccc 90, evals 63, home 6). Over budget: load the new screen or extra on first use (import()), don't raise it.
+      - name: Startup budget
+        run: |
+          node .devkit/tools/startup-size.mjs logbook/index.html --max 300 --max-files 70
+          node .devkit/tools/startup-size.mjs people/index.html --max 125 --max-files 25
+          node .devkit/tools/startup-size.mjs ccc/index.html --max 100 --max-files 25
+          node .devkit/tools/startup-size.mjs evals/index.html --max 75 --max-files 18
+          node .devkit/tools/startup-size.mjs home/index.html --max 15 --max-files 10
 
   rules:
     runs-on: ubuntu-24.04

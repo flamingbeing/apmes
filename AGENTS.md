@@ -60,6 +60,10 @@ repo; never copy anything from there into this repo, a PR or an issue (neutral p
 - **App icons** come from anawj-site `tools/app-icons/` (one SVG per app, rendered there): copy its output into each
   app's `icons/` (`icon-maskable-512.png` is saved as `maskable-512.png`), never redraw here. Each manifest's `id` is
   fixed (`/logbook/, /evals/, /people/, /ccc/ (was /360/ until 23 Oct 2026), /guide/`): changing it makes installed copies a different app.
+- **Startup budget** (Checks, "Startup budget"): each page has a cap on the JS it loads before it can draw and on its
+  request count. A new screen or heavy extra loads on first use (logbook: add it to `MODS` in `js/app.js` and to
+  `warmUp`), never in `index.html`'s modulepreloads or a static import from the Add tab. Why: a phone on hospital
+  Wi-Fi waits for every startup file. Over the cap means move code off startup, not raise the cap.
 
 ## Checks before merging
 
