@@ -180,7 +180,10 @@ export function renderSearch() {
   paint();
   // on a computer always; on a phone only when the header's magnifier opened it (its stand-in box holds the keyboard)
   const keys = S.searchKeys; S.searchKeys = null;
-  requestAnimationFrame(() => { if (box.isConnected && (matchMedia('(pointer: fine)').matches || keys) && !sv.sel) box.focus(); if (keys) keys.remove(); });
+  requestAnimationFrame(() => {
+    if (box.isConnected && (matchMedia('(pointer: fine)').matches || keys) && !sv.sel) { if (keys) keys.handTo(box); else box.focus(); }
+    else keys?.release();
+  });
   return wrap;
 }
 

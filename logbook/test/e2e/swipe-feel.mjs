@@ -1,4 +1,4 @@
-// Fake demo data only. The tab swipe's feel (PLAYBOOK responsiveness rules; app-ui motion.js): on a 390 px phone with
+// Fake demo data only. The tab swipe's feel (PLAYBOOK responsiveness rules; app-ui tab-pages.js): on a 390 px phone with
 // the CPU slowed 4x, the page follows the finger within the frame budget, a short quick flick turns the tab, the let-go
 // glides on the compositor (Web Animations, transform only) and a finger landing on the glide catches it.
 // Run alone (frames): PORT=8080 node logbook/test/e2e/swipe-feel.mjs
@@ -13,7 +13,7 @@ try {
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, serviceWorkers: 'block' });
   const p = await ctx.newPage(), errors = [];
   p.on('pageerror', e => errors.push(e.message));
-  await p.goto(base + '?demo#logbook'); await p.waitForSelector('main[data-page="logbook"]');
+  await p.goto(base + '?demo#logbook'); await p.waitForSelector('#app.is-pager > #pg-logbook:not([hidden])');
   await p.waitForFunction(async () => !!(await import('./js/kit.js')).motion);   // the kit's motion module is in
   await nap(1500);   // the kit's theme has finished loading (it sets html.glass late), so frames measure the swipe alone
   const cdp = await ctx.newCDPSession(p);
@@ -46,36 +46,39 @@ try {
     console.log(`  drag frames ${g.length}, over 20 ms ${slow}, worst ${worst.toFixed(1)} ms`);
     assert.ok(slow <= 1 && worst <= 50, `drag frames: ${slow} over 20 ms, worst ${worst.toFixed(1)} ms`);
     clock += 0.1; await touch('touchEnd', 130);
-    await p.waitForFunction(() => location.hash === '#totals' && !document.documentElement.classList.contains('swiping'));
+    await p.waitForFunction(() => location.hash === '#totals' && !document.querySelector('#app.is-paging'));
   });
 
   await step('a short quick flick (60 px) turns the tab', async () => {
     await stroke(300, 12, 5);   // right, back to Logbook
-    await p.waitForFunction(() => location.hash === '#logbook' && !document.documentElement.classList.contains('swiping'), null, { timeout: 4000 });
+    await p.waitForFunction(() => location.hash === '#logbook' && !document.querySelector('#app.is-paging'), null, { timeout: 4000 });
   });
 
   await step('the let-go glides on the compositor (transform keyframes), and a finger catches it where it is', async () => {
-    await p.waitForSelector('main[data-page="logbook"]');
+    await p.waitForSelector('#app.is-pager > #pg-logbook:not([hidden])');
     await stroke(330, -14, 10);   // left, fast: the slide to Totals glides out
     const gl = await p.evaluate(() => document.getAnimations().filter(a => a.effect?.getKeyframes().some(k => k.transform)).length);
     assert.ok(gl >= 2, `page and copy gliding: ${gl} transform animations`);
     await touch('touchStart', 200);   // caught
-    const held = await p.evaluate(() => parseFloat(document.querySelector('#app').style.transform.slice(11)) || 0);
+    // the Logbook page stops under the finger (the kit makes the page it was going to the current one meanwhile)
+    const held = await p.evaluate(() => parseFloat(document.querySelector('#pg-logbook').style.transform.slice(11)) || 0);
     assert.ok(held < -20 && held > -390, `caught mid-glide at ${held} px`);
     await nap(500);
-    assert.equal(await page(), 'logbook', 'a caught glide went on to the next tab');
+    assert.ok(await p.evaluate(() => document.querySelector('#app').classList.contains('is-paging')), 'a caught glide stays held');
     for (let i = 0, x = 200; i < 12; i++) { await nap(16); x += 15; touch('touchMove', x); }   // drag it back
     await nap(150); clock += 0.15; await touch('touchEnd', 380);
-    await p.waitForFunction(() => !document.documentElement.classList.contains('swiping') && !document.querySelector('.swipe-peek'));
+    await p.waitForFunction(() => !document.querySelector('#app.is-paging'));
     assert.equal(await page(), 'logbook', 'dragged back, it should stay');
   });
 
   await step('a throw back cancels a long drag', async () => {
     await touch('touchStart', 360); let x = 360;
     for (let i = 0; i < 22; i++) { await nap(16); x -= 12; touch('touchMove', x); }   // 264 px left
-    for (let i = 0; i < 8; i++) { await nap(16); x += 14; touch('touchMove', x); }   // a quick throw right (its last 100 ms all right), still past a third
+    // a throw right (its last 100 ms all right) that, carried on 200 ms at its speed, stays short of where it began
+    // (the kit's pageStep: one that carries past it turns to the tab before)
+    for (let i = 0; i < 8; i++) { await nap(16); x += 10; touch('touchMove', x); }
     await touch('touchEnd', x);
-    await p.waitForFunction(() => !document.documentElement.classList.contains('swiping'));
+    await p.waitForFunction(() => !document.querySelector('#app.is-paging'));
     assert.equal(await page(), 'logbook');
   });
   assert.deepEqual(errors, [], 'page errors');

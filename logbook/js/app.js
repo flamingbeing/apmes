@@ -12,7 +12,7 @@ import { gripDrag, moveIn } from './drag-list.js';
 import { tabIconPath, cleanTabIcons, pageMotion } from './theme-engine.js';
 import { createNavigation } from './navigation.js';
 import { syncStatus } from './app-sync.js';
-import { motion, loadMotion, tabBack } from './kit.js';
+import { motion, loadMotion, tabBack, tabPages, holdKeyboard, watchKeyboard, LABELS } from './kit.js';
 import { renderNotes, leaveNotes, openDayNote, renderNoteSettings } from './ui-notepad.js';
 import { fromQuery, keepShared, readInbox } from './share-in.js';
 import { purgeExpired } from './bin.js';
@@ -329,7 +329,7 @@ function showFound() {
   // and while the new page slides in it is pinned in place (position: fixed), so the scroll waits for the slide's end
   requestAnimationFrame(() => requestAnimationFrame(function find() {
     if (sliding) { afterSlide = find; return; }
-    const n = [...app.querySelectorAll('h2, h3, label.field, label.check, legend, summary')].find(x => optionText(x).replace(/\s+/g, ' ').startsWith(want.slice(0, 60)));
+    const n = [...(app.querySelector(':scope > .ui-screen[data-live]') || app).querySelectorAll('h2, h3, label.field, label.check, legend, summary')].find(x => optionText(x).replace(/\s+/g, ' ').startsWith(want.slice(0, 60)));
     // a link from before an option moved to its page's Advanced page (Themes → Advanced theme settings, TE S2)
     if (!n && SPILL[S.tab] && want) { findAfterRender = want; return go(SPILL[S.tab]); }
     if (!n) return;
@@ -603,21 +603,94 @@ function paintTabs() {
   // same tabs as before: only move the selection, so the bar never blinks while changing tab (swipe included)
   const key = shown.map(id => id + ':' + bar.find(t => t.id === id).label).join('|') + '#' + (document.documentElement.dataset.icons || '') + JSON.stringify(cleanTabIcons(display().tabIcon));   // (a new icon set or tab icon redraws the icons)
   tabsEl.classList.toggle('many', shown.length > 5);
+  ensureScreens(shown);
   if (tabsEl.dataset.key === key && tabsEl.children.length) {
-    for (const b of tabsEl.children) b.setAttribute('aria-selected', String(b.dataset.tab === sel));
+    for (const b of tabsEl.children) {
+      b.setAttribute('aria-selected', String(b.dataset.tab === sel));
+      if (b.dataset.tab === sel) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    }
     tabsEl.hidden = false;
     return;
   }
   tabsEl.dataset.key = key;
+  // a tap goes through tabPages (data-tab-page: its screen), which calls go(); tapping Add again goes to its case box
   fill(tabsEl, ...shown.map(id => bar.find(t => t.id === id)).map(t => h('button', {
-    role: 'tab', 'aria-selected': String(sel === t.id), 'data-tab': t.id, 'aria-label': t.label, title: t.label,   // named even with icons only
-    onclick: () => go(t.id),
+    role: 'tab', 'aria-selected': String(sel === t.id), 'aria-current': sel === t.id ? 'page' : null, 'data-tab': t.id, 'data-tab-page': '#pg-' + t.id,
+    'aria-label': t.label, title: t.label,   // named even with icons only
+    onclick: () => { if (S.tab === t.id && t.id === 'log') focusLog(); },
   }, icon(t.id), h('span', { class: 'lbl' }, t.short || t.label))));
   tabsEl.hidden = false;
 }
 
+// ---------- tab pages (app-ui tab-pages.js) ----------
+// #app is the kit's .ui-screens: one .ui-screen per tab on the bar (#pg-<tab>); a page under a tab (Settings → Layout)
+// is drawn in its tab's screen. tabPages shows a tab's screen, keeps each tab's scroll and, on a phone, swipes between
+// them: the pages follow the finger, the ones beside showing a still copy of each from when it was last left (or a
+// loading card), and land on the kit's spring. Only the page on screen holds the live page: the others are empty
+// until a finger lands (so nothing is on the page twice). History stays navigation.js's (backToFirst off): a tab tapped
+// or swiped to goes through go(), as any link does. Swiping is for the bar's tabs only, never on a page under one,
+// from the tag editor's and Reflections' drag handles, or with Layout's Swipe left or right off (html.swipe-tabs).
+const screenOf = id => app.querySelector(`:scope > .ui-screen[data-tab="${id}"]`);
+const loadingCard = () => h('section', { class: 'card skeleton' }, h('div', { class: 'sk-row' }, h('i'), h('i'), h('i')), h('div', { class: 'sk-box' }), h('div', { class: 'sk-line' }));
+let pager = null, pagerSync = false, pagerTurn = false, noSwipe = false;
+function ensureScreens(shown) {
+  if ([...app.children].some(c => !c.classList.contains('ui-screen'))) app.replaceChildren();   // the landing or loading card
+  for (const s of [...app.children]) if (!shown.includes(s.dataset.tab)) s.remove();
+  for (const id of shown) if (!screenOf(id)) { const s = h('section', { class: 'ui-screen', id: 'pg-' + id, 'data-tab': id }); s.hidden = true; app.append(s); }
+  if (pager && !pager.current().isConnected) { pager.stop(); pager = null; }
+}
+// the screens tabPages works: base(page) shows a tab's screen at once (the copy the swipe showed, until go() draws it);
+// depth() > 0 on a page under a tab, or while this touch may not swipe
+const pagerScreens = {
+  depth: () => (noSwipe || (S.tab && S.tab !== barTabOf(S.tab).sel)) ? 1 : 0,
+  base: async page => {
+    if (pagerSync || !S.user) return;
+    if (!app.classList.contains('is-paging')) for (const s of app.children) s.hidden = s !== page;   // (mid-swipe, tabPages' own)
+    pagerTurn = true;
+    if (!(await go(page.dataset.tab))) { pagerTurn = false; render(); }
+  },
+};
+function syncPager(scr) {
+  pagerSync = true;
+  try {
+    if (!pager) pager = tabPages(tabsEl, { screens: pagerScreens, host: app, slide: false, backToFirst: false });
+    else if (pager.current() !== scr) pager.go(scr);
+  } finally { pagerSync = false; }
+}
+const snaps = new Map();   // bar tab → still copy of its page (inert, no ids), taken when leaving it
+const touchScreen = () => matchMedia('(pointer: coarse)').matches;
+const noIds = n => { if (n.nodeType === 1) { n.removeAttribute('id'); n.querySelectorAll('[id]').forEach(el => el.removeAttribute('id')); } return n; };
+function leaveScreen(s) {
+  const live = s.dataset.live && touchScreen();
+  if (live) snaps.set(s.dataset.tab, [...s.childNodes].map(n => noIds(n.cloneNode(true))));
+  delete s.dataset.live;
+  // left mid-swipe (a finger caught the glide): the page stays beside, under the finger, as its own still copy (its
+  // nodes kept: a touch whose target leaves the page gets no more moves); tabPages hides it once the pages land
+  if (live && app.classList.contains('is-paging') && !s.hidden) { s.childNodes.forEach(noIds); s.inert = true; return; }
+  s.replaceChildren(); s.hidden = true; s.inert = false;
+}
+// where the pages beside go: as the page on screen (read all, then set only what changed: a custom property set on #app
+// restyles the whole page, so it is set as a page is drawn, not as a finger lands)
+function placeBeside(cur) {
+  const at = { '--pg-x': cur.offsetLeft, '--pg-y': cur.offsetTop, '--pg-w': cur.offsetWidth };
+  for (const [k, v] of Object.entries(at)) if (app.style.getPropertyValue(k) !== v + 'px') app.style.setProperty(k, v + 'px');
+}
+// a finger lands: the tabs beside get their copies (before tabPages lays them out), sized as the page on screen
+document.addEventListener('touchstart', e => {
+  noSwipe = !document.documentElement.classList.contains('swipe-tabs') || !!e.target.closest?.('.banner, .dragging, .te-pillitem, .te-handle, .refl-handle, li.refl-row.edit');
+  if (!pager || !S.user || noSwipe) return;
+  const { shown, sel } = barTabOf(S.tab), i = shown.indexOf(sel), cur = screenOf(sel);
+  if (!cur || cur.hidden) return;
+  placeBeside(cur);
+  for (const id of [shown[i - 1], shown[i + 1]]) {
+    const s = id && screenOf(id);
+    if (!s || s.dataset.live || s.firstChild) continue;
+    s.append(...(snaps.get(id) || [loadingCard()]).map(n => n.cloneNode(true)));
+    s.inert = true;
+  }
+}, { passive: true, capture: true });
+
 function changeScreen(id, scroll = 0) {
-  snapPage();   // for swiping back to it (a still copy)
   if (S.tab === 'account') mod.account?.flush();
   if (S.tab === 'notes' && id !== 'notes') leaveNotes();
   if (/^admin/.test(S.tab || '') && !/^admin/.test(id)) mod.admin?.leaveAdmin();
@@ -629,7 +702,9 @@ function changeScreen(id, scroll = 0) {
   window.scrollTo(0, 0);
   render();
   // the inverted Add tab always opens at the bottom, where the case box is (not where it was left)
-  requestAnimationFrame(() => { if (S.tab === id) window.scrollTo(0, id === 'log' && invertedCase() ? document.documentElement.scrollHeight : scroll); });
+  // (a tab tabPages went to takes the scroll it had, tabPages' own)
+  const turn = pagerTurn; pagerTurn = false;
+  requestAnimationFrame(() => { if (S.tab === id && (!turn || (id === 'log' && invertedCase()))) window.scrollTo(0, id === 'log' && invertedCase() ? document.documentElement.scrollHeight : scroll); });
 }
 // Settings → Layout: the Add tab upside down, on a phone-width screen
 const invertedCase = () => document.documentElement.classList.contains('case-inverted') && matchMedia('(max-width: 600px)').matches;
@@ -644,7 +719,8 @@ const navigation = createNavigation({ history, location,
   parents: Object.fromEntries(TABS.filter(t => t.under).map(t => [t.id, t.under])),
   allowed: id => visibleTabs().some(t => t.id === id),
   onNavigate: changeScreen, getScroll: () => window.scrollY,
-  tabBack, events: window, isTab: id => barShown().includes(id), firstTab: startTab });
+  tabBack, events: window, isTab: id => barShown().includes(id), firstTab: startTab,
+  onClose: () => toast(LABELS.backAgain, { ms: 2000 }) });
 async function go(id) {
   await transients.dismissAll();
   if (S.tab === id) { if (id === 'log') focusLog(); return true; }
@@ -728,10 +804,15 @@ function render() {
   // Themes → Page titles in the header: the page's name ("Logbook") instead of the app's
   setPageLabel(tab.label);
   const dir = slideDirection(lastRendered, tab.id);
-  fill(app, inHeader ? null : back, tab.render());
+  const scr = screenOf(barTabOf(tab.id).sel) || app.firstElementChild;
+  for (const s of app.children) if (s !== scr) leaveScreen(s);
+  scr.hidden = false; scr.inert = false; scr.dataset.live = '1';
+  fill(scr, inHeader ? null : back, tab.render());
+  syncPager(scr);
+  if (touchScreen()) requestAnimationFrame(() => { if (!scr.hidden) placeBeside(scr); });
   if (tab.id !== 'log') window.scrollTo(0, y);
   // the page on screen, once drawn (not while its code loads); read by tests
-  const drawn = !app.querySelector('.lazy-wait');
+  const drawn = !scr.querySelector('.lazy-wait');
   if (drawn) app.dataset.page = tab.id; else delete app.dataset.page;
   if (findAfterRender) { if (drawn) showFound(); }   // (kept until the page is drawn)
   // the inverted Add tab (Settings → Layout, phones) opens at the bottom, where the case box is
@@ -748,7 +829,7 @@ let lastRendered = '';
 // not while swiping or with Reduce motion.
 const depthOf = id => { let n = 0; for (let t = TABS.find(x => x.id === id); t && t.under; t = TABS.find(x => x.id === t.under)) n++; return n; };
 function slideDirection(from, to) {
-  if (!from || from === to || reduceMotion() || document.documentElement.classList.contains('swiping') || !app.firstChild) return 0;
+  if (!from || from === to || reduceMotion() || app.classList.contains('is-paging') || !app.firstChild) return 0;
   if (barTabOf(from).sel !== barTabOf(to).sel) return 0;
   const a = depthOf(from), b = depthOf(to);
   return b > a ? 1 : b < a ? -1 : 0;
@@ -756,7 +837,7 @@ function slideDirection(from, to) {
 // The theme engine's Page motion (theme-engine.js PAGE_MOTIONS) says how: the default slide, an iOS push, Material's
 // shift and fade (which also fades between bar tabs), a fade, or none.
 function tabChangeMotion(from, to) {
-  if (!from || from === to || !pageMotion(display()).tabs || reduceMotion() || document.documentElement.classList.contains('swiping') || !app.firstChild) return false;
+  if (!from || from === to || !pageMotion(display()).tabs || reduceMotion() || app.classList.contains('is-paging') || !app.firstChild) return false;
   return barTabOf(from).sel !== barTabOf(to).sel;
 }
 let sliding = null, afterSlide = null;   // afterSlide: Settings search scrolling to its find once the page stops sliding
@@ -931,18 +1012,7 @@ document.addEventListener('click', e => {
   }));
 });
 
-// Swipe left or right to change tab (Layout, and Show or hide → Header and tabs; on unless switched off on
-// this device: html.swipe-tabs). Like a deck of cards: the page follows the finger and the next tab's page comes in
-// beside it as you drag (a still copy of that page from when it was last left, `snaps`; a plain loading card for a
-// tab not opened yet). Letting go after a quick swipe (≥ 70 px, mostly sideways, < 0.7 s) or past a third of the
-// screen finishes the slide, then the real page takes the copy's place underneath (same spot, same scroll), so
-// nothing pops. Otherwise both spring back. A sub-page counts as the bar tab it sits under. Never from fields,
-// dialogs, drag handles, the tag pills being dragged, anything that scrolls sideways (tables, the date chips) or the
-// screen's edges (the phone's own Back gesture). Works anywhere on the screen, including the empty background under a
-// short page (owner). Reduce motion: no sliding, it just switches.
-let swipe = null;
-const snaps = new Map();   // bar tab → still copy of its page (inert, no ids), taken when leaving it
-const scrollsSideways = el => { for (let n = el; n && n !== document.body; n = n.parentElement) if (n.scrollWidth > n.clientWidth + 2 && /auto|scroll/.test(getComputedStyle(n).overflowX)) return true; return false; };
+// The tab swipe is the kit's (tab-pages.js, above); what follows is shared by the page motion and the edge swipe back.
 const reduceMotion = () => { const c = document.documentElement.classList; return c.contains('rm') || (c.contains('rm-auto') && matchMedia('(prefers-reduced-motion: reduce)').matches); };
 // the bar tab a page sits under, however deep; a tab kept off the bar (Notes) counts as More
 function barTabOf(id) {
@@ -951,23 +1021,6 @@ function barTabOf(id) {
   while (cur && cur.under && !shown.includes(cur.id)) cur = TABS.find(t => t.id === cur.under);
   const sel = cur ? cur.id : id;
   return { shown, sel: shown.includes(sel) ? sel : 'more' };
-}
-const swipeTarget = dx => { const { shown, sel } = barTabOf(S.tab), i = shown.indexOf(sel); return i < 0 ? null : shown[i + (dx < 0 ? 1 : -1)] || null; };
-function snapPage() {
-  if (!document.documentElement.classList.contains('swipe-tabs') || !matchMedia('(pointer: coarse)').matches || !S.tab || !barTabOf(S.tab).shown.includes(S.tab)) return;   // touch screens only
-  const c = app.cloneNode(true);
-  c.removeAttribute('id'); c.removeAttribute('style');
-  c.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
-  snaps.set(S.tab, c);
-}
-// the incoming page: its copy, or a loading card, fixed where the page's top sits when scrolled to the top
-function makePeek(id, top) {
-  const c = (snaps.get(id) || h('main', {}, h('section', { class: 'card skeleton' }, h('div', { class: 'sk-row' }, h('i'), h('i'), h('i')), h('div', { class: 'sk-box' }), h('div', { class: 'sk-line' })))).cloneNode(true);
-  c.className = 'swipe-peek'; c.inert = true; c.setAttribute('aria-hidden', 'true');
-  const r = app.getBoundingClientRect();
-  Object.assign(c.style, { top: top + 'px', left: (r.left - (parseFloat(app.style.transform.slice(11)) || 0)) + 'px', width: r.width + 'px' });
-  document.body.append(c);
-  return c;
 }
 const move = (el, x) => { el.style.transform = x ? `translateX(${x}px)` : ''; };
 // The finger's speed at the let-go (px/ms, its last ~100 ms; motion.js releaseVelocity), from the moves kept on s.
@@ -984,7 +1037,7 @@ function glideX(parts, from, to, v = 0) {
   return { running: () => on, at, done: Promise.all(anims.map(a => a.finished)).then(() => on, () => false),
     stop() { const x = on ? at() : to; on = false; anims.forEach(a => a.cancel()); return x; } };
 }
-// While swiping, the page is pinned where it is (position: fixed over a spacer of its height, so the scroll stays):
+// While it slides (page motion, the edge swipe back), the page is pinned where it is (position: fixed over a spacer of its height, so the scroll stays):
 // a fixed page sliding past the screen's edge doesn't widen the phone's layout viewport, which moved the tab bar.
 // (Clipping overflow on html/body instead stopped Chrome on Android scrolling to the very bottom.)
 let spacer = null;
@@ -998,97 +1051,11 @@ function unpin() {
   if (spacer) { spacer.remove(); spacer = null; }
   Object.assign(app.style, { position: '', top: '', left: '', width: '', margin: '', zIndex: '' });
 }
-function endSwipe(s) {
-  if (s.peek) s.peek.remove();
-  document.documentElement.classList.remove('swiping');
-  move(app, 0); unpin();
-}
-// Let go: the finger's speed goes on into the kit's spring (glideX) and a finger landing on the gliding pages catches
-// them where they are. A quick flick (0.4 px/ms or faster) turns the page however short the move; a throw back cancels.
-let swipeGlide = null;   // { s, glide, off }: the slide finishing or springing back now (off: the copy's place beside)
-const FLICK = 0.4;
+const FLICK = 0.4;   // px/ms: a let-go this quick goes back however short the move
 // a touch that caught a glide presses nothing under it (its click is swallowed, as on iOS)
 let caught = false;
 document.addEventListener('click', e => { if (caught) { e.preventDefault(); e.stopPropagation(); } }, { capture: true });
 const uncatch = () => { if (caught) setTimeout(() => { caught = false; }, 400); };
-document.addEventListener('touchstart', e => {
-  swipe = null;
-  if (!S.user || !document.documentElement.classList.contains('swipe-tabs') || e.touches.length !== 1) return;
-  const t = e.target, x = e.touches[0].clientX, y = e.touches[0].clientY;
-  const g = swipeGlide;
-  if (g && g.glide.running()) {   // caught: the pages stop where they are and follow this finger on from there
-    swipeGlide = null;
-    const at = g.glide.stop(), s = g.s;
-    move(app, at); if (s.peek) move(s.peek, at + g.off);
-    const dx = s.target ? at : at * 4;   // (held back where there's no tab: the page shows a quarter of the move)
-    Object.assign(s, { x: x - dx, y, at: Date.now(), lock: 'x', dx, samples: [[e.timeStamp, x]] });
-    swipe = s;
-    caught = true;
-    return;
-  }
-  if (edge || x < 20 || x > innerWidth - 20) return;   // (edge: a back swipe caught its page)
-  // anywhere on the screen, the background under a short page included; not on the tab bar or a banner
-  if (t.closest('#tabs, .banner, input, textarea, select, dialog, [contenteditable], .dragging, .te-pillitem, .te-handle, .refl-handle, li.refl-row.edit') || scrollsSideways(t)) return;
-  swipe = { x, y, at: Date.now(), lock: '', dx: 0, target: null, peek: null, samples: [[e.timeStamp, x]] };
-}, { passive: true });
-document.addEventListener('touchmove', e => {
-  const s = swipe;
-  if (!s || e.touches.length !== 1) return;
-  const dx = e.touches[0].clientX - s.x, dy = e.touches[0].clientY - s.y;
-  track(s, e.timeStamp, e.touches[0].clientX);
-  if (!s.lock) {
-    if (Math.abs(dy) > 8 && Math.abs(dy) * 2 > Math.abs(dx)) { swipe = null; return; }   // scrolling: leave it alone
-    if (Math.abs(dx) > 8 && Math.abs(dx) > 2 * Math.abs(dy)) {
-      s.lock = 'x';
-      s.top = app.getBoundingClientRect().top + window.scrollY;   // the page's top when scrolled to the top
-      s.peekTop = Math.max(0, s.top - window.scrollY);   // where the new page will sit: no higher than the screen's top
-      document.documentElement.classList.add('swiping');
-      if (!reduceMotion()) pin();
-    } else return;
-  }
-  e.preventDefault();   // sideways now: the page follows the finger (held back where there's no tab to go to)
-  s.dx = dx;
-  if (reduceMotion()) return;
-  const target = swipeTarget(dx);
-  if (target !== s.target) { if (s.peek) s.peek.remove(); s.target = target; s.peek = target ? makePeek(target, s.peekTop) : null; }
-  move(app, target ? dx : dx / 4);
-  if (s.peek) move(s.peek, dx - (dx < 0 ? -innerWidth : innerWidth));
-}, { passive: false });
-const springBack = (s, v = 0) => {
-  const from = parseFloat(app.style.transform.slice(11)) || 0, off = from < 0 ? innerWidth : -innerWidth;
-  const glide = glideX([[app, 0], ...(s.peek ? [[s.peek, off]] : [])], from, 0, s.target ? v : v / 4);
-  swipeGlide = { s, glide, off };
-  glide.done.then(landed => { if (!landed) return; if (swipeGlide?.glide === glide) swipeGlide = null; glide.stop(); endSwipe(s); });
-};
-document.addEventListener('touchcancel', () => { const s = swipe; swipe = null; if (s && s.lock) springBack(s); }, { passive: true });
-document.addEventListener('touchend', async e => {
-  const s = swipe; swipe = null;
-  if (!s || !e.changedTouches.length) return;
-  const dx = e.changedTouches[0].clientX - s.x, dy = e.changedTouches[0].clientY - s.y;
-  const v = speedOf(s, e.timeStamp), back = Math.abs(v) >= FLICK && Math.sign(v) !== Math.sign(dx);
-  const flick = s.lock === 'x' && Math.abs(v) >= FLICK && !back;
-  const quick = Date.now() - s.at <= 700 && Math.abs(dx) >= 70 && Math.abs(dx) >= 2 * Math.abs(dy) && !back;
-  const far = s.lock === 'x' && Math.abs(dx) > innerWidth / 3 && !back;
-  const next = (flick || quick || far) && swipeTarget(dx);
-  if (!next) { if (s.lock) springBack(s, v); return; }
-  if (reduceMotion() || !s.peek || s.target !== next) { endSwipe(s); go(next); return; }
-  // finish the slide: both cards on one spring, so they stay joined
-  const w = dx < 0 ? -innerWidth : innerWidth;
-  const glide = glideX([[app, 0], [s.peek, -w]], dx, w, v);
-  swipeGlide = { s, glide, off: -w };
-  if (!await glide.done) return;   // caught by a finger: it carries on from there
-  if (swipeGlide?.glide === glide) swipeGlide = null;
-  // the real page goes in underneath the copy, at the copy's height on the screen, then the copy goes
-  const peek = s.peek, y = s.top - s.peekTop;
-  move(app, w); move(peek, 0); glide.stop();
-  await go(next);
-  requestAnimationFrame(() => {
-    unpin(); move(app, 0);
-    window.scrollTo(0, y);   // after the screen change's own scroll
-    peek.remove();
-    document.documentElement.classList.remove('swiping');
-  });
-}, { passive: true });
 
 // A live case update shouldn't yank the screen from under someone typing: the Log screen refreshes
 // its counts in place; other screens re-render when nothing is being edited (pendingRender: declared above render()).
@@ -1127,15 +1094,15 @@ function flushRender() {
 // Search: on every tab (log2 9e), a line magnifier in the theme's colours (not an emoji; owner, 16 Oct 2026);
 // / opens it on a computer when you're not typing
 // A tap opens the keyboard too (owner, 29 Oct 2026). Phones only open it for a focus made during the tap itself, and
-// Search loads after the tap, so a hidden stand-in box takes the focus now and hands it to the search box once it is up.
+// Search loads after the tap, so the kit's holdKeyboard (keep-keyboard.js) holds it now and ui-search.js hands it to the
+// search box once it is up.
 const searchBtn = () => h('button', { type: 'button', class: 'who-search', title: 'Search cases, reflections and notes (/)', 'aria-label': 'Search',
   onclick: () => {
     const here = S.tab === 'search' && document.querySelector('input[aria-label="Search everything"]');
     if (here) { here.focus(); return; }
     if (matchMedia('(pointer: coarse)').matches) {
-      const k = h('input', { type: 'search', 'aria-hidden': 'true', tabindex: '-1', style: 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0' });
-      document.body.append(k); k.focus();
-      S.searchKeys = k; setTimeout(() => { if (S.searchKeys === k) S.searchKeys = null; k.remove(); }, 3000);
+      const k = S.searchKeys = holdKeyboard();
+      setTimeout(() => { if (S.searchKeys === k) S.searchKeys = null; }, 3000);   // (the kit's stand-in is gone by then too)
     }
     go('search');
   } }, ic('search'));
@@ -1446,14 +1413,15 @@ function keyboardCheck() {
   const root = document.documentElement.style;
   root.setProperty('--kb', kb + 'px');
   root.setProperty('--vvh', Math.round(vh) + 'px');
-  const bar = typing && document.querySelector('.savebar');
-  root.setProperty('--savebar-h', bar ? Math.round(bar.offsetHeight) + 'px' : '120px');
   root.setProperty('--vvt', Math.round(vv && typing ? vv.offsetTop : 0) + 'px');
 }
 // once per frame at most, and again when scrolling settles (iOS reports the keyboard late)
 let kbFrame = 0;
 const kbSoon = () => { if (!kbFrame) kbFrame = requestAnimationFrame(() => { kbFrame = 0; keyboardCheck(); }); };
 keyboardCheck();
+// the kit's keyboard watch: --ui-keyboard-bar-h is the Save bar's height while it rides on the keyboard (ui-log.js marks
+// it data-over-keyboard), for the upside-down Add tab's scroll margin (style.css)
+watchKeyboard();
 document.addEventListener('focusin', () => { kbSoon(); setTimeout(keyboardCheck, 350); });
 document.addEventListener('focusout', () => setTimeout(keyboardCheck, 0));
 (window.visualViewport || window).addEventListener('resize', kbSoon);

@@ -4,18 +4,21 @@
 // steps, Back on another tab goes to the first tab (firstTab()), Back there leaves. A tab tap from a page pushed over
 // a tab (Settings → Layout) first unwinds those pages. Pages under a tab still push, and Back closes them first.
 // isTab(id): the page is on the tab bar. Each entry's trail is the pages pushed since its tab.
+// onClose (given): Press Back again to close (tab-back.js): the first Back on the first tab stays and calls it (a toast);
+// a second one within 2 s leaves. Its guard entry is the first tab's; a page pushed over it doesn't carry the mark.
 export function createNavigation({ history, location, parents, allowed, onNavigate, getScroll = () => 0,
-  tabBack = null, events = null, isTab = () => false, firstTab = () => null }) {
+  tabBack = null, events = null, isTab = () => false, firstTab = () => null, onClose }) {
   const base = () => location.pathname + location.search;
   const url = tab => base() + '#' + tab;
   let active = null, unwindTo = null, wasAway = false;
-  const tabs = tabBack ? tabBack({ history, events, onFirst: () => {} }) : null;   // (sync draws the first tab)
+  const tabs = tabBack ? tabBack({ history, events, onFirst: () => {}, onClose }) : null;   // (sync draws the first tab)
   const read = () => {
     const n = history.state && history.state.logbookNav;
     return n && n.base === base() && allowed(n.tab) && Array.isArray(n.trail) ? n : null;
   };
   const write = (n, replace = false) => {
-    history[replace ? 'replaceState' : 'pushState']({ ...(history.state || {}), logbookNav: n }, '', url(n.tab));
+    const { uiTabGuard, ...rest } = history.state || {};
+    history[replace ? 'replaceState' : 'pushState']({ ...(replace ? history.state : rest), logbookNav: n }, '', url(n.tab));
     active = n; wasAway = !!history.state?.uiTabBack;
   };
   const entry = (tab, trail = [], scroll = 0) => ({ base: base(), tab, trail: trail.slice(-100), scroll });

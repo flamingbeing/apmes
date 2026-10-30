@@ -1172,7 +1172,15 @@ html.lw-narrow main:not(:has(.log-card.panes)) { max-width: 760px; }
 html.lw-wide main:not(:has(.log-card.panes)) { max-width: 1400px; }
 html.lw-full main:not(:has(.log-card.panes)) { max-width: none; }
 /* while a swipe pushes the page sideways (app.js), it never makes the window scroll sideways */
-.swipe-peek { position: fixed; z-index: 5; margin: 0; pointer-events: none; will-change: transform; }
+/* tab pages (app-ui tab-pages.js; app.js): one .ui-screen per bar tab in #app. The browser keeps vertical pans, sideways
+   moves come to the swipe; mid-swipe the pages beside sit over the page on screen's box (--pg-x/-y/-w, measured as the
+   finger lands; main's padding differs by look) and #app clips them, so nothing widens the phone's layout */
+.ui-screens { position: relative; }
+.ui-screen[hidden] { display: none; }
+.ui-screens.is-pager { touch-action: pan-y; }
+.ui-screens:is(.is-paging, .is-sliding) { overflow-x: clip; }
+.ui-screens.is-paging > .ui-screen.is-beside { position: absolute; left: var(--pg-x, 0); width: var(--pg-w, 100%); margin-top: var(--pg-y, 0); pointer-events: none; }
+.ui-screens.is-moving > .ui-screen:not([hidden]) { will-change: transform; }
 /* higher contrast: darker text and stronger lines; "auto" follows the device's Increase contrast; !important
    so it wins over a theme's colours, which sit in a later cascade layer (index.html) */
 html.hc { --ink: #000 !important; --muted: #2e3338 !important; --line: #737a82 !important; --row-alt: #eef0f2 !important; }
@@ -1232,8 +1240,8 @@ html.no-header:not(.who-alert).tabs-top .tabs { padding-top: env(safe-area-inset
   html.case-inverted .log-card .box-wrap { order: 11; }
   html.case-inverted .log-card .savebar { order: 12; }
   /* while typing the Save bar is fixed above the tab bar, below the box here: scrolling the box into view stops
-     short of it, so the bar does not cover the box (--savebar-h is measured in app.js keyboardCheck) */
-  html.case-inverted .log-card .box-wrap textarea { scroll-margin-bottom: calc(var(--savebar-h, 120px) + 12px); }
+     short of it, so the bar does not cover the box (--ui-keyboard-bar-h: the kit's keyboard.js, the bar marked data-over-keyboard) */
+  html.case-inverted .log-card .box-wrap textarea { scroll-margin-bottom: calc(var(--ui-keyboard-bar-h, 120px) + 12px); }
 }
 /* Colourful (Settings → Display): one colour per tab, on its tab button and the headings of its pages
    (body[data-bar] = the bar tab the page sits under). The --t-* shades are worked out in ui-settings.js (tabColourCss):
@@ -1441,7 +1449,7 @@ body.header-back .top .brand h1 { display: block; visibility: hidden; }
 .top .back-row { height: 0; display: flex; align-items: center; }
 .back-row .back-link { display: inline-flex; align-items: center; gap: 2px; min-height: 40px; padding-right: 8px; color: var(--accent); font-weight: 600; text-decoration: none; font-size: calc(17px * var(--fs, 1)); }
 .back-row .back-chev { font-size: 1.7em; line-height: 1; margin: -4px 2px 0 -2px; font-weight: 400; }
-main > .back-row { margin: -6px 0 6px; }
+:is(main, main > .ui-screen) > .back-row { margin: -6px 0 6px; }
 /* the calendar's month name opens a month picker (an invisible month input over it) */
 .lb-monthpick { position: relative; text-align: center; cursor: pointer; min-height: 40px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0 4px; border-radius: calc(8px * var(--round, 1)); }
 .lb-monthpick input[type="month"] { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; opacity: 0; border: 0; padding: 0; cursor: pointer; }
@@ -1899,9 +1907,9 @@ html.wall::after { background: var(--bg); opacity: var(--wall-dim, 0); }
 /* Text on the bare page (hints and lines between cards, the version line) has its own backing of the page colour at
    --wall-scrim, which display.js makes just enough for 4.5:1 over the picture, so the picture needn't be dimmed for
    it. A box-shadow spread widens it without moving the text. */
-html.wall #app > :is(p, label, h2, h3),
-html.wall #app > :not(section, details, dialog, .card) > :is(p, label, h2, h3, h4),
-html.wall #app > :not(section, details, dialog, .card) > details:not(.card) > summary,
+html.wall :is(#app, #app > .ui-screen) > :is(p, label, h2, h3),
+html.wall :is(#app, #app > .ui-screen) > :not(section, details, dialog, .card) > :is(p, label, h2, h3, h4),
+html.wall :is(#app, #app > .ui-screen) > :not(section, details, dialog, .card) > details:not(.card) > summary,
 html.wall #app .fine-print p {
   --scrim: color-mix(in srgb, var(--bg) var(--wall-scrim, 0%), transparent);
   background-color: var(--scrim); box-shadow: 0 0 0 5px var(--scrim); border-radius: calc(6px * var(--round, 1));

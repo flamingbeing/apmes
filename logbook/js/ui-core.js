@@ -34,7 +34,7 @@ export const S = {
   sharedTemplates: [],
   tab: 'log',
   lastScreen: null,    // the page before More (app.js); Send feedback names it, nothing else
-  searchKeys: null,    // the header magnifier's stand-in box holding the phone keyboard until Search is up (app.js)
+  searchKeys: null,    // the header magnifier's hold on the phone keyboard until Search is up (app.js; the kit's holdKeyboard)
 };
 
 // Set by app.js: re-render the current screen, or tell it the case list changed.
