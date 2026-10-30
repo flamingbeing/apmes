@@ -18,13 +18,13 @@
 // tabBack: the kit's Back with tabs (ui/tab-back.js), for navigation.js.
 // KIT_SHELL: every kit file the page loads (early.js, theme.css, the modules and what they import), for sw.js SHELL;
 //   test/kit.test.mjs checks sw.js holds them.
-export const KIT_VERSION = '1.0.0-rc.42';
+export const KIT_VERSION = '1.0.0-rc.62';
 export const KIT = `https://core.anawj.com/ui/${KIT_VERSION}/`;
 export const KIT_CSS = ['theme/theme.css'];
-export const KIT_MODULES = ['theme/addons/colour-grid.js', 'theme/addons/custom-css.js', 'theme/addons/fonts.js', 'theme/addons/icon-sets.js', 'theme/addons/index.js', 'theme/addons/saved-themes.js', 'theme/addons/store.js', 'theme/addons/theme-link.js', 'theme/addons/wallpaper.js', 'theme/choice.js', 'theme/colour.js', 'theme/grid.js', 'theme/guard.js', 'theme/index.js', 'theme/looks.js', 'theme/looks/a.js', 'theme/looks/b.js', 'theme/looks/c.js', 'theme/looks/d.js', 'theme/looks/e.js', 'theme/motion.js', 'theme/palette-css.js', 'theme/presets.js', 'theme/schema.js', 'theme/switch.js', 'ui/dom.js', 'ui/gesture.js', 'ui/labels.js', 'ui/modal.js', 'ui/motion.js', 'ui/tab-back.js'];
+export const KIT_MODULES = ['theme/addons/colour-grid.js', 'theme/addons/custom-css.js', 'theme/addons/fonts.js', 'theme/addons/icon-sets.js', 'theme/addons/index.js', 'theme/addons/saved-themes.js', 'theme/addons/store.js', 'theme/addons/theme-link.js', 'theme/addons/wallpaper.js', 'theme/choice.js', 'theme/colour.js', 'theme/grid.js', 'theme/guard.js', 'theme/index.js', 'theme/looks.js', 'theme/looks/a.js', 'theme/looks/b.js', 'theme/looks/c.js', 'theme/looks/d.js', 'theme/looks/e.js', 'theme/looks/ios.js', 'theme/looks/m.js', 'theme/m3.js', 'theme/motion.js', 'theme/palette-css.js', 'theme/presets.js', 'theme/schema.js', 'theme/switch.js', 'ui/dom.js', 'ui/gesture.js', 'ui/labels.js', 'ui/modal.js', 'ui/motion.js', 'ui/steps.js', 'ui/tab-back.js'];
 export const KIT_SHELL = ['theme/early.js', ...KIT_CSS, ...KIT_MODULES].map(f => KIT + f);
 // Back with tabs (navigation.js): a static import, as the theme add-ons are, at the same version
-export { tabBack } from 'https://core.anawj.com/ui/1.0.0-rc.42/ui/tab-back.js';
+export { tabBack } from 'https://core.anawj.com/ui/1.0.0-rc.62/ui/tab-back.js';
 
 let theme = null, modal = null;
 const loadTheme = () => (theme ||= import(KIT + 'theme/index.js'));
