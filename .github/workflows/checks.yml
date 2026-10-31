@@ -23,12 +23,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: flamingbeing/app-devkit/setup-node@v1.1.0
+      - uses: flamingbeing/app-devkit/setup-node@v1.13.7
       - name: Repo check
         run: node tools/check.mjs
       - name: Unit tests
         run: for f in evals/test/*.test.mjs logbook/test/*.test.mjs people/test/*.test.mjs ccc/test/*.test.mjs home/test/*.test.mjs; do echo "== $f"; node --import ./logbook/test/app-sync-hook.mjs "$f" || exit 1; done
-      - uses: flamingbeing/app-devkit/setup-tools@v1.15.0
+      - uses: flamingbeing/app-devkit/setup-tools@v1.13.7
       - name: Proof-read (pages and documents)
         run: node .devkit/tools/proofread.mjs
       # What each page loads before it can draw, gzipped (30 Oct 2026: logbook 282 KiB / 62 requests, people 110,
@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: flamingbeing/app-devkit/setup-node@v1.1.0
+      - uses: flamingbeing/app-devkit/setup-node@v1.13.7
       - name: Cache rules test tools and emulator
         uses: actions/cache@v4
         with:
@@ -81,10 +81,10 @@ jobs:
         with:
           repository: flamingbeing/rosters
           path: .rosters
-      - uses: flamingbeing/app-devkit/setup-node@v1.1.0
+      - uses: flamingbeing/app-devkit/setup-node@v1.13.7
       - name: Install Playwright
         run: npm install -g playwright@1.56.1
-      - uses: flamingbeing/app-devkit/setup-browser@v1.1.0
+      - uses: flamingbeing/app-devkit/setup-browser@v1.13.7
         with:
           playwright-version: '1.56.1'
           devkit-dir: ''
