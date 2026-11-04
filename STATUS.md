@@ -17,6 +17,9 @@
    (adds the owner-only rules block `logbooks/{email}/guide/{id}`, which deploys live on merge).
 
 ## Recently done
+- 4 Nov 2026: Logbook's signed-out page is the kit's sign-in screen (app-ui rc.90 `signInScreen`, was rc.68): icon,
+  name, one line and a short list on a navy glow; Sign in with Google, Try the demo and the privacy line at the bottom.
+  Evals, People and CCC are not on the UI kit (NUHS design kit), so their sign-in pages stay as they are for now.
 - 30 Oct 2026: Logbook tabs no longer blank mid-swipe: app-ui rc.68 (pager reads no layout in touchstart) and each
   bar tab is drawn ahead, hidden but laid out (`layAhead` in `js/app.js`, cut to the first screen). Also keyboard
   resizes the page (`interactive-widget`) and a dark Android system bar (`background_color`).

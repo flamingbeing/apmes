@@ -355,9 +355,6 @@ table.totals thead th:first-child { left: 0; z-index: 3; }
 .landing { max-width: 520px; margin: 24px auto; text-align: center; }
 .landing h2 { font-size: calc(22px * var(--fs, 1)); margin: 8px 0; }
 .landing p { color: var(--muted); }
-.landing ul { text-align: left; color: var(--ink); padding-left: 20px; }
-.landing .cta { display: grid; gap: 10px; margin: 20px auto 8px; max-width: 320px; }
-.landing img { width: 72px; height: 72px; border-radius: calc(16px * var(--round, 1)); }
 
 /* ---------- toast and banners ---------- */
 
