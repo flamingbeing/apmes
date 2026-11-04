@@ -2204,7 +2204,7 @@ async function run(label, ctxOpts) {
     const q = await ctx.newPage();
     try {
       await q.goto(BASE);
-      await q.getByRole('link', { name: 'Try the demo', exact: true }).click();
+      await q.getByRole('button', { name: 'Try the demo', exact: true }).click();
       await q.waitForSelector('textarea.details');
       await q.locator('button[data-tab=more]').click();
       await q.locator('a[data-go=account]').click();
@@ -2230,7 +2230,7 @@ async function run(label, ctxOpts) {
       await q.goBack(); await q.goBack(); await q.goBack();
       await q.waitForURL(/\?demo#log$/);
       await q.goBack();
-      await q.getByRole('link', { name: 'Try the demo', exact: true }).waitFor();
+      await q.getByRole('button', { name: 'Try the demo', exact: true }).waitFor();
     } finally { await q.close(); }
   });
   await step('navigation: direct Display link and reload retain a parent trail', async () => {

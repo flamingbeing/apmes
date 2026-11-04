@@ -12,7 +12,7 @@ import { gripDrag, moveIn } from './drag-list.js';
 import { tabIconPath, cleanTabIcons, pageMotion } from './theme-engine.js';
 import { createNavigation } from './navigation.js';
 import { syncStatus } from './app-sync.js';
-import { motion, loadMotion, tabBack, tabPages, holdKeyboard, watchKeyboard, LABELS } from './kit.js';
+import { motion, loadMotion, tabBack, tabPages, holdKeyboard, watchKeyboard, LABELS, loadSignIn, leaveSignIn } from './kit.js';
 import { renderNotes, leaveNotes, openDayNote, renderNoteSettings } from './ui-notepad.js';
 import { fromQuery, keepShared, readInbox } from './share-in.js';
 import { purgeExpired } from './bin.js';
@@ -1218,24 +1218,53 @@ setInterval(() => { const now = !!cloud.syncHealth?.().stale; if (now !== wasSta
 
 // ---------- signed out ----------
 
-function renderLanding(error) {
+// The kit's sign-in screen (app-ui signInScreen, loaded only while signed out: kit.js loadSignIn): the icon, name and
+// one line on what the logbook is, a short list of what it does, then Sign in with Google, Try the demo and the
+// privacy line. The logbook keeps no signed-out copy (a sign-out wipes this device), so "Forget this device" never shows.
+// Without the kit (first visit with core.anawj.com unreachable) a plain landing does the same.
+let landing = 0, stopLanding = null;
+function leaveLanding() { landing++; if (stopLanding) { stopLanding(); stopLanding = null; } leaveSignIn(); }
+async function renderLanding(error) {
   tabsEl.hidden = true;
+  const run = ++landing;
   const demoHref = location.pathname + '?demo';
-  fill(app, h('div', { class: 'landing' },
-    h('img', { src: 'icons/icon-192.png', alt: '' }),
-    h('p', { class: 'muted', style: 'margin:0' }, 'Case log for APMES anaesthesia residents'),
-    h('h2', {}, 'Log a case in seconds'),
-    h('p', {}, 'Type the initials and case, tap the suggested tags, save. Your progress against the APMES targets updates as you go.'),
-    h('ul', {},
-      h('li', {}, 'Tag suggestions from what you type (age, BMI, procedure).'),
-      h('li', {}, 'Works offline on your phone; syncs when you are back online.'),
-      h('li', {}, 'Analytics: progress by tag, reflections and trends; Excel download any time.'),
-      h('li', {}, 'Private: only you and the programme admins can see your cases.')),
-    error ? h('p', { class: 'tip' }, error) : null,
-    cloud.enabled ? h('div', { class: 'cta' },
-      h('button', { class: 'primary big', onclick: signIn }, 'Sign in with Google'),
-      cloud.demo ? null : h('a', { class: 'btn', href: demoHref }, 'Try the demo')) : h('p', { class: 'tip' }, 'Sign-in is not configured.'),
-    h('p', { style: 'font-size:calc(13px * var(--fs, 1))' }, 'Anyone with a Google account can keep a private logbook. APMES residents on the programme list also appear on the shared totals (counts only), which only the programme can see.')));
+  const tryDemo = cloud.enabled && !cloud.demo;
+  const note = cloud.enabled ? 'Anyone with a Google account can keep a private logbook. APMES residents on the programme list also appear on the shared totals (counts only), which only the programme can see.' : 'Sign-in is not configured.';
+  const kit = await loadSignIn();
+  if (run !== landing || S.user) return;
+  if (stopLanding) { stopLanding(); stopLanding = null; }
+  if (!kit) {
+    leaveSignIn();
+    fill(app, h('div', { class: 'landing' },
+      h('h2', {}, 'APMES Logbook'),
+      h('p', {}, 'Case log for APMES anaesthesia residents'),
+      error ? h('p', { class: 'tip' }, error) : null,
+      cloud.enabled ? h('div', { class: 'bar' },
+        h('button', { class: 'primary', onclick: signIn }, 'Sign in with Google'),
+        tryDemo ? h('a', { class: 'btn', href: demoHref }, 'Try the demo') : null) : null,
+      h('p', {}, note)));
+    return;
+  }
+  const host = h('div', { class: 'signin-host' });
+  fill(app, host);
+  const auth = cloud.enabled ? {
+    signIn: async () => { await cloud.signIn(); return { ok: true, reason: '' }; },
+    forget: async () => ({ ok: false, reason: '' }),
+    onUser: () => () => {},
+  } : null;
+  stopLanding = kit.signInScreen(host, {
+    name: 'APMES Logbook', tagline: 'Case log for APMES anaesthesia residents', icon: 'icons/icon.svg', accent: '#002f6c',
+    auth, label: 'Sign in with Google',
+    about: h('ul', {},
+      h('li', {}, 'Log a case in seconds, with tag suggestions as you type.'),
+      h('li', {}, 'Works offline; syncs when you are back online.'),
+      h('li', {}, 'Your progress against the APMES targets, any time.')),
+    more: tryDemo ? [{ label: 'Try the demo', onTap: () => location.assign(demoHref), id: 'try-demo' }] : [],
+    note: auth ? note : [error, note].filter(Boolean).join(' '),
+    holdsCopy: () => false,
+  });
+  const said = auth && error ? document.getElementById('sign-in-error') : null;
+  if (said) said.textContent = error;
 }
 
 async function signIn() {
@@ -1342,6 +1371,7 @@ async function onUser(user) {
     return;
   }
   signedInOnce = true;
+  leaveLanding();
   // keep this site's storage (the outbox and the copy on this device); the header warns while saves wait if not
   cloud.guardStorage?.().then(paintSoon, () => {});
   await writes.activate(user.email);
