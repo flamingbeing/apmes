@@ -38,7 +38,10 @@ await ctx.route(/^https:\/\/nuhjuniormonthly\.anawj\.com\//, async route => {
   const f = rel.startsWith('lib/') ? path.join(LIB, rel.slice(4)) : path.join(JM, rel);
   const root_ = rel.startsWith('lib/') ? LIB : JM;
   if (!f.startsWith(root_) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return route.fulfill({ status: 404, body: 'not found' });
-  await route.fulfill({ status: 200, contentType: MIME[f.split('.').pop()] || 'application/octet-stream', body: fs.readFileSync(f) });
+  let body = fs.readFileSync(f);
+  // rosters hides the People links behind PEOPLE_LINKS (js/model.js, false); the steps below drive them, so the served copy turns it on
+  if (rel === 'js/model.js') body = Buffer.from(body.toString().replace(/export const PEOPLE_LINKS = false;/, 'export const PEOPLE_LINKS = true;'));
+  await route.fulfill({ status: 200, contentType: MIME[f.split('.').pop()] || 'application/octet-stream', body });
 });
 await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
 
