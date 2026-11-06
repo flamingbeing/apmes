@@ -101,7 +101,7 @@ rosters checkout sits beside this one (or `ROSTERS_DIR`); without one it skips t
 
 ## Token savers
 
-- One repo per session: `.claude/settings.json` is only read when a session has exactly one repo attached.
+- Sessions start from the owner's private notes and attach the working repos they need (several repos per session is fine). This repo's `.claude/settings.json` applies when you work in this repo.
 - `.claude/settings.json` denies reading `__/` and `vendor/` folders. Add generated files and very large files to its
   `deny` list (edit their build scripts instead), and say so here. Ask the owner if one is really needed.
 - Run only the touched app's tests while iterating and the full run once before merge. Screenshots only for visual
