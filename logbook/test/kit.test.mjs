@@ -10,7 +10,7 @@ const read = f => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 test('kit: one version in kit.js, index.html, sw.js and the js/ files that import it (the add-ons); sw.js keeps every kit file', () => {
   const html = read('index.html'), sw = read('sw.js');
   const js = readdirSync(new URL('../js/', import.meta.url)).filter(f => f.endsWith('.js')).map(f => read(`js/${f}`)).join('\n');
-  const pins = new Set([...(html + sw + js).matchAll(/core\.anawj\.com\/ui\/(\d[^/]*)\//g)].map(m => m[1]));
+  const pins = new Set([...(html + sw + js).matchAll(/core\.anawj\.com\/ui\/(\d[^/]*)\/(?!update\/)/g)].map(m => m[1]));
   assert.deepEqual([...pins], [KIT_VERSION]);
   for (const f of KIT_SHELL) assert.ok(sw.includes(`'${f}'`), `sw.js SHELL keeps ${f}`);
   assert.ok(sw.includes("'js/kit.js'"));

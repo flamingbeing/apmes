@@ -465,7 +465,7 @@ export const canReload = () => !document.querySelector('dialog[open]')
   && !cloud.pendingSaves();
 async function registerSW() {
   if (!('serviceWorker' in navigator) || location.protocol === 'file:' || new URLSearchParams(location.search).has('nosw')) return;
-  try { await (await import('https://core.anawj.com/update/0.2.0/register.js')).register({ app: 'evals', sw: 'sw.js', canReload }); }
+  try { await (await import('https://core.anawj.com/ui/1.0.0-rc.108/update/register.js')).register({ app: 'evals', sw: 'sw.js', canReload }); }
   catch (err) { console.warn('Service worker not registered', err); }
 }
 

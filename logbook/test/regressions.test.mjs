@@ -34,7 +34,7 @@ for (const app of ['logbook', 'evals']) {
   }
   const index = await (await fetch(`https://core.anawj.com/sync/${pin}/index.js`)).text();
   for (const [, mod] of index.matchAll(/from '\.\/(src\/[a-z]+\.js)'/g)) assert.ok(sw.includes(`'https://core.anawj.com/sync/${pin}/${mod}'`), `sw.js precaches ${mod}`);
-  const upd = new Set([...sw.matchAll(/core\.anawj\.com\/update\/([^/]+)\//g), ...read('js/app-version.js').matchAll(/core\.anawj\.com\/update\/([^/]+)\//g)].map(m => m[1]));
+  const upd = new Set([...sw.matchAll(/core\.anawj\.com\/ui\/([^/]+)\/update\//g), ...read('js/app-version.js').matchAll(/core\.anawj\.com\/ui\/([^/]+)\/update\//g)].map(m => m[1]));
   assert.equal(upd.size, 1, 'one update-core version: ' + [...upd]);
   assert.match(sw, /waitForGo: true/, 'sw.js waits for the page\'s go');
 }

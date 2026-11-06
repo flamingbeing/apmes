@@ -5,7 +5,7 @@
 // the hash covers, then a hash of every file the app can serve: its whole folder (the service worker serves any
 // same-origin file cache-first and keeps it until VERSION changes, so SHELL alone isn't enough) plus SHELL files
 // outside it. Tests, tools and notes are left out. Without git history the date is today's.
-// The same run fills each sw.js's `const MANIFEST = {};` line (app-update, core.anawj.com/update/): a hash per SHELL
+// The same run fills each sw.js's `const MANIFEST = {};` line (app-update, core.anawj.com/ui/<version>/update/): a hash per SHELL
 // file, so a phone downloads only the files that changed. An exact-pin address (a version like 0.2.0 in its path) is
 // 'pinned' (never changes); another site's file (the design kit's /v1/) gets this deploy's hash, so it is fetched again.
 // Run: node tools/stamp-versions.mjs [--check]   (--check prints the versions without writing, and fails when a SHELL
@@ -53,7 +53,7 @@ for (const app of [...fs.readdirSync(ROOT), 'home/guide'].filter(d => fs.existsS
   const version = `${base.replace(/-v\d+$/, '')}-${lastChanged(files)}-${h8}`;
   const manifest = {};
   for (const u of [...shellSrc.matchAll(/'([^']+)'/g)].map(x => x[1])) {
-    if (/^https?:/.test(u)) { manifest[u] = /\/\d+\.\d+\.\d+\//.test(new URL(u).pathname) ? 'pinned' : `deploy-${h8}`; continue; }
+    if (/^https?:/.test(u)) { manifest[u] = /\/\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?\//.test(new URL(u).pathname) ? 'pinned' : `deploy-${h8}`; continue; }
     const f = path.join(ROOT, app, u === './' ? 'index.html' : u.split(/[?#]/)[0]);
     if (!fs.existsSync(f) || !fs.statSync(f).isFile()) { console.error(`stamp: ${app}/sw.js SHELL lists ${u}, which doesn't exist`); process.exitCode = 1; continue; }
     manifest[u] = sha(fs.readFileSync(f)).slice(0, 12);

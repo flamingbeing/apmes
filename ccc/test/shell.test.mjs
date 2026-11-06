@@ -27,9 +27,10 @@ const pin = (text, base) => [...new Set([...text.matchAll(new RegExp(base.replac
 const syncPin = pin(fs.readFileSync(path.join(dir, 'js/app-sync.js'), 'utf8'), 'https://core.anawj.com/sync/');
 assert.deepEqual(syncPin, ['0.7.3']);
 assert.deepEqual(pin(sw, 'https://core.anawj.com/sync/'), syncPin, 'sw.js precaches the app-sync version the page imports');
-const updPin = pin(fs.readFileSync(path.join(dir, 'js/update.js'), 'utf8'), 'https://core.anawj.com/update/');
-assert.deepEqual(updPin, ['0.2.0']);
-assert.deepEqual(pin(sw, 'https://core.anawj.com/update/'), updPin, 'sw.js loads the update core the page registers with');
+const updOf = text => [...new Set([...text.matchAll(/core\.anawj\.com\/ui\/(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\/update\//g)].map(m => m[1]))];
+const updPin = updOf(fs.readFileSync(path.join(dir, 'js/update.js'), 'utf8'));
+assert.deepEqual(updPin, ['1.0.0-rc.108']);
+assert.deepEqual(updOf(sw), updPin, 'sw.js loads the update core the page registers with');
 for (const f of ['index', 'src/sync', 'src/writes', 'src/conflict', 'src/store', 'src/outbox', 'src/watchdog', 'src/persist', 'src/status', 'src/firestore', 'src/forget', 'src/registry', 'src/report', 'src/app', 'src/cache'])
   assert.ok(shell.includes(`https://core.anawj.com/sync/${syncPin[0]}/${f}.js`), `app-sync ${f}.js is precached`);
 
