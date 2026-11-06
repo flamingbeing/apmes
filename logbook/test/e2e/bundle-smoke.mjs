@@ -12,7 +12,7 @@ const PAGES = ['log', 'logbook', 'reflect', 'progress', 'notes', 'more', 'caselo
   'export', 'choose', 'admin', 'admintotals', 'adminresidents', 'adminadv', 'tags', 'feedback', 'feedbackinbox'];
 const goHash = (p, id) => p.evaluate(x => { location.hash = '#' + x; }, id).then(() => p.waitForFunction(x => document.getElementById('app').dataset.page === x, id)).catch(err => { throw new Error(`${id}: ${err.message}`); });
 // the core's modules are inside the bundle too (its early.js and the update core still load on their own)
-const coreModule = u => (/^https:\/\/core\.anawj\.com\/(ui|sync)\/[^?#]+\.js/.test(u) && !/theme\/early\.js/.test(u) ? u : null);
+const coreModule = u => (/^https:\/\/core\.anawj\.com\/(ui|sync)\/[^?#]+\.js/.test(u) && !/theme\/early\.js|\/update\/(register|sw-core)\.js/.test(u) ? u : null);
 const source = u => { const m = /\/logbook\/js\/([^/?#]+\.js)/.exec(u); return m && !/^(.+\.b|chunk-[A-Z0-9]+)\.js$/.test(m[1]) ? m[1] : null; };
 
 try {
