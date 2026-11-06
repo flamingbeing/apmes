@@ -1,4 +1,4 @@
-// Offline app shell for APMES CCC, on the shared update core (app-update, core.anawj.com/update/0.2.0/): every SHELL file
+// Offline app shell for APMES CCC, on the shared update core (app-update, core.anawj.com/ui/1.0.0-rc.108/update/): every SHELL file
 // is saved at install or none is (the old copy keeps running), a new version takes over at once and the open page
 // reloads once nobody is typing (js/update.js registers it). The deploy stamps VERSION and MANIFEST
 // (tools/stamp-versions.mjs); change the base (ccc-v1) only when this file's own logic changes. Firebase traffic always
@@ -13,17 +13,17 @@ const SHELL = [
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
   // the sync engine (app-sync), one exact version (js/app-sync.js pins the same one)
   'https://core.anawj.com/sync/0.7.3/index.js', 'https://core.anawj.com/sync/0.7.3/src/sync.js', 'https://core.anawj.com/sync/0.7.3/src/writes.js', 'https://core.anawj.com/sync/0.7.3/src/conflict.js', 'https://core.anawj.com/sync/0.7.3/src/store.js', 'https://core.anawj.com/sync/0.7.3/src/outbox.js', 'https://core.anawj.com/sync/0.7.3/src/watchdog.js', 'https://core.anawj.com/sync/0.7.3/src/persist.js', 'https://core.anawj.com/sync/0.7.3/src/status.js', 'https://core.anawj.com/sync/0.7.3/src/firestore.js', 'https://core.anawj.com/sync/0.7.3/src/forget.js', 'https://core.anawj.com/sync/0.7.3/src/registry.js', 'https://core.anawj.com/sync/0.7.3/src/report.js', 'https://core.anawj.com/sync/0.7.3/src/app.js', 'https://core.anawj.com/sync/0.7.3/src/cache.js',
-  'https://core.anawj.com/update/0.2.0/register.js',
+  'https://core.anawj.com/ui/1.0.0-rc.108/update/register.js',
 ];
 const MANIFEST = {};
-importScripts('https://core.anawj.com/update/0.2.0/sw-core.js');
+importScripts('https://core.anawj.com/ui/1.0.0-rc.108/update/sw-core.js');
 
 AppUpdate.init({
   app: 'ccc', version: VERSION, shell: SHELL, manifest: MANIFEST,
   never: [/\/sw\.js$/, /^\/ccc\/(rate|demo|status)\//],
   runtime: [
     { name: 'kit', match: 'https://design.anawj.com/v1/', strategy: 'stale-while-revalidate', max: 40 },
-    { name: 'pinned', match: /^https:\/\/core\.anawj\.com\/(sync|update)\/\d+\.\d+\.\d+\//, strategy: 'cache-first', max: 40 },
+    { name: 'pinned', match: /^https:\/\/core\.anawj\.com\/(sync|update|ui)\/\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?\//, strategy: 'cache-first', max: 40 },
     { name: 'files', match: url => url.origin === self.location.origin && /\.(m?js|css|json|png|svg|jpe?g|webp|gif|ico|woff2?|ttf|webmanifest)$/i.test(url.pathname), strategy: 'stale-while-revalidate', max: 60 },
   ],
 });

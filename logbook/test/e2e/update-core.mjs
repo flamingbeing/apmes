@@ -1,4 +1,4 @@
-// Fake data only. The three service workers on the shared update core (app-update, core.anawj.com/update/: the logbook on 0.2.0, the others on 0.1.0):
+// Fake data only. The three service workers on the shared update core (app-update, core.anawj.com/ui/1.0.0-rc.108/update/):
 // each installs its whole SHELL, opens offline (the guidebook on the page asked for, not the contents page), and a new
 // deploy (another VERSION in sw.js) takes over by itself with one reload of the open page (the logbook, on
 // update-v0.2.0: only once nobody is typing), keeping the share inbox

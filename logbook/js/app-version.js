@@ -6,7 +6,7 @@
 // coming back online and every 3 h. retryUpdate(): try an update that is waiting now (the reason to wait has gone).
 
 // the page module of the update core, the exact version sw.js loads (and keeps offline in SHELL)
-export const UPDATE_CORE = 'https://core.anawj.com/update/0.2.0/register.js';
+export const UPDATE_CORE = 'https://core.anawj.com/ui/1.0.0-rc.108/update/register.js';
 
 // loaded with import() so the app still runs when the core's site can't be reached (the worker then stays as it is)
 let core = null;

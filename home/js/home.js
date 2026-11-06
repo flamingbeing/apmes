@@ -121,4 +121,4 @@ paintCounts();
 // through the shared update core (app-update, the exact version sw.js loads); import() so the page still works when
 // the core's site can't be reached
 if ('serviceWorker' in navigator && isSecureContext && !new URLSearchParams(location.search).has('nosw'))
-  import('https://core.anawj.com/update/0.2.0/register.js').then(m => m.register({ app: 'home', sw: '/home/sw.js' })).catch(() => {});
+  import('https://core.anawj.com/ui/1.0.0-rc.108/update/register.js').then(m => m.register({ app: 'home', sw: '/home/sw.js' })).catch(() => {});

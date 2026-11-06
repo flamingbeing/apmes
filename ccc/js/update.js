@@ -1,7 +1,7 @@
 // CCC's offline copy and updates, on the shared update core (app-update), the exact version sw.js loads. A new version
 // takes over at once, but the page reloads only when `canReload` says nobody is typing, no sheet is open and no change is
 // sending. Loaded with import() so the app still runs when the core's site can't be reached.
-export const UPDATE_CORE = 'https://core.anawj.com/update/0.2.0/register.js';
+export const UPDATE_CORE = 'https://core.anawj.com/ui/1.0.0-rc.108/update/register.js';
 let core = null;
 
 export async function startUpdates({ canReload, beforeReload } = {}) {
